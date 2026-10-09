@@ -120,6 +120,8 @@ interface DataTableProps<T extends { id: number }> {
    * the fixed layout.
    */
   tableId?: string
+  /** Extra classes for one row — e.g. the rows that wait for this user. */
+  rowClassName?: (row: T) => string | undefined
 }
 
 /** One server page (`useListParams` DEFAULT_PAGE_SIZE) — the first-load skeleton height. */
@@ -138,6 +140,7 @@ export function DataTable<T extends { id: number }>({
   onRetry,
   selection,
   onRowClick: onRowClickProp,
+  rowClassName,
   rowHref,
   emptyTitle,
   emptyDescription,
@@ -487,6 +490,7 @@ export function DataTable<T extends { id: number }>({
                     'border-b border-line transition-colors last:border-0',
                     isSelected ? 'bg-brand-soft/60' : 'hover:bg-surface-2/60',
                     onRowClick && 'cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand',
+                    rowClassName?.(row),
                   )}
                 >
                   {selection && (

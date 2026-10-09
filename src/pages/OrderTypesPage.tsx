@@ -9,8 +9,6 @@ import { IconButton } from '@/components/ui/IconButton'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
-import { Segmented } from '@/components/ui/Segmented'
-import { DecreeTemplatesTab } from '@/features/orders/DecreeTemplatesTab'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
 import { BulkBar } from '@/components/data/BulkBar'
@@ -29,10 +27,9 @@ import {
 } from '@/features/orderTypes/useOrderTypes'
 import { LABEL_CLS } from '@/components/ui/control'
 import { canManageOrderTypes } from '@/auth/canManage'
-import * as roles from '@/auth/roles'
 import { useAuthStore } from '@/store/authStore'
 
-const FILTER_KEYS = ['flow', 'tab'] as const
+const FILTER_KEYS = ['flow'] as const
 
 export function OrderTypesPage() {
   // ⚠️ Yozuv huquqi — `auth/canManage.ts` dagi YAGONA manbadan
@@ -59,6 +56,7 @@ export function OrderTypesPage() {
   })
 
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [toDelete, setToDelete] = useState<OrderType | null>(null)
   const [editing, setEditing] = useState<OrderType | null>(null)
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<{ kind: 'ok' | 'warn'; text: string } | null>(null)
@@ -103,22 +101,22 @@ export function OrderTypesPage() {
     {
       key: 'actions',
       header: '',
-      headerClassName: 'w-12',
+      headerClassName: 'w-24',
       className: 'pr-4 text-right',
       skeleton: 'w-8',
       cell: (row) =>
         canWrite ? (
-          <IconButton size="sm" label={t('common.edit')} onClick={() => setEditing(row)}>
-            <Pencil size={15} />
-          </IconButton>
+          <span className="inline-flex gap-1">
+            <IconButton size="sm" label={t('common.edit')} onClick={() => setEditing(row)}>
+              <Pencil size={15} />
+            </IconButton>
+            <IconButton size="sm" label={t('common.delete')} onClick={() => setToDelete(row)}>
+              <Trash2 size={15} className="text-danger" />
+            </IconButton>
+          </span>
         ) : null,
     },
   ]
-
-  /* The .docx templates a category renders from live next to the categories
-     themselves — they are two halves of one setup, and the templates screen
-     had no home anywhere in the app before this. */
-  const tab = filters.tab === 'templates' ? 'templates' : 'types'
 
   return (
     <PageContainer>
@@ -126,41 +124,13 @@ export function OrderTypesPage() {
         title={t('orderTypes.title')}
         subtitle={t('orderTypes.subtitle')}
         actions={
-          canWrite && tab === 'types' ? (
+          canWrite ? (
             <Button leftIcon={<Plus size={16} />} onClick={() => setCreating(true)}>
               {t('orderTypes.create')}
             </Button>
           ) : undefined
         }
       />
-
-      <div className="mb-4">
-        <Segmented
-          value={tab}
-          onChange={(v) => setFilter('tab', v === 'types' ? '' : v)}
-          options={[
-            { value: 'types', label: t('orderTypes.tabTypes') },
-            { value: 'templates', label: t('decreeTemplates.title') },
-          ]}
-        />
-      </div>
-
-      {/*
-        ⚠️ THE TEMPLATE TAB HAS A NARROWER GATE THAN THE CATEGORY TAB, and I got
-        this wrong when the screen was written. `order-act-categories` is
-        `_require_category_manager` (HR or master-admin), but
-        `order-act-category-templates` is `require_roles("admin","master-admin")`
-        — HR is NOT admitted. Handing `canWrite` (which includes HR) straight to
-        the templates tab therefore promised HR an upload that the server answers
-        with 403; verified live.
-      */}
-      {tab === 'templates' && (
-        <DecreeTemplatesTab
-          canWrite={roles.isSiteMasterAdmin(currentUser) || roles.isBranchAdmin(currentUser)}
-        />
-      )}
-      {tab === 'types' && (
-        <>
 
       {notice && (
         <div
@@ -233,6 +203,27 @@ export function OrderTypesPage() {
         confirmLabel={t('common.delete')}
       />
 
+      <ConfirmDialog
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={async () => {
+          const row = toDelete
+          setToDelete(null)
+          if (!row) return
+          try {
+            await remove.mutateAsync(row.id)
+          } catch {
+            return
+          }
+          invalidate()
+          setNotice({ kind: 'ok', text: t('orderTypes.deletedOne') })
+        }}
+        danger
+        title={t('orderTypes.deleteOneTitle')}
+        description={t('orderTypes.deleteOneConfirm', { name: toDelete?.name ?? '' })}
+        confirmLabel={t('common.delete')}
+      />
+
       <OrderTypeModal
         open={creating || !!editing}
         value={editing}
@@ -259,8 +250,6 @@ export function OrderTypesPage() {
           }
         }}
       />
-        </>
-      )}
     </PageContainer>
   )
 }
