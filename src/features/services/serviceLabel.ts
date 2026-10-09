@@ -20,3 +20,17 @@ export function serviceLabel(code: string, fallback: string): string {
   const translate = i18n.t as unknown as (k: string) => string
   return i18n.exists(key) ? translate(key) : fallback
 }
+
+/** Katalog tavsifi (TZ I1 1592–1595) — xuddi shu sabab bilan lug'atdan, server matni zaxira. */
+export function serviceDescription(code: string, fallback?: string | null): string {
+  const key = `svc.desc_${code}`
+  const translate = i18n.t as unknown as (k: string) => string
+  return i18n.exists(key) ? translate(key) : (fallback ?? '')
+}
+
+/** Nega yopiq: mehmon arizasi — faqat mehmon, qolgani — faqat UGE xodimi. */
+export function serviceClosedReason(code: string, fallback?: string | null): string {
+  const key = code === 'job_application' ? 'svc.reasonGuestOnly' : 'svc.reasonEmployeeOnly'
+  const translate = i18n.t as unknown as (k: string) => string
+  return i18n.exists(key) ? translate(key) : (fallback ?? '')
+}
