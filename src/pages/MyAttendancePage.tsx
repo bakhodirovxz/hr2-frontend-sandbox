@@ -1,288 +1,269 @@
-import { useMemo, useState } from 'react'
-import { isScheduledWeekday } from '@/lib/workCycle'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { CalendarClock, ChevronLeft, ChevronRight, Clock, LogIn, TimerOff } from 'lucide-react'
-import { Card, CardBody, CardHeader } from '@/components/ui/Card'
-import { IconButton } from '@/components/ui/IconButton'
-import { Spinner } from '@/components/ui/Spinner'
-import { Tooltip } from '@/components/ui/Tooltip'
+import { Briefcase, CalendarClock, CalendarDays, Clock, GraduationCap, LogIn, Route, TimerOff } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
+import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Segmented } from '@/components/ui/Segmented'
+import { Spinner } from '@/components/ui/Spinner'
+import { LoadError } from '@/components/data/LoadError'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
-import { cn } from '@/lib/cn'
-import { monthTitle } from '@/lib/format'
+import { apiGet } from '@/api/http'
+import { isPlainEmployee } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
+import { MonthCalendar, type CalendarEmployee } from '@/features/attendance/MonthCalendar'
+import { dmy, formatHours } from '@/features/attendance/period'
 import { useAttendance } from '@/features/attendance/useAttendance'
-import { useMonthEvents, formatDayRange, type DayEvents } from '@/features/attendance/useDayEvents'
-import { DayDetailModal } from '@/features/attendance/DayDetailModal'
-import {
-  CAL_COLOR,
-  CAL_LABEL,
-  LEGEND_STATUSES,
-  mapCalStatus,
-  type CalStatus,
-} from '@/features/attendance/attendanceStatus'
-import { useMonthDocuments } from '@/features/attendance/useDayDocuments'
-import { useHolidayRange, holidayOn, type Holiday } from '@/features/holidays/useHolidays'
 
-interface Cell {
-  date: string
-  day: number
-  status: CalStatus
-  /** No record and none expected — a day that hasn't happened yet. */
-  future: boolean
-  today: boolean
-  holiday?: Holiday
+interface MyEmployee extends CalendarEmployee {
+  legal_name?: string | null
+  photo_path?: string | null
+  photo_thumb_path?: string | null
+  job_position?: { name?: string | null } | null
+  department?: { name?: string | null; organization_branch_id?: number | null } | null
+  educations?: { id?: number; institution_name?: string | null; faculty_name?: string | null; degree_name?: string | null; start_date?: string | null; end_date?: string | null }[]
+  work_experiences?: { id?: number; company_name?: string | null; position?: string | null; start_date?: string | null; end_date?: string | null }[]
 }
 
+interface CareerRow {
+  job_position?: { name?: string | null } | null
+  department?: { name?: string | null } | null
+  from?: string | null
+  to?: string | null
+  basis?: string | null
+}
+
+/**
+ * DAVOMATIM (TZ I2, v1 `MyAttendancePage`): o'z oylik kalendari — bayramlar va
+ * kadr buyrug'i asosidagi holatlar (ta'til, safar, kasallik) bilan, kunni
+ * bosib reja/fakt va turniket o'tishlarini ko'rish. Oddiy xodim faqat
+ * kalendarni ko'radi; qolganlarga «Karyera» tabi ham (tashkilotdagi
+ * lavozimlar tarixi, ta'lim, ish tajribasi).
+ */
 export function MyAttendancePage() {
   const { t } = useTranslation()
-  const employee = useAuthStore((s) => s.user?.employee)
-  const employeeId = employee?.id
+  const user = useAuthStore((s) => s.user)
+  const employeeId = user?.employee?.id
+  const plain = isPlainEmployee(user)
+  const [tab, setTab] = useState<'calendar' | 'career'>('calendar')
   const [month, setMonth] = useState(() => dayjs().startOf('month'))
-  const [openDate, setOpenDate] = useState<string | null>(null)
 
-  const today = dayjs()
-  const isCurrentMonth = month.isSame(today, 'month')
-  const from = month.startOf('month').format('YYYY-MM-DD')
-  // Never ask beyond today: the backend walks every day in the range and files
-  // the ones with no events as "absent", so requesting the whole month would
-  // paint days that haven't happened yet red — and inflate the absence count.
-  const to = (isCurrentMonth ? today : month.endOf('month')).format('YYYY-MM-DD')
+  const emp = useQuery({
+    queryKey: ['employee', employeeId],
+    queryFn: () => apiGet<MyEmployee>(`employees/${employeeId}`),
+    enabled: !!employeeId,
+  })
 
-  const { rows, loading } = useAttendance({ from, to, page: 1, size: 1, employeeId })
-  // Strictly the signed-in employee. `?? rows[0]` would show somebody else's
-  // attendance as your own the moment the filter stops being applied.
-  const me = rows.find((r) => r.id === employeeId)
-  const summary = me?.attendance
-  const calendar = summary?.calendar ?? {}
+  if (!employeeId) {
+    return (
+      <PageContainer>
+        <PageHeader title={t('davomat.myTitle')} />
+        <Card className="p-8">
+          <EmptyState icon={<CalendarDays size={22} />} title={t('davomat.noCardTitle')} description={t('davomat.noCardHint')} />
+        </Card>
+      </PageContainer>
+    )
+  }
 
-  const { byDay, loading: eventsLoading } = useMonthEvents(employeeId, month)
-  const monthEnd = month.endOf('month').format('YYYY-MM-DD')
-  const holidays = useHolidayRange(from, monthEnd)
-  const docs = useMonthDocuments(employeeId, from, monthEnd)
-
-  const cells = useMemo(
-    () => buildMonthCells(month, calendar, today, holidays),
-    // `today` is a fresh dayjs each render; the day string is what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [month, calendar, holidays, today.format('YYYY-MM-DD')],
-  )
-  // Yagona manba: `date.weekdaysShort` (dushanbadan).
-  const weekdays = t('date.weekdaysShort', { returnObjects: true }) as unknown as string[]
-  const openCell = cells.find((c) => c && c.date === openDate) ?? null
+  const employee = emp.data
 
   return (
     <PageContainer>
-      <PageHeader title={t('myAttendance.title')} subtitle={t('myAttendance.subtitle')} />
+      <PageHeader title={t('davomat.myTitle')} subtitle={t('davomat.mySubtitle')} />
 
-      {/* Summary stat cards */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={<LogIn size={18} />} tone="--success" label={t('myAttendance.present')} value={summary?.present_days_count ?? 0} />
-        <StatCard icon={<Clock size={18} />} tone="--warning" label={t('myAttendance.late')} value={summary?.late_days_count ?? 0} />
-        <StatCard icon={<TimerOff size={18} />} tone="--danger" label={t('myAttendance.absent')} value={summary?.absent_days_count ?? 0} />
-        <StatCard icon={<CalendarClock size={18} />} tone="--brand" label={t('myAttendance.hours')} value={Math.round(summary?.work_duration_hours ?? 0)} />
-      </div>
-
-      <Card>
-        <CardHeader
-          title={t('myAttendance.calendar')}
-          action={
-            <div className="flex items-center gap-2">
-              <IconButton size="sm" label={t('myAttendance.prevMonth')} onClick={() => setMonth((m) => m.subtract(1, 'month'))}>
-                <ChevronLeft size={16} />
-              </IconButton>
-              <span className="min-w-32 text-center text-sm font-semibold text-fg">
-                {monthTitle(month)}
-              </span>
-              <IconButton size="sm" label={t('myAttendance.nextMonth')} onClick={() => setMonth((m) => m.add(1, 'month'))} disabled={isCurrentMonth}>
-                <ChevronRight size={16} />
-              </IconButton>
-            </div>
-          }
-        />
-        <CardBody>
-          {loading ? (
-            <div className="flex h-64 items-center justify-center"><Spinner /></div>
-          ) : !summary ? (
-            <EmptyState title={t('myAttendance.empty')} />
-          ) : (
-            <div>
-              {/* weekday header */}
-              <div className="mb-2 grid grid-cols-7 gap-2">
-                {weekdays.map((w) => (
-                  <div key={w} className="text-center text-[11.5px] font-semibold text-fg-subtle">
-                    {w}
-                  </div>
-                ))}
-              </div>
-              {/* day cells */}
-              <div className="grid grid-cols-7 gap-2">
-                {cells.map((cell, i) =>
-                  cell === null ? (
-                    <div key={`e${i}`} />
-                  ) : (
-                    <DayCell
-                      key={cell.date}
-                      cell={cell}
-                      events={byDay.get(cell.date)}
-                      lateMinutes={summary.daily_late_minutes?.[cell.date]}
-                      onOpen={() => setOpenDate(cell.date)}
-                    />
-                  ),
-                )}
-              </div>
-
-              {/* legend */}
-              <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-line pt-3">
-                {LEGEND_STATUSES.map((s) => (
-                  <span key={s} className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted">
-                    <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: `rgb(var(${CAL_COLOR[s]}))` }} />
-                    {t(`attendance.${CAL_LABEL[s]}`)}
-                  </span>
-                ))}
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted">
-                  <span className="h-2 w-2 rounded-sm bg-brand" />
-                  {t('myAttendance.holiday')}
-                </span>
-              </div>
-              {eventsLoading && (
-                <p className="mt-2 text-[11px] text-fg-subtle">{t('myAttendance.loadingTimes')}</p>
-              )}
-            </div>
-          )}
-        </CardBody>
-      </Card>
-
-      <DayDetailModal
-        date={openDate}
-        status={openCell?.status ?? 'day_off'}
-        day={openDate ? byDay.get(openDate) : null}
-        lateMinutes={openDate ? summary?.daily_late_minutes?.[openDate] : undefined}
-        workingStart={hhmm(employee?.working_hours_start)}
-        workingEnd={hhmm(employee?.working_hours_end)}
-        isWorkingDay={openDate ? isScheduledWeekday(employee, openDate) : true}
-        documents={docs.forDate(openDate)}
-        onClose={() => setOpenDate(null)}
-      />
+      {emp.isLoading ? (
+        <div className="flex h-64 items-center justify-center">
+          <Spinner />
+        </div>
+      ) : emp.error || !employee ? (
+        <LoadError error={emp.error} onRetry={emp.refetch} />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+          <ProfileCard employee={employee} />
+          <div className="min-w-0">
+            {!plain && (
+              <Segmented
+                className="mb-4 w-fit"
+                value={tab}
+                onChange={setTab}
+                options={[
+                  { value: 'calendar', label: t('davomat.tabCalendar'), icon: <CalendarDays size={14} /> },
+                  { value: 'career', label: t('davomat.tabCareer'), icon: <Briefcase size={14} /> },
+                ]}
+              />
+            )}
+            {tab === 'career' && !plain ? (
+              <CareerPanel employee={employee} />
+            ) : (
+              <>
+                <MonthStats employeeId={employee.id} month={month} />
+                <Card className="p-4">
+                  <MonthCalendar employee={employee} month={month} onMonthChange={setMonth} />
+                </Card>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </PageContainer>
   )
 }
 
-function DayCell({
-  cell,
-  events,
-  lateMinutes,
-  onOpen,
-}: {
-  cell: Cell
-  events?: DayEvents
-  lateMinutes?: number
-  onOpen: () => void
-}) {
+function ProfileCard({ employee }: { employee: MyEmployee }) {
   const { t } = useTranslation()
-  const range = formatDayRange(events)
-
-  // A future day carries no verdict — it gets an outline and nothing else.
-  // ⚠️ Except a HOLIDAY, which is known in advance and is the one thing worth
-  // reading off a future date. It used to differ only by a faintly tinted
-  // border: no dot, no name, nothing the legend's «Bayram» entry pointed at.
-  if (cell.future) {
-    const box = (
-      <div
-        className={cn(
-          'flex h-[68px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-line',
-          cell.holiday && 'border-brand/40',
-        )}
-      >
-        <span className="text-[13px] font-medium tabular-nums text-fg-subtle">{cell.day}</span>
-        {cell.holiday && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand" />}
-      </div>
-    )
-    return cell.holiday ? (
-      <Tooltip text={`${cell.day}-kun — ${cell.holiday.name}`} className="w-full">{box}</Tooltip>
-    ) : (
-      box
-    )
-  }
-
-  const label = cell.holiday
-    ? cell.holiday.name
-    : t(`attendance.${CAL_LABEL[cell.status]}`)
-  const tip = [`${cell.day}-kun — ${label}`, range, lateMinutes ? t('myAttendance.lateBy', { count: lateMinutes }) : '']
-    .filter(Boolean)
-    .join(' · ')
-
+  const hh = (v?: string | null) => (v ? v.slice(0, 5) : '')
+  const hours = employee.working_hours_start && employee.working_hours_end
+    ? `${hh(employee.working_hours_start)}–${hh(employee.working_hours_end)}`
+    : '09:00–18:00'
+  const lunch = employee.lunch_start_time && employee.lunch_end_time
+    ? `${hh(employee.lunch_start_time)}–${hh(employee.lunch_end_time)}`
+    : '13:00–14:00'
   return (
-    <Tooltip text={tip} className="w-full">
-      <button
-        type="button"
-        onClick={onOpen}
-        className={cn(
-          'flex h-[68px] w-full flex-col items-center justify-center rounded-lg border border-line transition-colors hover:border-brand/50',
-          cell.today && 'ring-2 ring-brand ring-offset-2 ring-offset-surface',
-        )}
-        style={{ backgroundColor: `rgb(var(${CAL_COLOR[cell.status]}) / 0.14)` }}
-      >
-        <span className="text-[13px] font-semibold tabular-nums text-fg">{cell.day}</span>
-        {range ? (
-          // The times are the point of "Davomatim" — a coloured dot alone can't
-          // answer "when did I get in".
-          <span className="mt-0.5 text-[10px] leading-none tabular-nums text-fg-muted">{range}</span>
-        ) : (
-          <span className="mt-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: `rgb(var(${CAL_COLOR[cell.status]}))` }} />
-        )}
-        {cell.holiday && <span className="mt-0.5 h-1 w-1 rounded-full bg-brand" />}
-      </button>
-    </Tooltip>
-  )
-}
-
-function StatCard({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: number }) {
-  return (
-    <Card className="flex items-center gap-3 p-4">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `rgb(var(${tone}) / 0.14)`, color: `rgb(var(${tone}))` }}>
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold tabular-nums text-fg">{value}</p>
-        <p className="truncate text-xs text-fg-muted">{label}</p>
+    <Card className="h-fit p-4">
+      <div className="flex flex-col items-center text-center">
+        <Avatar src={employee.photo_thumb_path} fallbackSrc={employee.photo_path} name={employee.legal_name} size={88} />
+        <p className="mt-3 text-[15px] font-semibold text-fg">{employee.legal_name}</p>
+        <p className="mt-0.5 text-[12.5px] text-fg-muted">{employee.job_position?.name || '—'}</p>
       </div>
+      <dl className="mt-4 space-y-2 border-t border-line pt-3 text-[12.5px]">
+        <div className="flex justify-between gap-3">
+          <dt className="text-fg-muted">{t('davomat.colDepartment')}</dt>
+          <dd className="text-right text-fg">{employee.department?.name || '—'}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-fg-muted">{t('davomat.workHours')}</dt>
+          <dd className="tabular-nums text-fg">{hours}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-fg-muted">{t('davomat.lunch')}</dt>
+          <dd className="tabular-nums text-fg">{lunch}</dd>
+        </div>
+      </dl>
     </Card>
   )
 }
 
-/** API sends "09:00:00"; the UI wants "09:00". */
-function hhmm(time?: string | null): string | undefined {
-  return time ? time.slice(0, 5) : undefined
+function MonthStats({ employeeId, month }: { employeeId: number; month: dayjs.Dayjs }) {
+  const { t } = useTranslation()
+  // MonthCalendar bilan AYNAN bir xil so'rov — kesh bitta, tarmoqqa ikkinchi marta chiqmaydi.
+  const { rows } = useAttendance({
+    from: month.startOf('month').format('YYYY-MM-DD'),
+    to: month.endOf('month').format('YYYY-MM-DD'),
+    page: 1,
+    size: 1,
+    employeeId,
+  })
+  const a = rows.find((r) => r.id === employeeId)?.attendance
+  const items = [
+    { icon: <LogIn size={18} />, tone: '--success', label: t('davomat.statPresent'), value: t('davomat.nDays', { n: a?.present_days_count ?? 0 }) },
+    { icon: <Clock size={18} />, tone: '--warning', label: t('davomat.statLate'), value: t('davomat.nTimes', { n: a?.late_days_count ?? 0 }) },
+    { icon: <TimerOff size={18} />, tone: '--danger', label: t('davomat.statAbsent'), value: t('davomat.nDays', { n: a?.absent_days_count ?? 0 }) },
+    { icon: <CalendarClock size={18} />, tone: '--brand', label: t('davomat.statHours'), value: t('davomat.nHours', { n: formatHours(a?.work_duration_hours) }) },
+  ]
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {items.map((s) => (
+        <Card key={s.label} className="flex items-center gap-3 p-3.5">
+          <span
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+            style={{ backgroundColor: `rgb(var(${s.tone}) / 0.14)`, color: `rgb(var(${s.tone}))` }}
+          >
+            {s.icon}
+          </span>
+          <div className="min-w-0">
+            <p className="text-lg font-bold tabular-nums text-fg">{s.value}</p>
+            <p className="truncate text-xs text-fg-muted">{s.label}</p>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
 }
 
-/** Month grid cells, Monday-first, with leading nulls for alignment. */
-function buildMonthCells(
-  month: dayjs.Dayjs,
-  calendar: Record<string, string>,
-  today: dayjs.Dayjs,
-  holidays: Holiday[],
-): (Cell | null)[] {
-  const first = month.startOf('month')
-  const daysInMonth = month.daysInMonth()
-  const lead = (first.day() + 6) % 7 // Monday-first offset
-  const cells: (Cell | null)[] = []
-  for (let i = 0; i < lead; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) {
-    const day = first.date(d)
-    const date = day.format('YYYY-MM-DD')
-    const raw = calendar[date]
-    cells.push({
-      date,
-      day: d,
-      status: mapCalStatus(raw),
-      // Only days with no verdict at all: a leave or trip booked for next week
-      // is real information and stays coloured.
-      future: !raw && day.isAfter(today, 'day'),
-      today: day.isSame(today, 'day'),
-      holiday: holidayOn(holidays, day),
-    })
-  }
-  return cells
+/** Tashkilotdagi lavozimlar tarixi (`employees/{pk}/career`), ta'lim va ish tajribasi. */
+function CareerPanel({ employee }: { employee: MyEmployee }) {
+  const { t } = useTranslation()
+  const career = useQuery({
+    queryKey: ['employee-career', employee.id],
+    queryFn: () => apiGet<{ items?: CareerRow[] }>(`employees/${employee.id}/career`),
+  })
+  const period = (a?: string | null, b?: string | null) => `${a ? dmy(a) : '…'} — ${b ? dmy(b) : t('davomat.untilNow')}`
+  const history = career.data?.items ?? []
+
+  return (
+    <div className="grid gap-4">
+      <Card className="p-0">
+        <SectionTitle icon={<Route size={15} />} title={t('davomat.careerHistory')} />
+        {career.isLoading ? (
+          <div className="flex h-24 items-center justify-center">
+            <Spinner />
+          </div>
+        ) : career.error ? (
+          <LoadError error={career.error} onRetry={career.refetch} />
+        ) : history.length === 0 ? (
+          <EmptyState title={t('davomat.noData')} />
+        ) : (
+          <ul className="divide-y divide-line">
+            {history.map((r, i) => (
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-fg">{r.job_position?.name || '—'}</p>
+                  <p className="text-[12px] text-fg-muted">
+                    {[r.department?.name, r.basis].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                </div>
+                <span className="tabular-nums text-[12px] text-fg-subtle">{period(r.from, r.to)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-0">
+          <SectionTitle icon={<Briefcase size={15} />} title={t('davomat.experience')} />
+          {(employee.work_experiences ?? []).length === 0 ? (
+            <EmptyState title={t('davomat.noData')} />
+          ) : (
+            <ul className="divide-y divide-line">
+              {(employee.work_experiences ?? []).map((r, i) => (
+                <li key={r.id ?? i} className="px-4 py-3">
+                  <p className="text-[13px] font-medium text-fg">{r.company_name || '—'}</p>
+                  <p className="text-[12px] text-fg-muted">{r.position || '—'}</p>
+                  <p className="mt-0.5 tabular-nums text-[11px] text-fg-subtle">{period(r.start_date, r.end_date)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card className="p-0">
+          <SectionTitle icon={<GraduationCap size={15} />} title={t('davomat.education')} />
+          {(employee.educations ?? []).length === 0 ? (
+            <EmptyState title={t('davomat.noData')} />
+          ) : (
+            <ul className="divide-y divide-line">
+              {(employee.educations ?? []).map((r, i) => (
+                <li key={r.id ?? i} className="px-4 py-3">
+                  <p className="text-[13px] font-medium text-fg">{r.institution_name || '—'}</p>
+                  <p className="text-[12px] text-fg-muted">{[r.faculty_name, r.degree_name].filter(Boolean).join(' · ') || '—'}</p>
+                  <p className="mt-0.5 tabular-nums text-[11px] text-fg-subtle">{period(r.start_date, r.end_date)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-line px-4 py-3 text-brand-strong">
+      {icon}
+      <h3 className="text-[14px] font-bold text-fg">{title}</h3>
+    </div>
+  )
 }

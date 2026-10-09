@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { ArrowLeftFromLine, ArrowRightToLine, FileText, MapPin, User } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightToLine, FileText, User } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { apiGet } from '@/api/http'
-import { toItems, type ListResponse } from '@/types'
 import { cn } from '@/lib/cn'
-import { LazyRouteMap } from './LazyRouteMap'
-import { formatAppDate, inTashkent } from '@/lib/format'
+import { inTashkent } from '@/lib/format'
+import { dmy } from './period'
 import { CAL_COLOR, CAL_LABEL, type CalStatus } from './attendanceStatus'
 import type { DayDocument } from './useDayDocuments'
 import {
@@ -24,55 +21,6 @@ import {
   type DayEvents,
   type TurnstileEvent,
 } from './useDayEvents'
-
-/** Fallback centre when a turnstile has no coordinates on file (Tashkent). */
-const FALLBACK_COORDS = { lat: 41.2995, lng: 69.2401 }
-
-/**
- * Coordinates by location id.
- *
- * ⚠️ THE EVENT DOES NOT CARRY THEM. `turnstile.locations[]` is serialized lean
- * — `{id, name, organization_branch_id}` and nothing else — so reading
- * latitude off the event always found `undefined` and the map said "no
- * coordinates set" for every pass, including gates that do have them. Verified
- * live: the event's location id 3 has 41.321558 / 69.256075 in `/locations`,
- * which the nested shape simply omits.
- *
- * The whole list is 58 rows / 33 KB and never changes during a session, so one
- * cached read answers every pass on the day.
- */
-interface LocationCoords {
-  id: number
-  name?: string | null
-  address?: string | null
-  latitude?: number | null
-  longitude?: number | null
-}
-
-function useLocationCoords(enabled: boolean) {
-  const q = useQuery({
-    queryKey: ['locations', 'coords'],
-    queryFn: () =>
-      apiGet<ListResponse<LocationCoords>>('locations', {
-        /* ⚠️ NO BRANCH INJECTION. The request layer stamps the header branch
-           onto every call, and the gate someone walked through need not belong
-           to it — a guest employee badging at another branch is a supported
-           case (`project_cross_branch_events`). Scoped, this list came back
-           with 2 rows instead of 58 and never contained the location the event
-           pointed at, so the map stayed empty even after the id lookup. */
-        _no_branch_inject: true,
-      }),
-    enabled,
-    staleTime: 30 * 60_000,
-    retry: false,
-  })
-  const byId = useMemo(() => {
-    const m = new Map<number, LocationCoords>()
-    for (const l of toItems(q.data)) if (l?.id != null) m.set(l.id, l)
-    return m
-  }, [q.data])
-  return byId
-}
 
 /**
  * What actually happened on one day.
@@ -92,7 +40,7 @@ export function DayDetailModal({
   lunchStart,
   lunchEnd,
   isWorkingDay,
-  documents,
+  documents = [],
   onClose,
 }: {
   /** ISO date, or null while closed. */
@@ -106,22 +54,16 @@ export function DayDetailModal({
   lunchStart?: string | null
   lunchEnd?: string | null
   isWorkingDay: boolean
-  documents: DayDocument[]
+  /** Kunning asosi bo'lgan buyruqlar (bo'lmasa bo'lim ko'rinmaydi). */
+  documents?: DayDocument[]
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const events = useMemo(() => day?.all ?? [], [day])
-  const [selectedId, setSelectedId] = useState<number | null>(null)
   /* The reader snapshot, full size. It is the proof of who actually walked
      through, and at 40px it proves nothing. */
   const [zoom, setZoom] = useState<string | null>(null)
 
-  // Centre the map on the first pass of the day until the user picks another.
-  useEffect(() => {
-    setSelectedId(events[0]?.id ?? null)
-  }, [events, date])
-
-  const selected = events.find((e) => e.id === selectedId) ?? events[0] ?? null
   // The employee's OWN lunch window — 1200 people here lunch at 12:00, not 13:00.
   const inside = insideMinutes(events, workingEnd, { start: lunchStart, end: lunchEnd })
   const breaks = dayBreaks(events, workingEnd)
@@ -133,7 +75,7 @@ export function DayDetailModal({
       open={!!date}
       onClose={onClose}
       size="lg"
-      title={date ? formatAppDate(date) : ''}
+      title={date ? dmy(date) : ''}
       footer={
         <Button variant="ghost" onClick={onClose}>
           {t('common.close')}
@@ -172,7 +114,8 @@ export function DayDetailModal({
             <span className="text-fg-muted">{t('myAttendance.rowPlan')}</span>
             <span className="text-center tabular-nums text-fg">{workingStart ?? '09:00'}</span>
             <span className="text-center tabular-nums text-fg">{workingEnd ?? '18:00'}</span>
-            <span className="text-center tabular-nums text-fg">13:00–14:00</span>
+            {/* Tushlik XODIM KARTASIDAN — xodimlarning bir qismi 12:00 da tushlik qiladi. */}
+            <span className="text-center tabular-nums text-fg">{lunchLabel(lunchStart, lunchEnd)}</span>
           </div>
           <div className="grid grid-cols-4 items-center border-t border-line px-3 py-2 text-[13px]">
             <span className="text-fg-muted">{t('myAttendance.rowFact')}</span>
@@ -190,7 +133,14 @@ export function DayDetailModal({
         <div className="grid grid-cols-2 gap-3">
           <Metric
             label={t('myAttendance.insideTime')}
-            value={events.length ? formatMinutes(inside, t('attendance.hoursUnit'), t('myAttendance.minuteUnit')) : '—'}
+            value={
+              // Bitta qayd bilan juftlik yo'q — fakt hisoblanmaydi (v1 ham shunday).
+              events.length >= 2
+                ? formatMinutes(inside, t('attendance.hoursUnit'), t('myAttendance.minuteUnit'))
+                : events.length === 1
+                  ? t('davomat.oneRecord')
+                  : '—'
+            }
             tone="--success"
           />
           <Metric label={t('myAttendance.recordCount')} value={String(events.length)} tone="--brand" />
@@ -227,24 +177,15 @@ export function DayDetailModal({
           </div>
         )}
 
-        {/* Passes + map */}
+        {/* Turniket o'tishlari */}
         {events.length === 0 ? (
           <EmptyState title={t('myAttendance.noEvents')} description={t('myAttendance.noEventsHint')} />
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.15fr_1fr]">
-            <ul className="scroll-thin max-h-[280px] divide-y divide-line overflow-y-auto rounded-[var(--r-md)] border border-line">
-              {events.map((e) => (
-                <PassRow
-                  key={e.id}
-                  event={e}
-                  selected={e.id === selected?.id}
-                  onSelect={() => setSelectedId(e.id)}
-                  onZoom={setZoom}
-                />
-              ))}
-            </ul>
-            <TurnstileMap event={selected} />
-          </div>
+          <ul className="scroll-thin max-h-[320px] divide-y divide-line overflow-y-auto rounded-[var(--r-md)] border border-line">
+            {events.map((e) => (
+              <PassRow key={e.id} event={e} onZoom={setZoom} />
+            ))}
+          </ul>
         )}
       </div>
       {zoom && (
@@ -283,13 +224,9 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: st
 
 function PassRow({
   event,
-  selected,
-  onSelect,
   onZoom,
 }: {
   event: TurnstileEvent
-  selected: boolean
-  onSelect: () => void
   /** Open the reader's snapshot full size. */
   onZoom: (src: string) => void
 }) {
@@ -308,15 +245,7 @@ function PassRow({
   const fullPhoto = [event.photo_path, event.pic_uri].find(isUrl) ?? photo
 
   return (
-    <li>
-      <button
-        type="button"
-        onClick={onSelect}
-        className={cn(
-          'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
-          selected ? 'bg-brand-soft' : 'bg-surface hover:bg-surface-2',
-        )}
-      >
+    <li className="flex w-full items-center gap-3 bg-surface px-3 py-2.5">
         {/* The reader's snapshot — proof of who actually passed. */}
         <span
           className={cn(
@@ -329,8 +258,6 @@ function PassRow({
           onClick={
             photo
               ? (e) => {
-                  // The row selects the pass for the map; the thumbnail is its
-                  // own target and must not do both.
                   e.stopPropagation()
                   onZoom(fullPhoto!)
                 }
@@ -384,57 +311,13 @@ function PassRow({
             {[turnstileName(event) || t('myAttendance.turnstile'), loc?.name].filter(Boolean).join(' · ')}
           </span>
         </span>
-      </button>
     </li>
   )
 }
 
-/**
- * Where that pass happened.
- *
- * An embedded Yandex map widget, as in v1 — no map library, no tiles to bundle,
- * and it is the provider already used elsewhere in this product. When the
- * turnstile has no coordinates the widget is pointless, so the address (or a
- * plain "not set") is shown instead of a map of the wrong city.
- */
-export function TurnstileMap({ event }: { event: TurnstileEvent | null }) {
-  const { t } = useTranslation()
-  const loc = eventLocation(event)
-  const coords = useLocationCoords(!!event)
-  // The nested location knows its id but not where it is; the register does.
-  const full = loc?.id != null ? coords.get(loc.id) : undefined
-  const latitude = loc?.latitude ?? full?.latitude
-  const longitude = loc?.longitude ?? full?.longitude
-  const address = loc?.address ?? full?.address
-  const hasCoords = latitude != null && longitude != null
-  const lat = latitude ?? FALLBACK_COORDS.lat
-  const lng = longitude ?? FALLBACK_COORDS.lng
-
-  return (
-    <div className="flex flex-col overflow-hidden rounded-[var(--r-md)] border border-line">
-      <div className="flex items-center gap-2 border-b border-line bg-surface-2 px-3 py-2">
-        <MapPin size={14} className="shrink-0 text-brand" />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-fg">
-          {loc?.name || turnstileName(event) || t('myAttendance.turnstile')}
-        </span>
-      </div>
-      {hasCoords ? (
-        /* OUR map, not a Yandex iframe — see RouteMap for why. */
-        <LazyRouteMap
-          destination={{ latitude: lat, longitude: lng, name: loc?.name }}
-          className="h-[228px] w-full"
-        />
-      ) : (
-        <div className="flex h-[228px] flex-col items-center justify-center gap-1 px-4 text-center">
-          <MapPin size={22} className="text-fg-subtle" />
-          <p className="text-[12px] text-fg-muted">{address || t('myAttendance.noCoords')}</p>
-        </div>
-      )}
-      {(address || loc?.organization_branch?.name) && (
-        <div className="border-t border-line px-3 py-2 text-[11.5px] text-fg-muted">
-          {[address, loc?.organization_branch?.name].filter(Boolean).join(' · ')}
-        </div>
-      )}
-    </div>
-  )
+/** «12:00–13:00»; kartada tushlik bo'lmasa standart 13:00–14:00, teskari/nol oyna — «—». */
+function lunchLabel(start?: string | null, end?: string | null): string {
+  const a = (start ?? '').slice(0, 5) || '13:00'
+  const b = (end ?? '').slice(0, 5) || '14:00'
+  return b > a ? `${a}–${b}` : '—'
 }

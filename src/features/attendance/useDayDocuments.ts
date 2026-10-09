@@ -1,12 +1,11 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '@/api/http'
-import { ORDER_ACTS, WORK_LEAVES } from '@/api/endpoints'
+import { ORDER_ACTS } from '@/api/endpoints'
 import { toItems, type ListResponse } from '@/types'
 import type { OrderAct } from '@/features/orders/useOrders'
-import type { LeaveRequest } from '@/features/leave/useLeave'
 
-/** An order/leave that explains a calendar day. */
+/** An order that explains a calendar day. */
 export interface DayDocument {
   kind: 'order' | 'leave'
   id: number
@@ -26,7 +25,9 @@ interface TripOrder extends OrderAct {
 }
 
 /**
- * The paperwork behind a day: business trips, HR orders, approved leave.
+ * The paperwork behind a day: business trips and HR orders (TZ 4.2.9).
+ * hr-backend-sandbox has no leave-request register (`work-leaves`), so only
+ * orders are read.
  *
  * The attendance calendar only says *what* a day was ("Xizmat safari"); this
  * says *why* — which order, which number, which dates — so a coloured cell can
@@ -47,16 +48,7 @@ export function useMonthDocuments(employeeId: number | undefined, from: string, 
     enabled: !!employeeId,
   })
 
-  const leaves = useQuery({
-    queryKey: ['my-day-leaves', employeeId],
-    // The endpoint takes no date range; a person has few requests, so the whole
-    // list is fetched once and filtered by day here.
-    queryFn: () => apiGet<ListResponse<LeaveRequest>>(WORK_LEAVES, { employee_id: employeeId }),
-    enabled: !!employeeId,
-  })
-
   const orderItems = useMemo(() => toItems(orders.data), [orders.data])
-  const leaveItems = useMemo(() => toItems(leaves.data), [leaves.data])
 
   /** Documents covering one ISO date. */
   const forDate = (date: string | null): DayDocument[] => {
@@ -81,23 +73,8 @@ export function useMonthDocuments(employeeId: number | undefined, from: string, 
       })
     }
 
-    for (const l of leaveItems) {
-      const start = (l.start_date ?? '').slice(0, 10)
-      const end = (l.end_date ?? l.start_date ?? '').slice(0, 10)
-      if (!start || date < start || date > end) continue
-      out.push({
-        kind: 'leave',
-        id: l.id,
-        title: l.description || '',
-        from: start,
-        to: end,
-        status: l.status,
-        href: '/request-permission',
-      })
-    }
-
     return out
   }
 
-  return { forDate, loading: orders.isLoading || leaves.isLoading }
+  return { forDate, loading: orders.isLoading }
 }
