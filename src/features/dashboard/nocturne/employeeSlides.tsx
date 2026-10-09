@@ -1,59 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import dayjs from 'dayjs'
-import { Briefcase, UserRound } from 'lucide-react'
-import type { LeaveRequest } from '@/features/leave/useLeave'
 import { Donut, DonutLegend, type DonutSlice } from './Donut'
 import { PanelEmpty } from './Panel'
-import { IconCell, ListRow, RowList, StatusPill, type RowTone } from './rows'
 import type { TabelTally } from './useEmployeeBoard'
-
-type RequestRow = LeaveRequest & { statusKey: 'pending' | 'signed' | 'rejected' }
-
-const STATUS_TONE: Record<RequestRow['statusKey'], RowTone> = {
-  pending: 'warning',
-  signed: 'success',
-  rejected: 'danger',
-}
-
-/* ── So'rovlarim ────────────────────────────────────────────────────────── */
-
-export function RequestsFace({ requests }: { requests: RequestRow[] }) {
-  const { t } = useTranslation()
-  if (requests.length === 0) return <PanelEmpty text={t('leave.empty')} />
-  return (
-    <RowList className="pt-1">
-      {requests.map((r) => {
-        const work = (r.type ?? '').toLowerCase() === 'work'
-        const period =
-          r.start_date === r.end_date
-            ? dayjs(r.start_date).format('DD.MM.YYYY')
-            : `${dayjs(r.start_date).format('DD.MM')} — ${dayjs(r.end_date).format('DD.MM.YYYY')}`
-        return (
-          <ListRow key={r.id} filled className="max-h-[58px]">
-            <IconCell icon={work ? Briefcase : UserRound} tone={work ? 'info' : 'brand'} size={30} />
-            <span className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="truncate text-[12.5px] font-medium text-fg">
-                {work ? t('leave.typeWork') : t('leave.typePersonal')}
-              </span>
-              <span className="truncate text-[11px] text-fg-subtle [font-variant-numeric:tabular-nums]">
-                {period}
-              </span>
-            </span>
-            <StatusPill tone={STATUS_TONE[r.statusKey]}>
-              {t(
-                r.statusKey === 'pending'
-                  ? 'leave.statusPending'
-                  : r.statusKey === 'signed'
-                    ? 'leave.statusSigned'
-                    : 'leave.statusRejected',
-              )}
-            </StatusPill>
-          </ListRow>
-        )
-      })}
-    </RowList>
-  )
-}
 
 /* ── Tabel (joriy oy) ───────────────────────────────────────────────────── */
 

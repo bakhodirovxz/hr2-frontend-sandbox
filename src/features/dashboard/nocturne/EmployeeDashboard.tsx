@@ -1,18 +1,23 @@
 import { useTranslation } from 'react-i18next'
-import { BarChart3, Building2, Cake, CalendarCheck, IdCard, ListChecks, Newspaper, ShieldCheck, Users, Zap } from 'lucide-react'
+import { Activity, Building2, CalendarCheck, ClipboardCheck, ConciergeBell, Users, Zap } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useDashboard } from '@/features/dashboard/useDashboard'
 import { AttendanceStatsList } from './AttendanceStatsView'
 import { CarouselPanel, type CarouselSlide } from './Carousel'
 import { MyDayCard } from './MyDayCard'
 import { StatTile } from './StatTile'
-import { BirthdaysFace, GuestsFace } from './slides'
-import { RequestsFace, TabelFace } from './employeeSlides'
-import { useGuestPasses, useVisitorCounters } from './useBoardData'
+import { TabelFace } from './employeeSlides'
 import { useEmployeeBoard } from './useEmployeeBoard'
 import { QuickActionsFace } from './QuickActions'
-import { CompanyNewsFace, useCompanyNews } from './CompanyNewsFace'
-import { MyKpiCard, useMonthLabel, useMyKpiSheets } from './MyKpiCard'
+import {
+  MyScorecardCard,
+  MyServicesFace,
+  MyWorkPlanFace,
+  useMyScorecard,
+  useMyServices,
+  useMyTzAccess,
+  useMyWorkPlans,
+} from './myTzBoard'
 import { BoardTipHost } from './boardDrill'
 import { EmployeeCalendarModal } from './EmployeeCalendarModal'
 import { useState } from 'react'
@@ -40,17 +45,14 @@ export function EmployeeDashboard() {
   const months = t('date.months', { returnObjects: true })
 
   const me = useEmployeeBoard()
-  const { guests } = useGuestPasses(true)
-  const { counters: visitorCounters } = useVisitorCounters(true)
   const dash = useDashboard({})
-  // Company news now comes from uzgidro.uz (user, 2026-09-24), not the HR «news-posts».
-  const { news } = useCompanyNews()
+  // TZ manbalari: so'rovlarim (I1), ish rejam (K2), joriy davr KPI'm (4.2.8).
+  const access = useMyTzAccess()
+  const services = useMyServices(access.services)
+  const plans = useMyWorkPlans(me.employee?.id, access.workPlans)
+  const { data: scorecard } = useMyScorecard(access.kpi)
 
   const monthName = months[dayjs().month()]
-  // REAL KPI: the latest CLOSED evaluation sheet, not the half-filled current month.
-  const { data: myKpi } = useMyKpiSheets(!!me.employee)
-  const ml = useMonthLabel()
-  const kpiLast = myKpi?.last ?? null
   const [ownCalendar, setOwnCalendar] = useState(false)
   // Draggable dividers, as on the HR board — sizes kept per device, per board.
   const { layout, limits, set, resetOne, resetAll, isCustom } = useBoardLayout('employee')
@@ -61,12 +63,9 @@ export function EmployeeDashboard() {
   const windowA: CarouselSlide[] = [
     // The person's own shortcuts — chosen by them (2026-09-24).
     { key: 'quick', title: t('dashboard.quick.title'), icon: Zap, content: <QuickActionsFace kind="employee" /> },
-    {
-      key: 'requests',
-      icon: ShieldCheck,
-      title: t('dashboard.board.myRequestsTitle'),
-      content: <RequestsFace requests={me.requests} />,
-    },
+    ...(access.services
+      ? [{ key: 'services', icon: ConciergeBell, title: t('dashboard.myTz.servicesTitle'), content: <MyServicesFace rows={services.rows} /> }]
+      : []),
     {
       key: 'tabel',
       icon: CalendarCheck,
@@ -102,25 +101,9 @@ export function EmployeeDashboard() {
       : []),
   ]
 
-  const windowB: CarouselSlide[] = [
-    {
-      key: 'birthdays',
-      icon: Cake,
-      title: t('dashboard.birthdaysTitle'),
-      content: <BirthdaysFace birthdays={dash.birthdays} />,
-    },
-    ...(news.length
-      ? [{ key: 'news', icon: Newspaper, title: t('dashboard.board.newsTitle'), content: <CompanyNewsFace news={news} /> }]
-      : []),
-    // «Mehmonlar (kirdi-chiqdi)» — v1 draws this on the EMPLOYEE dashboard too
-    // (`EmployeeDashboardPage.jsx`). v2 built the face but mounted it only on
-    // the HR board, so an ordinary employee could not see who was visiting.
-    // Only rendered when there is something to show, so a quiet day does not
-    // add an empty slide to the carousel.
-    ...(guests.length
-      ? [{ key: 'guests', icon: IdCard, title: t('dashboard.board.guestsTitle'), content: <GuestsFace guests={guests} counters={visitorCounters} /> }]
-      : []),
-  ]
+  const windowB: CarouselSlide[] = access.workPlans
+    ? [{ key: 'plans', icon: ClipboardCheck, title: t('dashboard.myTz.plansTitle'), content: <MyWorkPlanFace plans={plans.open} /> }]
+    : []
 
   return (
     <div className="board-aurora flex min-h-full flex-col gap-4 p-4 sm:p-5 xl:h-full xl:min-h-[820px]">
@@ -146,8 +129,8 @@ export function EmployeeDashboard() {
           arrivedAt={me.arrivedAt}
           workedMinutes={me.workedMinutes}
           summary={me.summary}
-          kpiPercent={kpiLast?.mine ?? null}
-          kpiMonth={kpiLast ? ml.full(kpiLast.month) : undefined}
+          kpiPercent={scorecard?.result_percent ?? null}
+          kpiMonth={scorecard?.period}
           todayEvents={me.todayEvents}
           onOpenDay={() => setOwnCalendar(true)}
           week={me.week}
@@ -193,15 +176,17 @@ export function EmployeeDashboard() {
               className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:shrink-0 lg:grid-cols-1"
               style={midWide ? { width: layout.tilesW } : undefined}
             >
-              <StatTile
-                label={t('dashboard.board.statMyTasks')}
-                value={me.taskCounts.overdue + me.taskCounts.today + me.taskCounts.soon}
-                sub={t('dashboard.board.chipOverdue', { count: me.taskCounts.overdue })}
-                icon={ListChecks}
-                tone="brand"
-                loading={me.tasksLoading}
-                progress={0}
-              />
+              {access.workPlans && (
+                <StatTile
+                  label={t('dashboard.myTz.tilePlans')}
+                  value={plans.open.length}
+                  sub={t('dashboard.myTz.tilePlansSub', { count: plans.overdue })}
+                  icon={ClipboardCheck}
+                  tone="brand"
+                  loading={plans.loading}
+                  progress={0}
+                />
+              )}
               <StatTile
                 label={t('dashboard.board.statAttendance', { month: monthName })}
                 value={`${me.attendancePct}%`}
@@ -220,23 +205,27 @@ export function EmployeeDashboard() {
                   [t('attendance.stAbsent'), me.tabel.absent],
                 ] }}
               />
-              <StatTile
-                label={kpiLast ? t('dashboard.myKpi.tile', { month: ml.full(kpiLast.month) }) : t('dashboard.board.statKpi')}
-                value={kpiLast?.mine == null ? '—' : `${Math.round(kpiLast.mine)}%`}
-                sub={kpiLast?.rank ? t('dashboard.myKpi.tileSub', { position: kpiLast.rank.position, of: kpiLast.rank.of }) : undefined}
-                icon={BarChart3}
-                tone="info"
-                progress={kpiLast?.mine ?? 0}
-              />
-              <StatTile
-                label={t('dashboard.board.statRequests')}
-                value={me.pendingRequests}
-                sub={t('leave.statusPending')}
-                icon={ShieldCheck}
-                tone="warning"
-                loading={me.leavesLoading}
-                progress={0}
-              />
+              {access.kpi && (
+                <StatTile
+                  label={t('dashboard.myTz.tileKpi')}
+                  value={scorecard?.result_percent == null ? '—' : `${Math.round(scorecard.result_percent)}%`}
+                  sub={scorecard?.period}
+                  icon={Activity}
+                  tone="info"
+                  progress={scorecard?.result_percent ?? 0}
+                />
+              )}
+              {access.services && (
+                <StatTile
+                  label={t('dashboard.myTz.tileServices')}
+                  value={services.pending}
+                  sub={t('dashboard.myTz.tileServicesSub')}
+                  icon={ConciergeBell}
+                  tone="warning"
+                  loading={services.loading}
+                  progress={0}
+                />
+              )}
             </div>
           </div>
 
@@ -268,8 +257,10 @@ export function EmployeeDashboard() {
             style={wide ? { height: layout.bottomH } : undefined}
           >
             <CarouselPanel slides={windowA} wash="violet" className="h-[340px] xl:h-full" />
-            <MyKpiCard className="h-[340px] xl:h-full" />
-            <CarouselPanel slides={windowB} wash="success" offsetSec={4} className="h-[340px] md:col-span-2 xl:col-span-1 xl:h-full" />
+            <MyScorecardCard className="h-[340px] xl:h-full" />
+            {windowB.length > 0 && (
+              <CarouselPanel slides={windowB} wash="success" offsetSec={4} className="h-[340px] md:col-span-2 xl:col-span-1 xl:h-full" />
+            )}
           </div>
         </div>
       </div>

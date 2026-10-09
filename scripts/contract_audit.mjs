@@ -89,7 +89,11 @@ for (const f of [...seen].sort()) {
   if (isI18n) continue
   for (const m of src.matchAll(LIT)) {
     const raw = m[2]
-    if (!raw.includes('/') && !tops.has(raw.replace(/^\//, ''))) continue
+    // A bare word ('kpi', 'employees') is a module name as often as a path —
+    // only endpoint constants and direct API calls (below) count for those.
+    if (!raw.includes('/') && !rel.endsWith('api/endpoints.ts')) continue
+    // Source-file references in comments (`auth/canManage.ts`) are not paths.
+    if (/\.(tsx?|jsx?|py|md|css)$/.test(raw)) continue
     const segs = toSegs(raw)
     if (!tops.has(segs[0])) continue
     // Frontend route literals (`/employees/${id}`) look like API paths; only a

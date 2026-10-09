@@ -1,19 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNationalityLabel } from './nationalityLabel'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Globe, TrendingUp, Users } from 'lucide-react'
+import { Globe, TrendingUp, Users } from 'lucide-react'
 import type { Translation } from '@/i18n/uz'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { monthShort } from '@/lib/format'
-import type {
-  AgeStats,
-  CardsSummary,
-  ExperienceYear,
-  HeadcountStats,
-  MonthlyKpi,
-  NationalityStat,
-} from './useEmployeeKpi'
+import type { AgeStats, ExperienceYear, HeadcountStats, MonthlyKpi, NationalityStat } from './useEmployeeKpi'
 import { TrendLine } from '@/components/data/TrendLine'
 import { ArcRing } from '@/features/dashboard/nocturne/ArcRing'
 
@@ -32,8 +25,6 @@ export function EmployeeStatsRow({
   nationalityLoading,
   kpiTrend,
   kpiTrendLoading,
-  cards,
-  cardsLoading,
   headcount,
   headcountLoading = false,
   experience = [],
@@ -45,8 +36,6 @@ export function EmployeeStatsRow({
   nationalityLoading: boolean
   kpiTrend: MonthlyKpi[]
   kpiTrendLoading: boolean
-  cards?: CardsSummary
-  cardsLoading: boolean
   /** Optional: the reports screen reuses this row without the roster stats. */
   headcount?: HeadcountStats
   headcountLoading?: boolean
@@ -100,13 +89,6 @@ export function EmployeeStatsRow({
         <CardHeader title={t('employees.statKpiTrend')} icon={<TrendingUp size={16} />} />
         <div className="flex-1 p-4">
           {kpiTrendLoading ? <ChartSkeleton /> : <KpiTrendLine items={kpiTrend} />}
-        </div>
-      </Card>
-
-      <Card className="flex flex-col">
-        <CardHeader title={t('employees.statTasks')} icon={<CheckCircle2 size={16} />} />
-        <div className="flex-1 p-4">
-          {cardsLoading ? <ChartSkeleton /> : <TaskGauge cards={cards} />}
         </div>
       </Card>
 
@@ -290,59 +272,3 @@ function KpiTrendLine({ items }: { items: MonthlyKpi[] }) {
   )
 }
 
-function TaskGauge({ cards }: { cards?: CardsSummary }) {
-  const { t } = useTranslation()
-  const completed = cards?.completed_tasks_count ?? 0
-  const late = cards?.late_tasks_count ?? 0
-  const missed = cards?.overuded_tasks_counnt ?? 0
-  const total = completed + late + missed
-  const pct = total > 0 ? (completed / total) * 100 : 0
-
-  /* ⚠️ NO TASKS IS NOT "0.0% DONE". With nothing recorded the gauge drew a
-     confident green 0.0% over three zero rows — a card stating a failure that
-     never happened. An empty state says the true thing in one line. */
-  if (total === 0) {
-    return <p className="py-8 text-center text-xs italic text-fg-subtle">{t('employees.noData')}</p>
-  }
-
-  const ARC = 188
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col items-center">
-        <div className="relative h-[74px] w-[164px]">
-          <svg viewBox="0 0 140 78" className="h-full w-full" aria-hidden>
-            <path d="M 12 68 A 58 58 0 0 1 128 68" fill="none" stroke={v('--surface-2')} strokeWidth="9" strokeLinecap="round" />
-            <path
-              d="M 12 68 A 58 58 0 0 1 128 68"
-              fill="none"
-              stroke={v('--success')}
-              strokeWidth="9"
-              strokeLinecap="round"
-              strokeDasharray={`${(pct / 100) * ARC} ${ARC}`}
-              className="transition-all duration-700"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-x-0 top-[34px] flex flex-col items-center">
-            <span className="text-lg font-bold tabular-nums text-success">{pct.toFixed(1)}%</span>
-          </div>
-        </div>
-        <span className="mt-1 text-[10px] text-fg-subtle">{t('employees.done')}</span>
-      </div>
-      <ul className="space-y-1 text-[12px]">
-        <GaugeRow varName="--success" label={t('employees.done')} value={completed} />
-        <GaugeRow varName="--warning" label={t('employees.late')} value={late} />
-        <GaugeRow varName="--danger" label={t('employees.notDone')} value={missed} />
-      </ul>
-    </div>
-  )
-}
-
-function GaugeRow({ varName, label, value }: { varName: string; label: string; value: number }) {
-  return (
-    <li className="flex items-center gap-2">
-      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: v(varName) }} />
-      <span className="flex-1 text-fg-muted">{label}</span>
-      <span className="font-semibold tabular-nums text-fg">{value}</span>
-    </li>
-  )
-}

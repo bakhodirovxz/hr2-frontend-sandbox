@@ -4,8 +4,6 @@ import { useAuthStore } from '@/store/authStore'
 import { useAttendance } from '@/features/attendance/useAttendance'
 import { useMonthEvents, formatDayRange, insideMinutes, eventDirection } from '@/features/attendance/useDayEvents'
 import { mapCalStatus, type CalStatus } from '@/features/attendance/attendanceStatus'
-import { useMyLeaveRequests, leaveStatusKey } from '@/features/leave/useLeave'
-import { useIjroTasks } from './useBoardData'
 
 export interface MyDay {
   iso: string
@@ -92,11 +90,6 @@ export function useEmployeeBoard() {
   // `/dashboard/my-kpi-sheets` (MyKpiCard); this call fed a `kpiPercent` that
   // nothing rendered, and in a branch with KPI switched off it answered 403
   // «KPI moduli … yoqilmagan» on every board open — journalled as «KPI — Xato».
-  const { all: leaves, pendingCount: pendingRequests, loading: leavesLoading } = useMyLeaveRequests(user?.employee?.id)
-  const { tasks, counts: taskCounts, loading: tasksLoading } = useIjroTasks({
-    employeeId,
-    enabled: !!employeeId,
-  })
 
   /* ── Bugun ────────────────────────────────────────────────────────────── */
   const todayIso = today.format('YYYY-MM-DD')
@@ -171,12 +164,6 @@ export function useEmployeeBoard() {
     return tally
   }, [calendar])
 
-  /* ── So'rovlarim ──────────────────────────────────────────────────────── */
-  const requests = useMemo(
-    () => leaves.map((r) => ({ ...r, statusKey: leaveStatusKey(r.status) })),
-    [leaves],
-  )
-
   const attendancePct = tabel.counted
     ? Math.round(((tabel.present + tabel.late) / tabel.counted) * 100)
     : 0
@@ -190,12 +177,6 @@ export function useEmployeeBoard() {
     tabel,
     attendancePct,
     summary,
-    tasks,
-    taskCounts,
-    requests,
-    pendingRequests,
     loading: attLoading || eventsLoading,
-    tasksLoading,
-    leavesLoading,
   }
 }

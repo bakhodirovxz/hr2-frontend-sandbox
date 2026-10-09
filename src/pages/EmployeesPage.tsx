@@ -60,7 +60,6 @@ import {
 const EmployeeStatsRow = lazy(() =>
   import('@/features/employees/EmployeeStatsRow').then((m) => ({ default: m.EmployeeStatsRow })),
 )
-import { EmployeeInsightsRow } from '@/features/employees/EmployeeInsightsRow'
 import { KpiBar, Sparkline } from '@/features/employees/kpiCells'
 import { STATUS_KPI_RANGE, STATUS_TONE, kpiStatusKey, type KpiStatusKey } from '@/features/employees/kpiStatus'
 import { KpiRangeSlider } from '@/features/employees/KpiRangeSlider'
@@ -617,8 +616,6 @@ export function EmployeesPage() {
           nationalityLoading={stats.nationalityLoading}
           kpiTrend={stats.kpiTrend}
           kpiTrendLoading={stats.kpiTrendLoading}
-          cards={stats.cards}
-          cardsLoading={stats.cardsLoading}
           headcount={stats.headcount}
           headcountLoading={stats.headcountLoading}
           experience={stats.experience}
@@ -626,9 +623,6 @@ export function EmployeesPage() {
         />
         </Suspense>
       </div>
-
-      {/* Insights: top-5 / needs-attention / warnings */}
-      <EmployeeInsightsRow tasks={stats.tasks} />
 
       {/* Same reasoning as the row pencil: bulk edit, archive and delete are all
           HR-or-master-admin on the server, so a reader who cannot manage

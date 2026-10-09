@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { Search, type LucideIcon } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Avatar } from '@/components/ui/Avatar'
-import { apiGet } from '@/api/http'
 import { cn } from '@/lib/cn'
-import { useDashboardBranchId } from '@/features/dashboard/useKadrBlocks'
 import { useLowVisionScale } from '@/a11y/useLowVisionScale'
 import { control } from '@/components/ui/control'
 
@@ -316,88 +313,20 @@ export interface RosterRow {
 }
 export type RosterGroup = 'gender' | 'age' | 'nationality' | 'position' | 'acceptance'
 
-const ROSTER = 'dashboard/roster-composition'
-const KPI_SHEETS = 'dashboard/kpi-sheets'
-
-/** The small summary (missing birth dates, positions, suspect hire dates). */
-export function useRosterSummary(enabled = true) {
-  const branchId = useDashboardBranchId()
-  const q = useQuery({
-    queryKey: ['board', 'roster-summary', branchId],
-    queryFn: () => apiGet<{ summary: RosterSummary }>(ROSTER, { organization_branch_id: branchId }),
-    enabled,
-    staleTime: 10 * 60_000,
-    retry: false,
-  })
-  return { summary: q.data?.summary ?? null, failed: q.isError }
+/**
+ * Bosh sahifa diagrammasidan odamlar ro'yxatiga o'tish (`roster-composition`)
+ * hr-backend-sandbox'da yo'q va TZ bosh sahifadan buni talab qilmaydi (TZ R2
+ * drill-down — statistika dashboardida). Hook'lar so'rov yubormaydi: panel
+ * diagrammalari ishlaydi, bosiladigan joylar o'chiq (`failed` → `canDrill`).
+ */
+export function useRosterSummary(_enabled = true) {
+  void _enabled
+  return { summary: null as RosterSummary | null, failed: true }
 }
 
-/** One slice's people — fetched only when its popup tab is open. */
-export function useRosterRows(group: RosterGroup | null, key: string | null) {
-  const branchId = useDashboardBranchId()
-  const q = useQuery({
-    queryKey: ['board', 'roster-rows', branchId, group, key],
-    queryFn: () =>
-      apiGet<{ rows: RosterRow[] }>(ROSTER, {
-        organization_branch_id: branchId,
-        include_rows: true,
-        group,
-        key,
-      }),
-    enabled: !!group && key != null,
-    staleTime: 10 * 60_000,
-    retry: false,
-  })
-  return { rows: q.data?.rows ?? [], loading: q.isLoading && !!group, failed: q.isError }
+export function useRosterRows(_group: RosterGroup | null, _key: string | null) {
+  void _group
+  void _key
+  return { rows: [] as RosterRow[], loading: false, failed: true }
 }
 
-export interface KpiSheetMonth {
-  month: string
-  name: string
-  total: number
-  done: number
-  positive: number
-  average: number | null
-  closed: boolean
-}
-export interface KpiSheetRow {
-  employee_id: number
-  legal_name: string | null
-  job_position_name: string | null
-  department_name: string | null
-  photo_thumb_path: string | null
-  result_percent: number
-}
-export interface KpiSheets {
-  intervals: KpiSheetMonth[]
-  last: KpiSheetMonth | null
-  rows: KpiSheetRow[]
-}
-
-/** REAL KPI — the evaluation sheets, not the turnstile-derived `kpi-summary`. */
-export function useKpiSheets(enabled = true) {
-  const branchId = useDashboardBranchId()
-  const q = useQuery({
-    queryKey: ['board', 'kpi-sheets', branchId],
-    queryFn: () => apiGet<KpiSheets>(KPI_SHEETS, { organization_branch_id: branchId }),
-    enabled,
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  return { data: q.data ?? null, failed: q.isError, loading: q.isLoading }
-}
-
-/** Bands for the KPI summary. Edges are the board's reading of the sheet %. */
-export const KPI_BANDS = [
-  { key: 'high' as const, tone: 'success' as const, test: (r: number) => r >= 80 },
-  { key: 'mid' as const, tone: 'brand' as const, test: (r: number) => r >= 50 && r < 80 },
-  { key: 'low' as const, tone: 'warning' as const, test: (r: number) => r > 0 && r < 50 },
-  { key: 'zero' as const, tone: 'danger' as const, test: (r: number) => r <= 0 },
-]
-
-export function useBandRows(rows: KpiSheetRow[]) {
-  return useMemo(
-    () => Object.fromEntries(KPI_BANDS.map((b) => [b.key, rows.filter((r) => b.test(r.result_percent))])),
-    [rows],
-  ) as Record<(typeof KPI_BANDS)[number]['key'], KpiSheetRow[]>
-}

@@ -1,13 +1,14 @@
 import { Suspense, lazy, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, BarChart3, Zap, Cake, CheckCircle2, Clock, IdCard, Newspaper, Target, Timer, Trophy, Users, XCircle } from 'lucide-react'
+import { BarChart3, Building2, CheckCircle2, Clock, Target, Timer, Users, XCircle, Zap } from 'lucide-react'
 import { Splitter } from '@/components/layout/Splitter'
 import { useBoardLayout } from '@/hooks/useBoardLayout'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useDashboard } from '@/features/dashboard/useDashboard'
 import { useDiscipline } from '@/features/dashboard/useKadrBlocks'
+import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/authStore'
-import { canSeeLateness } from '@/auth/roles'
+import { can, readsOrg } from '@/auth/permissions'
 import { CarouselPanel, type CarouselSlide } from './Carousel'
 /*
  * ⚠️ LAZY: this is the ONLY thing pulling recharts (426 KB) into the dashboard
@@ -23,23 +24,12 @@ const DemographicsPanel = lazy(() =>
 import { DeferUntilVisible } from '@/components/DeferUntilVisible'
 import { LiveFeed } from './LiveFeed'
 import { StatTile } from './StatTile'
-import { BirthdaysFace, GuestsFace, LateRankFace, StatusRingFace } from './slides'
-import { useGuestPasses, useIjroTasks, useOverdueSummary, useVisitorCounters } from './useBoardData'
-import { BoardTipHost, useKpiSheets } from './boardDrill'
+import { DeptAttendanceFace, KpiSummaryFace, LateRankFace, StatusRingFace } from './slides'
+import { useDepartmentsAttendance, useKpiSummary } from './useBoardData'
+import { BoardTipHost } from './boardDrill'
 import { PersonCalendarProvider } from './EmployeeCalendarModal'
 import { QuickActionsFace } from './QuickActions'
-import { CompanyNewsFace, useCompanyNews } from './CompanyNewsFace'
-import {
-  AttendanceModal,
-  DisciplineFace,
-  IjroModal,
-  KpiModal,
-  KpiSheetsFace,
-  TopKpiFace,
-  type AttendanceTab,
-  type IjroTab,
-  type KpiBand,
-} from './boardFaces'
+import { AttendanceModal, type AttendanceTab } from './boardFaces'
 
 /**
  * THE HR BOARD — NOCTURNE.
@@ -74,31 +64,22 @@ export function HrDashboard() {
   const wide = useMediaQuery('(min-width: 1280px)')
   const midWide = useMediaQuery('(min-width: 1024px)')
   const dash = useDashboard({}, feedDay)
-  const { all: ijroAll } = useIjroTasks()
-  // Company news now comes from uzgidro.uz (user, 2026-09-24), not the HR «news-posts».
-  const { news } = useCompanyNews()
-  // REAL KPI (evaluation sheets). The old `kpi-summary` / `employee-kpi` were
-  // computed from turnstile presence — attendance under a KPI label.
-  const { data: kpiSheets, failed: kpiClosed } = useKpiSheets(true)
-  // Popups: who is behind a tile, an ijro tally, a KPI band.
+  // Doska bo'limi ochiladigan tile'ning ro'yxati (kim kelgan / kech / kelmagan).
   const [attTab, setAttTab] = useState<AttendanceTab | null>(null)
-  const [ijroTab, setIjroTab] = useState<IjroTab | null>(null)
-  const [kpiBand, setKpiBand] = useState<KpiBand | null>(null)
-  // Closed to some roles (a KPI admin, say): then no request and no slide,
-  // like every other block on this board whose endpoint the role cannot read.
-  const lateAllowed = canSeeLateness(useAuthStore((s) => s.user))
+  const user = useAuthStore((s) => s.user)
+  // Bloklar foydalanuvchi o'qiy oladigan modul bo'yicha: endpoint yopiq bo'lsa
+  // so'rov ham, slayd ham yo'q.
+  const lateAllowed = readsOrg(user, 'attendance')
+  const kpiAllowed = !!user?.kpi_enabled && readsOrg(user, 'kpi')
   const { rows: lateRank } = useDiscipline(lateAllowed)
-  const { guests } = useGuestPasses(true)
-  const { summary } = useOverdueSummary(true)
-  // Mehmon hisoblagichlari — `retry: false`: roli yopiq bo'lsa blok jim qoladi.
-  // «Bo'limlar davomati» slaydi 2026-09-24 da foydalanuvchi so'rovi bilan olib tashlandi.
-  const { counters: visitorCounters } = useVisitorCounters(true)
+  const { summary: kpiSummary, period: kpiPeriod } = useKpiSummary(kpiAllowed)
+  const { rows: deptRows } = useDepartmentsAttendance(can(user, 'attendance'))
 
   const c = dash.counts
   const pct = (n: number) => (c.total ? Math.round((n / c.total) * 100) : 0)
 
   const windowA: CarouselSlide[] = [
-    // The person's own shortcuts — chosen by them (2026-09-24).
+    // Foydalanuvchining o'zi tanlagan tezkor havolalari.
     { key: 'quick', title: t('dashboard.quick.title'), icon: Zap, content: <QuickActionsFace kind="hr" /> },
     {
       key: 'status',
@@ -106,51 +87,38 @@ export function HrDashboard() {
       icon: Target,
       content: <StatusRingFace counts={c} onOpen={setAttTab} />,
     },
-    ...(news.length
-      ? [{ key: 'news', title: t('dashboard.board.newsTitle'), icon: Newspaper, content: <CompanyNewsFace news={news} /> }]
-      : []),
   ]
 
   const windowB: CarouselSlide[] = [
-    {
-      key: 'birthdays',
-      title: t('dashboard.birthdaysTitle'),
-      icon: Cake,
-      content: <BirthdaysFace birthdays={dash.birthdays} />,
-    },
-    // A role the KPI sheets are closed to gets neither KPI face — no stub numbers.
-    ...(kpiClosed
-      ? []
-      : [{ key: 'top', title: t('dashboard.board.topTitle'), icon: Trophy, content: <TopKpiFace data={kpiSheets} /> }]),
     ...(lateAllowed
       ? [{ key: 'late', title: t('dashboard.board.lateRankTitle'), icon: Timer, content: <LateRankFace rows={lateRank} /> }]
       : []),
-    ...(kpiClosed
-      ? []
-      : [
+    ...(kpiAllowed
+      ? [
           {
             key: 'kpi-summary',
             title: t('dashboard.board.kpiSummaryTitle'),
             icon: BarChart3,
-            content: <KpiSheetsFace data={kpiSheets} onOpen={setKpiBand} />,
+            content: <KpiSummaryFace summary={kpiSummary} period={kpiPeriod} />,
           },
-        ]),
+        ]
+      : []),
   ]
 
   const windowC: CarouselSlide[] = [
     {
-      key: 'discipline',
-      title: t('dashboard.board.execDisciplineTitle'),
-      icon: AlertTriangle,
-      content: <DisciplineFace all={ijroAll} summary={summary} onOpen={setIjroTab} />,
-    },
-    {
-      key: 'guests',
-      title: t('dashboard.board.guestsTitle'),
-      icon: IdCard,
-      content: <GuestsFace guests={guests} counters={visitorCounters} />,
+      key: 'departments',
+      title: t('dashboard.board.deptAttendanceTitle'),
+      icon: Building2,
+      content: <DeptAttendanceFace rows={deptRows} />,
     },
   ]
+
+  const windows = [
+    { key: 'a', slides: windowA, wash: 'violet' as const },
+    { key: 'b', slides: windowB, wash: 'success' as const },
+    { key: 'c', slides: windowC, wash: 'info' as const },
+  ].filter((w) => w.slides.length > 0)
 
   return (
     <PersonCalendarProvider>
@@ -162,8 +130,6 @@ export function HrDashboard() {
     <div className="board-aurora flex flex-col gap-4 p-4 sm:p-5 xl:h-full xl:min-h-[820px] xl:flex-row">
       <BoardTipHost />
       <AttendanceModal rows={dash.rows} counts={c} tab={attTab} onTab={setAttTab} onClose={() => setAttTab(null)} />
-      <IjroModal all={ijroAll} summary={summary} tab={ijroTab} onTab={setIjroTab} onClose={() => setIjroTab(null)} />
-      {kpiSheets && <KpiModal data={kpiSheets} band={kpiBand} onBand={setKpiBand} onClose={() => setKpiBand(null)} />}
       {/* Wrapped rather than given a `style` prop: the dragged width belongs to
           the SLOT the panel sits in, and LiveFeed keeps its own API. */}
       <div
@@ -173,13 +139,11 @@ export function HrDashboard() {
         <LiveFeed
           rows={dash.rows}
           events={dash.events}
-          guests={guests}
           entries={dash.entriesToday}
           exits={dash.exitsToday}
           loading={dash.loading}
           dayOffset={feedDay}
           onDayOffset={setFeedDay}
-          wsStatus={dash.wsStatus}
           className="h-[520px] xl:h-auto xl:min-h-0 xl:flex-1"
         />
       </div>
@@ -323,29 +287,22 @@ export function HrDashboard() {
         )}
 
         <div
-          className="grid gap-4 md:grid-cols-2 xl:shrink-0 xl:grid-cols-3"
+          className={cn(
+            'grid gap-4 md:grid-cols-2 xl:shrink-0',
+            windows.length >= 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-2',
+          )}
           style={wide ? { height: layout.bottomH } : undefined}
         >
-          <CarouselPanel
-            eyebrow={t('dashboard.board.sectionEyebrow')}
-            slides={windowA}
-            wash="violet"
-            className="h-[360px] md:col-span-2 xl:col-span-1 xl:h-full"
-          />
-          <CarouselPanel
-            eyebrow={t('dashboard.board.sectionEyebrow')}
-            slides={windowB}
-            wash="success"
-            offsetSec={3}
-            className="h-[360px] xl:h-full"
-          />
-          <CarouselPanel
-            eyebrow={t('dashboard.board.sectionEyebrow')}
-            slides={windowC}
-            wash="info"
-            offsetSec={6}
-            className="h-[360px] xl:h-full"
-          />
+          {windows.map((w, i) => (
+            <CarouselPanel
+              key={w.key}
+              eyebrow={t('dashboard.board.sectionEyebrow')}
+              slides={w.slides}
+              wash={w.wash}
+              offsetSec={i * 3}
+              className={cn('h-[360px] xl:h-full', i === 0 && windows.length === 3 && 'md:col-span-2 xl:col-span-1')}
+            />
+          ))}
         </div>
       </div>
     </div>

@@ -2,14 +2,7 @@ import { fetchAllPages } from '@/api/fetchAll'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { apiGet } from '@/api/http'
-import {
-  DASHBOARD_AGE_STATS,
-  DASHBOARD_CARDS_SUMMARY,
-  DASHBOARD_EMPLOYEE_KPI,
-  DASHBOARD_KPI_MONTHLY_AVERAGE,
-  DASHBOARD_NATIONALITY_STATS,
-  DASHBOARD_TASK_EXECUTION_ATTENDANCE,
-} from '@/api/endpoints'
+import { DASHBOARD_AGE_STATS, DASHBOARD_EMPLOYEE_KPI, DASHBOARD_KPI_MONTHLY_AVERAGE, DASHBOARD_NATIONALITY_STATS } from '@/api/endpoints'
 import { useBranchStore } from '@/store/branchStore'
 import type { Page } from './useEmployees'
 
@@ -201,9 +194,7 @@ export interface ExperienceYear { year: number; count: number }
  */
 export function useEmployeeStats(enabled = true) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const range = defaultKpiRange()
   const branchParam = { organization_branch_id: branchId || undefined }
-  const rangeKey = `${range.date_from}:${range.date_to}`
 
   const age = useQuery({
     queryKey: ['age-stats', branchId],
@@ -218,11 +209,6 @@ export function useEmployeeStats(enabled = true) {
   const kpiTrend = useQuery({
     queryKey: ['kpi-monthly', branchId],
     queryFn: () => apiGet<MonthlyKpi[]>(DASHBOARD_KPI_MONTHLY_AVERAGE, branchParam),
-    enabled,
-  })
-  const cards = useQuery({
-    queryKey: ['cards-summary', branchId, rangeKey],
-    queryFn: () => apiGet<CardsSummary>(DASHBOARD_CARDS_SUMMARY, { ...branchParam, ...range }),
     enabled,
   })
   /**
@@ -244,12 +230,6 @@ export function useEmployeeStats(enabled = true) {
     queryFn: () => apiGet<ExperienceYear[]>('dashboard/experience-stats', branchParam),
     enabled,
   })
-  const tasks = useQuery({
-    queryKey: ['task-exec', branchId, rangeKey],
-    queryFn: () =>
-      apiGet<TaskExecutionStats>(DASHBOARD_TASK_EXECUTION_ATTENDANCE, { ...branchParam, ...range }),
-    enabled,
-  })
 
   return {
     headcount: headcount.data,
@@ -262,9 +242,6 @@ export function useEmployeeStats(enabled = true) {
     nationalityLoading: nationality.isLoading,
     kpiTrend: kpiTrend.data ?? [],
     kpiTrendLoading: kpiTrend.isLoading,
-    cards: cards.data,
-    cardsLoading: cards.isLoading,
-    tasks: tasks.data,
     /* The demographics panel drew "no staff data" whenever these failed. It is
      * a dashboard block, so it stays quiet rather than shouting — but it must
      * not assert an empty organisation either. */

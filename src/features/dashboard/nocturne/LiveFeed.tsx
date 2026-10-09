@@ -23,18 +23,16 @@ import { formatTime, getDisplayStatus } from '@/features/dashboard/attendance'
 import type { AttendanceRow, TurnstileEvent } from '@/types/dashboard'
 import type { TFunction } from 'i18next'
 import { formatDistance, type EventMobileCheckin } from '@/features/mobileCheckins/useMobileCheckins'
-import { WS_STATUS } from '@/features/monitoring/useAttendanceSocket'
 import { Eyebrow, Panel, PanelEmpty } from './Panel'
 import { ListRow, PersonCell, RowList, ToneText, type RowTone } from './rows'
 import { PassDetailModal } from './PassDetailModal'
-import { guestRow } from './guestRow'
 
 /** Rows drawn per step while the feed is scrolled. */
 const FEED_PAGE = 80
 
-type FeedTab = 'passes' | 'late' | 'absent' | 'guests' | 'other'
+type FeedTab = 'passes' | 'late' | 'absent' | 'other'
 
-const TABS: FeedTab[] = ['passes', 'late', 'absent', 'guests', 'other']
+const TABS: FeedTab[] = ['passes', 'late', 'absent', 'other']
 
 interface FeedItem {
   key: string
@@ -72,9 +70,9 @@ function deptName(row: { employee?: { department?: unknown } | null }): string {
  *
  * This is the left margin of the HR board and the only block on it that is
  * about the minute rather than the day: who just walked through, and — through
- * the five tabs — the four questions that follow from it (who was late, who
- * never came, which guests are in the building, who is accounted for by a
- * document). The two counters above it are the raw pass tallies; they are the
+ * the four tabs — the questions that follow from it (who was late, who never
+ * came, who is accounted for by a document) — v1 sandbox «Keldi-Ketdi / Kech
+ * qolganlar / Kelmaganlar / Boshqa». The two counters above it are the raw pass tallies; they are the
  * only numbers here that are not per-person.
  *
  * Anything that passed the gate in the last ten minutes carries a green pulse,
@@ -86,8 +84,8 @@ function deptName(row: { employee?: { department?: unknown } | null }): string {
  * the column could not do before: pick a DAY, and take the day away as a
  * workbook.
  *
- * ⚠️ A PAST DAY ONLY ANSWERS TWO OF THE FIVE QUESTIONS. Passes and guests are
- * events and carry their own timestamp, so they can be asked of any date. Late
+ * ⚠️ A PAST DAY ONLY ANSWERS ONE OF THE FOUR QUESTIONS. Passes are events and
+ * carry their own timestamp, so they can be asked of any date. Late
  * / absent / accounted-for are derived from `employees-by-category`, which has
  * no date parameter — it answers for TODAY and nothing else. Rather than show
  * today's late list under yesterday's date, those three are dropped from the
@@ -96,24 +94,19 @@ function deptName(row: { employee?: { department?: unknown } | null }): string {
 export function LiveFeed({
   rows,
   events,
-  guests,
   entries,
   exits,
   loading,
   className,
   dayOffset = 0,
   onDayOffset,
-  wsStatus,
 }: {
   rows: AttendanceRow[]
   events: TurnstileEvent[]
-  guests: TurnstileEvent[]
   entries: number
   exits: number
   loading?: boolean
   className?: string
-  /** Turniket soketining holati — belgi shuni aytadi, «doim jonli» emas. */
-  wsStatus?: string
   /** 0 = bugun, 1 = kecha … Kun tanlagichi shuni suradi. */
   dayOffset?: number
   onDayOffset?: (next: number) => void
@@ -133,7 +126,7 @@ export function LiveFeed({
   const day = dayjs().subtract(dayOffset, 'day')
   const dayIso = day.format('YYYY-MM-DD')
   // O'tgan kunda faqat HODISAGA tayanadigan tablar javob bera oladi.
-  const available = past ? (['passes', 'guests'] as FeedTab[]) : TABS
+  const available = past ? (['passes'] as FeedTab[]) : TABS
   // ⚠️ Kun orqaga surilganda javobsiz tab tanlangan bo'lishi mumkin. Uni
   // RENDER paytida `setTab` bilan tuzatib bo'lmaydi (React buni taqiqlaydi va
   // cheksiz qayta chizishga olib kelardi) — shuning uchun ko'rinadigan tab
@@ -199,23 +192,6 @@ export function LiveFeed({
       })
     }
 
-    if (activeTab === 'guests') {
-      return guests.map((e, i) => {
-        const entry = e.direction_type === 'entrance' || e.check_in_out_type === 1
-        const guest = guestRow(e, t)
-        return {
-          key: String(e.id ?? `g-${i}`),
-          name: guest.name,
-          sub: guest.sub ?? '',
-          time: formatTime(e.happen_time),
-          note: entry ? t('dashboard.passIn') : t('dashboard.passOut'),
-          tone: entry ? 'success' : 'neutral',
-          photo: guest.photo,
-          photoFull: guest.photoFull,
-          live: fresh(e.happen_time),
-        }
-      })
-    }
 
     const pick = (r: AttendanceRow) =>
       activeTab === 'late'
@@ -243,7 +219,7 @@ export function LiveFeed({
         pass: r.entry || r.exit ? r : null,
       }
     })
-  }, [activeTab, events, guests, rows, t])
+  }, [activeTab, events, rows, t])
 
   const needle = q.trim().toLowerCase()
   const shown = needle ? items.filter((i) => i.name.toLowerCase().includes(needle)) : items
@@ -267,32 +243,14 @@ export function LiveFeed({
     io.observe(el)
     return () => io.disconnect()
   }, [hasMore, limit])
-  const connected = wsStatus === WS_STATUS.CONNECTED
-  const offline = wsStatus === WS_STATUS.DISCONNECTED
 
   return (
     <Panel className={className} label={t('dashboard.board.feedTitle')} data-tour="feed">
       <div className="flex shrink-0 flex-col gap-2.5 px-3.5 pb-3 pt-4">
         <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Eyebrow>{t('dashboard.board.feedTitle')}</Eyebrow>
-            {/* ⚠️ Belgi HAQIQATNI aytadi. Ilgari bu nuqta doim yashil bo'lib
-                pulsirardi va yonida «real vaqt» yozuvi turardi — holbuki lenta
-                har 2 daqiqada so'rov bilan yangilanardi. */}
-            <span
-              className={cn(
-                'h-[7px] w-[7px] rounded-pill',
-                connected ? 'animate-pulse bg-success' : offline ? 'bg-danger' : 'animate-pulse bg-warning',
-              )}
-            />
-          </span>
-          <span className="text-[11px] text-fg-subtle">
-            {connected
-              ? t('dashboard.board.realtime')
-              : offline
-                ? t('kpp.offline')
-                : t('kpp.connecting')}
-          </span>
+          <Eyebrow>{t('dashboard.board.feedTitle')}</Eyebrow>
+          {/* Halol belgi: lenta so'rov bilan yangilanadi (WebSocket TZ'da yo'q). */}
+          <span className="text-[11px] text-fg-subtle">{t('dashboard.board.autoRefresh')}</span>
         </div>
 
         <div className="flex gap-2" data-tour="feed-tabs">

@@ -5214,6 +5214,16 @@ const ru: Record<string, string> = {
   '6 xonali kod hisobingizdagi elektron pochtaga yuborildi. Kod 5 daqiqa amal qiladi.': '6-значный код отправлен на электронную почту вашей учётной записи. Код действует 5 минут.',
   'Kod noto‘g‘ri': 'Неверный код',
   'Kod noto‘g‘ri. Qolgan urinishlar: {{n}}': 'Неверный код. Осталось попыток: {{n}}',
+  'Har 2 daqiqada yangilanadi': 'Обновляется каждые 2 минуты',
+  'Hali so‘rov yubormagansiz': 'Вы ещё не отправляли запросов',
+  'Mening ish rejam': 'Мой план работ',
+  'Ochiq vazifa yo‘q': 'Открытых задач нет',
+  'Muddat: {{date}}': 'Срок: {{date}}',
+  'Reja {{plan}} → fakt {{fact}}': 'План {{plan}} → факт {{fact}}',
+  'muddati o‘tgan: {{count}}': 'просрочено: {{count}}',
+  'ko‘rib chiqilmoqda': 'на рассмотрении',
+  'KPI (joriy davr)': 'KPI (текущий период)',
+  'Joriy davr uchun KPI ko‘rsatkichlari yo‘q': 'Нет показателей KPI за текущий период',
 }
 
 export default ru
