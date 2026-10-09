@@ -5525,6 +5525,7 @@ const ru: Record<string, string> = {
   'QR-kodni tekshirib bo‘lmadi. Qaytadan urinib ko‘ring.': 'Не удалось проверить QR-код. Попробуйте ещё раз.',
   'Amal bajarilmadi. Qaytadan urinib ko‘ring.': 'Действие не выполнено. Попробуйте ещё раз.',
   'Bosh sahifaga': 'На главную',
+  'Tasdiqlash kodi': 'Код подтверждения',
 }
 
 export default ru

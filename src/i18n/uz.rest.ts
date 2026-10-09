@@ -6084,6 +6084,7 @@ const rest = {
     mod_statistics: 'Statistik hisobot',
     mod_services: 'Interaktiv xizmatlar',
     mod_attendance: 'Davomat',
+  },
   // ── Bo‘limlar va Lavozimlar boshqaruvi (TZ S1, S2, 4.2.6) ───────────────
   orgAdmin: {
     deptTitle: 'Bo‘limlar',
@@ -6226,6 +6227,7 @@ const rest = {
     occTo: 'Gacha',
     occBasis: 'Asos',
     occNow: 'hozirgacha',
+  },
   // ── Vakansiyalar (TZ 4.2.10, V3 — hamma, mehmon ham) ────────────────────
   vacancies: {
     title: 'Vakansiyalar',

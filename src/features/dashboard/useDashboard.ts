@@ -75,9 +75,6 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
         organization_branch_id: branchId,
         date_from: day,
         date_to: day,
-        // Shu filial turniketidan o'tgan begona filial xodimi ham lentada
-        // ko'rinadi; davomat hisobiga ta'sir qilmaydi.
-        include_cross_branch: true,
         ...f,
       }),
     // O'tgan kun o'zgarmaydi; bugungi kun 2 daqiqada yangilanadi.
