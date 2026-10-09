@@ -31,6 +31,8 @@ const BranchesPage = page(() => import('@/pages/BranchesPage'), 'BranchesPage')
 const RegistrationsPage = page(() => import('@/pages/RegistrationsPage'), 'RegistrationsPage')
 const AuditLogPage = page(() => import('@/pages/AuditLogPage'), 'AuditLogPage')
 const SystemHealthPage = page(() => import('@/pages/SystemHealthPage'), 'SystemHealthPage')
+const BackupsPage = page(() => import('@/pages/BackupsPage'), 'BackupsPage')
+const UiDictionaryPage = page(() => import('@/pages/UiDictionaryPage'), 'UiDictionaryPage')
 const LmsPage = page(() => import('@/pages/LmsPage'), 'LmsPage')
 const DictionariesPage = page(() => import('@/pages/DictionariesPage'), 'DictionariesPage')
 const StructurePage = page(() => import('@/pages/StructurePage'), 'StructurePage')
@@ -85,6 +87,8 @@ export function App() {
                       <Route path="/registrations" element={<RegistrationsPage />} />
                       <Route path="/audit-logs" element={<AuditLogPage />} />
                       <Route path="/system-health" element={<SystemHealthPage />} />
+                      <Route path="/system/backups" element={<BackupsPage />} />
+                      <Route path="/system/dictionary" element={<UiDictionaryPage />} />
                       <Route path="/lms" element={<LmsPage />} />
                       {/* 4.2.5–4.2.7 */}
                       <Route path="/dictionaries" element={<DictionariesPage />} />
