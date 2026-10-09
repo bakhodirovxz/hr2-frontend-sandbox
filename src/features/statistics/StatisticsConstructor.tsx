@@ -18,6 +18,7 @@ import {
   Columns3,
   Download,
   FileText,
+  Minus,
   RefreshCw,
   Save,
   ShieldQuestion,
@@ -44,7 +45,6 @@ import { ChartTooltip } from '@/components/data/ChartTooltip'
 import { ConfirmDialog } from '@/components/data/ConfirmDialog'
 import { FilterReset } from '@/components/data/FilterReset'
 import { TD, TH } from '@/components/data/tableStyles'
-import { useBranchStore } from '@/store/branchStore'
 import {
   ALL_COLUMNS,
   STATUS_KEYS,
@@ -57,19 +57,25 @@ import {
   type StatusKey,
 } from './api'
 import { renderChartPng } from './chartPng'
-import { useReportTemplates, useStatisticsMeta, useStatisticsReport, useTemplateMutations } from './useStatistics'
+import { dmy } from './reportUtils'
+import { useServerText } from './serverText'
+import {
+  ALL_BRANCHES,
+  useReportTemplates,
+  useStatBranch,
+  useStatisticsMeta,
+  useStatisticsReport,
+  useTemplateMutations,
+} from './useStatistics'
 
 /**
  * STATISTIK HISOBOT KONSTRUKTORI — TZ 4.2.11 («добавление новых форм отчетов»).
  *
- * `ReportsPage` dagi birinchi ikki tab — TAYYOR hisobotlar: ularning ustunlari
- * va kesimi kodda qat'iy yozilgan. Bu tab esa hisobotni FOYDALANUVCHI yig'adi:
+ * `/statistics` sahifasining «Murojaatlar statistikasi» tabi (v1
+ * `StatistikHisobotPage` konstruktori). Hisobotni FOYDALANUVCHI yig'adi:
  * davr, manba, murojaat turi, holat va KESIM (kun / hafta / oy / tur / holat /
- * filial / manba) — hammasi tanlanadi, natija esa bitta so'rovdan chiqadi.
- *
- * Nima uchun bu qo'shimcha, almashtiruv emas: tayyor hisobotlar kundalik
- * savolga bir bosishda javob beradi, konstruktor esa kod yozmasdan YANGI
- * hisobot shakli tug'diradi va uni SHABLON qilib saqlab qo'yadi.
+ * filial / manba) — hammasi tanlanadi, natija esa bitta so'rovdan chiqadi;
+ * tanlov SHABLON qilib saqlanadi (kodsiz shablonlar — shu konstruktorniki).
  *
  * ⚠️ JADVAL, IKKALA DIAGRAMMA VA EKSPORT — BITTA javobdan. Ular alohida so'rov
  * qilsa, filtr biriga qo'llanib ikkinchisida eskisi qolib ketardi; TZ aynan
@@ -91,6 +97,8 @@ const STATUS_TOKEN: Record<StatusKey, string> = {
   in_progress: '--warning',
   done: '--success',
   rejected: '--danger',
+  // D-D24: arizachining o'zi bekor qilgani — rad etish emas, NEYTRAL.
+  cancelled: '--fg-subtle',
 }
 /** «Jami» — holat emas, shuning uchun status ranglaridan ATAYLAB tashqarida. */
 const TOTAL_TOKEN = '--chart-5'
@@ -103,9 +111,9 @@ const COLUMN_TOKEN: Record<ColumnKey, string> = {
 /**
  * URL kalitlari `c…` bilan boshlanadi.
  *
- * ⚠️ SABAB: `ReportsPage` ning birinchi tabi ayni shu URL da `from` / `to` /
- * `type` / `status` ni ishlatadi. Bir xil nom qo'yilsa, tab almashtirilganda
- * bir hisobotning filtri ikkinchisiga sizib o'tardi.
+ * ⚠️ SABAB: sahifaning boshqa tablari ham shu URL da o'z filtrlarini saqlaydi
+ * (`cat`/`report` — katalog, `d…` — panel). Bir xil nom qo'yilsa, tab
+ * almashtirilganda bir hisobotning filtri ikkinchisiga sizib o'tardi.
  */
 const FILTER_KEYS = ['cfrom', 'cto', 'cgroup', 'csrc', 'ctype', 'cstate', 'cbranch'] as const
 
@@ -141,7 +149,7 @@ export function StatisticsConstructor() {
   const { t } = useTranslation()
   const tk = useDynamicT()
   const toast = useToast()
-  const branches = useBranchStore((s) => s.branches)
+  const st = useServerText()
 
   /**
    * Server yorliqlari FAQAT o'zbekcha keladi. Lug'atda kod bo'yicha kalit
@@ -151,7 +159,7 @@ export function StatisticsConstructor() {
    */
   const codeLabel = (prefix: string, code: string, fallback: string) => {
     const key = `statistics.${prefix}${code}`
-    return i18n.exists(key) ? tk(key) : fallback || code
+    return i18n.exists(key) ? tk(key) : st(fallback || code)
   }
   const statusLabel = (code: StatusKey) => codeLabel('st_', code, code)
   const columnLabel = (key: ColumnKey, groupLabel: string) =>
@@ -168,7 +176,9 @@ export function StatisticsConstructor() {
   const sources = useMemo(() => splitCsv(filters.csrc), [filters.csrc])
   const types = useMemo(() => splitCsv(filters.ctype), [filters.ctype])
   const statuses = useMemo(() => splitCsv(filters.cstate), [filters.cstate])
-  const branchId = filters.cbranch ? Number(filters.cbranch) : null
+  // Filial — sukut bo'yicha SHAPKADAGI filial, `branch_id` sifatida (statistika
+  // routeri `organization_branch_id` ni o'qimaydi).
+  const { branchId, selectValue: branchValue, branches } = useStatBranch(filters.cbranch)
   const rangeInvalid = isInvalidRange(dateFrom, dateTo)
 
   const [columns, setColumns] = useState<ColumnKey[]>([...ALL_COLUMNS])
@@ -202,7 +212,13 @@ export function StatisticsConstructor() {
 
   const meta = useStatisticsMeta()
   const report = useStatisticsReport(params, !rangeInvalid)
-  const templates = useReportTemplates()
+  const templatesQ = useReportTemplates()
+  // Kodsiz (yoki `requests`) shablonlar — shu konstruktorniki; katalog
+  // hisobotlari shablonlari o'z hisoboti ostida chiqadi.
+  const templates = useMemo(
+    () => (templatesQ.data ?? []).filter((tpl) => !tpl.report_code || tpl.report_code === 'requests'),
+    [templatesQ.data],
+  )
   const { save, remove } = useTemplateMutations()
 
   const status = (e: unknown) => (e as { response?: { status?: number } } | null)?.response?.status
@@ -246,6 +262,7 @@ export function StatisticsConstructor() {
         in_progress: r.in_progress,
         done: r.done,
         rejected: r.rejected,
+        cancelled: r.cancelled,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, groupBy, i18n.language],
@@ -286,7 +303,7 @@ export function StatisticsConstructor() {
         ...params,
         columns,
         title: t('statistics.title'),
-        subtitle: `${dateFrom || '—'} — ${dateTo || '—'}`,
+        subtitle: `${dmy(dateFrom)} — ${dmy(dateTo)}`,
         // Diagramma FAQAT PDF ga kerak; rasm chizilmasa ham jadval baribir
         // chiqadi, shuning uchun xato yutiladi.
         chart_png_base64:
@@ -328,7 +345,7 @@ export function StatisticsConstructor() {
   /** Shablon — saqlangan filtrlar to'plami. U URL ga yoziladi, ya'ni qo'llangan
    *  hisobotning havolasi ham xuddi shunday ulashiladi. */
   const applyTemplate = (tpl: ReportTemplate) => {
-    const p = tpl.params ?? {}
+    const p = (tpl.params ?? {}) as Partial<ReportParams & { columns: string[] }>
     setFilters({
       cfrom: p.date_from ?? null,
       cto: p.date_to ?? null,
@@ -336,7 +353,8 @@ export function StatisticsConstructor() {
       csrc: joinCsv(p.sources ?? []),
       ctype: joinCsv(p.types ?? []),
       cstate: joinCsv(p.statuses ?? []),
-      cbranch: p.branch_id ? String(p.branch_id) : null,
+      // Filialsiz saqlangan shablon — barcha filiallar uchun.
+      cbranch: p.branch_id ? String(p.branch_id) : ALL_BRANCHES,
     })
     if (p.columns?.length) setColumns(p.columns.filter((c): c is ColumnKey => ALL_COLUMNS.includes(c as ColumnKey)))
     toast.info(t('statistics.templateApplied', { name: tpl.name }))
@@ -394,13 +412,13 @@ export function StatisticsConstructor() {
           )
         })}
 
-        {(templates.data ?? []).length > 0 && (
+        {templates.length > 0 && (
           <>
             <span className="mx-1 h-4 w-px bg-line" />
             <span className="text-[11.5px] font-semibold text-fg-subtle">
               {t('statistics.templates')}
             </span>
-            {(templates.data ?? []).map((tpl) => (
+            {templates.map((tpl) => (
               <span
                 key={tpl.id}
                 className="flex items-center gap-1 rounded-pill border border-line py-0.5 pl-3 pr-1 text-xs"
@@ -452,10 +470,12 @@ export function StatisticsConstructor() {
           </Field>
           <Field label={t('statistics.branch')}>
             <Select
-              value={filters.cbranch}
+              value={branchValue}
               onChange={(e) => setFilter('cbranch', e.target.value)}
-              placeholder={t('statistics.allBranches')}
-              options={branches.map((b) => ({ value: String(b.id), label: b.name }))}
+              options={[
+                { value: ALL_BRANCHES, label: t('statistics.allBranches') },
+                ...branches.map((b) => ({ value: String(b.id), label: b.name })),
+              ]}
             />
           </Field>
         </div>
@@ -546,7 +566,13 @@ export function StatisticsConstructor() {
       </Card>
 
       {/* ── Asosiy ko'rsatkichlar ────────────────────────────────────────── */}
-      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      {report.error && !report.isFetching && (
+        <p role="alert" className="mb-3 rounded-inner border border-danger/40 bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+          {errorMessage(report.error, t('statistics.loadFailed'))}
+        </p>
+      )}
+
+      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {(['total', ...STATUS_KEYS] as const).map((key) => {
           const token = key === 'total' ? TOTAL_TOKEN : STATUS_TOKEN[key]
           const value = totals?.[key] ?? 0
@@ -579,7 +605,7 @@ export function StatisticsConstructor() {
       <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-fg-subtle">
         {data?.previous_totals?.total ? (
           <span>
-            {t('statistics.comparedPeriod')}: {data.previous_totals.date_from} — {data.previous_totals.date_to} ·{' '}
+            {t('statistics.comparedPeriod')}: {dmy(data.previous_totals.date_from)} — {dmy(data.previous_totals.date_to)} ·{' '}
             {t('statistics.comparedTotal')} {data.previous_totals.total.toLocaleString()}
           </span>
         ) : (
@@ -931,7 +957,7 @@ export function StatisticsConstructor() {
  *  etilganning o'sishi «yomon», qolganlariniki «yaxshi». */
 function Delta({ value, invert }: { value: number; invert?: boolean }) {
   const good = invert ? value <= 0 : value >= 0
-  const Icon = value >= 0 ? ArrowUp : ArrowDown
+  const Icon = value === 0 ? Minus : value > 0 ? ArrowUp : ArrowDown
   return (
     <span
       className={cn(

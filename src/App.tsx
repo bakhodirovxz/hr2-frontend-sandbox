@@ -48,6 +48,7 @@ const ServicesPage = page(() => import('@/pages/ServicesPage'), 'ServicesPage')
 const AttendancePage = page(() => import('@/pages/AttendancePage'), 'AttendancePage')
 const HolidaysPage = page(() => import('@/pages/HolidaysPage'), 'HolidaysPage')
 const TabelSettingsPage = page(() => import('@/pages/TabelSettingsPage'), 'TabelSettingsPage')
+const StatisticsPage = page(() => import('@/pages/StatisticsPage'), 'StatisticsPage')
 
 export function App() {
   return (
@@ -98,6 +99,8 @@ export function App() {
                       <Route path="/employee-attendance" element={<AttendancePage />} />
                       <Route path="/holidays" element={<HolidaysPage />} />
                       <Route path="/timesheet-settings" element={<TabelSettingsPage />} />
+                      {/* 4.2.11, R1, R2 */}
+                      <Route path="/statistics" element={<StatisticsPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                   </Route>
