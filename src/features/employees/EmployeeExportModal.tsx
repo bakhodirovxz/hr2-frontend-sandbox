@@ -5,7 +5,6 @@ import dayjs from 'dayjs'
 import { Button, Checkbox, Modal, useToast } from '@/components/ui'
 import { apiClient } from '@/api/client'
 import { errorMessage } from '@/api/errorMessage'
-import { EMPLOYEES_EXPORT_EXCEL } from '@/api/endpoints'
 import { XLSX_MIME } from '@/lib/download'
 import { useBranchStore } from '@/store/branchStore'
 
@@ -52,21 +51,10 @@ const GROUPS: { key: string; cols: string[] }[] = [
   { key: 'education', cols: ['include_education', 'include_work_experience'] },
 ]
 
-/** A sensible sheet on first open: who they are, where they sit, how to reach them. */
-const DEFAULTS = new Set([
-  'include_fish',
-  'include_department',
-  'include_job_position',
-  'include_phone',
-  'include_job_acceptance_date',
-])
-
 /**
- * Excel export — the columns are CHOSEN, never "everything".
- *
- * A roster export is the easiest way for passport numbers and JSHSHIR to walk
- * out of the building in a file nobody tracks, so the sheet starts as the plain
- * directory and every PII column has to be ticked on purpose.
+ * «Excelga eksport sozlamalari» (TZ C2 · 1031, 4.2.7 · 2139): the 27 columns
+ * of `POST /employees/export-excel`, grouped; the screen's filters are sent
+ * along, and «anonymize» (TZ 2352–2353) drops personal data for analysis.
  */
 export function EmployeeExportModal({
   open,
@@ -89,7 +77,8 @@ export function EmployeeExportModal({
   const { t } = useTranslation()
   const toast = useToast()
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const [picked, setPicked] = useState<Set<string>>(new Set(DEFAULTS))
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(GROUPS.flatMap((g) => g.cols)))
+  const [anonymize, setAnonymize] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const toggle = (col: string) =>
@@ -105,12 +94,13 @@ export function EmployeeExportModal({
     setBusy(true)
     try {
       const body = Object.fromEntries([...picked].map((c) => [c, true]))
-      const res = await apiClient.post(EMPLOYEES_EXPORT_EXCEL, body, {
+      const res = await apiClient.post('employees/export-excel', body, {
         params: {
           organization_branch_id: branchId || undefined,
           search: filters.search || undefined,
           department_id: filters.departmentId || undefined,
           job_position_id: filters.jobPositionId || undefined,
+          anonymize: anonymize || undefined,
         },
         responseType: 'blob',
         // Photos make this slow; the backend streams thumbnails but a full
@@ -159,6 +149,10 @@ export function EmployeeExportModal({
           {t('employees.exportIgnoresKpi')}
         </p>
       )}
+      <div className="mb-3 rounded-inner border border-line p-3">
+        <Checkbox checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)} label={t('personnel.export.anonymize')} />
+        <p className="mt-1 pl-6 text-[11.5px] text-fg-subtle">{t('personnel.export.anonymizeHint')}</p>
+      </div>
       <div className="mb-3 flex gap-2">
         <Button variant="outline" size="sm" onClick={() => setPicked(new Set(allCols))}>
           {t('employees.exportSelectAll')}

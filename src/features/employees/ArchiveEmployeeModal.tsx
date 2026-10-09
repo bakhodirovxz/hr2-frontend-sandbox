@@ -1,56 +1,75 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Combobox } from '@/components/ui/Combobox'
 import { Field } from '@/components/ui/Field'
+import { FormError } from '@/components/ui/FormError'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
-import { Skeleton } from '@/components/ui/Skeleton'
-import { errorMessage } from '@/api/errorMessage'
-import { useEmployeeArchive, useEmployeeRelatedData } from './useEmployees'
+import { useToast } from '@/components/ui/Toast'
+import { errorMessage, errorParams } from '@/api/errorMessage'
+import { useCodeOptions } from './t2/useT2'
+import { useEmployeeMutations, useRelatedData } from './useEmployees'
+
+type Blocker = { id: number; number?: string | null; kind_label?: string | null }
 
 /**
- * TAKING SOMEONE OFF THE ESTABLISHMENT.
- *
- * Two things made this worth its own dialog rather than a plain confirm. First,
- * the server ARCHIVES rather than deletes — the record and everything hanging
- * off it stay readable — and the wording has to say so, or personnel avoid the
- * button. Second, a reason is mandatory (the audit log records it), and the
- * dialog shows WHAT is attached to the person first, because "3 orders, 2
- * leave requests" is the thing that makes someone stop and check.
+ * «Arxivga o'tkazish» (TZ C4): related data is listed, the reason is picked
+ * from «Ishdan bo'shatish sabablari» (`dismissal_reasons`) + optional note →
+ * `POST /employees/{pk}/archive {reason_code, note}`. An unfinished order or a
+ * current business trip blocks archiving (409 `employee_has_open_orders`).
+ * The record is not deleted — it moves to the archive.
  */
 export function ArchiveEmployeeModal({
-  employeeId,
-  employeeName,
-  open,
+  employee,
   onClose,
   onDone,
 }: {
-  employeeId: number | null
-  employeeName?: string | null
-  open: boolean
+  employee: { id: number; legal_name?: string | null } | null
   onClose: () => void
-  onDone: (msg: string) => void
+  onDone?: () => void
 }) {
   const { t } = useTranslation()
-  const [reason, setReason] = useState('')
+  const toast = useToast()
+  const open = !!employee
+  const related = useRelatedData(employee?.id ?? null, open)
+  const reasons = useCodeOptions('dismissal_reasons', open)
+  const { archive } = useEmployeeMutations()
+  const [reasonCode, setReasonCode] = useState('')
+  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const archive = useEmployeeArchive()
-  const { items, loading } = useEmployeeRelatedData(employeeId, open)
+  const [blockers, setBlockers] = useState<Blocker[]>([])
+
+  useEffect(() => {
+    if (open) {
+      setReasonCode('')
+      setNote('')
+      setError(null)
+      setBlockers([])
+    }
+  }, [open, employee?.id])
+  useEffect(() => {
+    if (related.data?.blocking_orders) setBlockers(related.data.blocking_orders)
+  }, [related.data])
+
+  const items = (related.data?.items ?? []).filter((i) => Number(i.count) > 0)
 
   const submit = async () => {
-    if (reason.trim().length < 3) {
-      setError(t('employees.archiveReasonRequired'))
+    if (!employee) return
+    if (!reasonCode) {
+      setError(t('personnel.archive.reasonRequired'))
       return
     }
     try {
-      await archive.mutateAsync({ id: employeeId as number, reason: reason.trim() })
-      setReason('')
-      setError(null)
+      await archive.mutateAsync({ id: employee.id, reason_code: reasonCode, note: note.trim() || null })
+      toast.ok(t('personnel.archive.done'))
+      onDone?.()
       onClose()
-      onDone(t('employees.archived'))
     } catch (e) {
-      setError(errorMessage(e, t('employees.archiveFailed')))
+      const orders = errorParams(e).orders
+      if (Array.isArray(orders)) setBlockers(orders as Blocker[])
+      setError(errorMessage(e, t('common.actionFailed')))
     }
   }
 
@@ -58,46 +77,75 @@ export function ArchiveEmployeeModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={t('employees.archiveTitle')}
-      size="sm"
-      description={employeeName ?? undefined}
+      size="md"
+      title={t('personnel.archive.title')}
+      description={employee?.legal_name ?? undefined}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="danger" loading={archive.isPending} leftIcon={<Archive size={15} />} onClick={submit}>
-            {t('employees.archiveAction')}
+          <Button variant="ghost" onClick={onClose} disabled={archive.isPending}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="danger" onClick={() => void submit()} loading={archive.isPending} disabled={blockers.length > 0}>
+            {t('personnel.archive.title')}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
-        <p className="text-sm text-fg-muted">{t('employees.archiveHint')}</p>
-
-        {loading ? (
-          <Skeleton className="h-16 w-full" />
-        ) : items.length > 0 ? (
-          <div className="rounded-lg border border-warning/30 bg-warning-soft p-3">
-            <p className="mb-2 text-[13px] font-semibold text-warning">
-              {t('employees.relatedTitle')}
+      <div className="flex flex-col gap-3.5">
+        {items.length > 0 && (
+          <div className="rounded-inner border border-warning/30 bg-warning-soft p-3">
+            <p className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-warning">
+              <AlertTriangle size={14} aria-hidden /> {t('personnel.archive.related')}
             </p>
-            <ul className="space-y-1 text-[13px] text-fg-muted">
-              {items.map((r) => (
-                <li key={r.key} className="flex justify-between gap-4">
-                  <span>{r.label}</span>
-                  <span className="tabular-nums font-semibold text-fg">{r.count}</span>
+            <ul className="list-disc pl-5 text-[12.5px] text-fg-muted">
+              {items.map((i) => (
+                <li key={i.key}>
+                  {i.label}: <b className="text-fg">{i.count}</b>
                 </li>
               ))}
             </ul>
           </div>
-        ) : null}
-
-        <Field label={t('employees.archiveReason')} required error={error ?? undefined}>
-          <Textarea
-            rows={3}
-            value={reason}
-            onChange={(e) => { setReason(e.target.value); setError(null) }}
+        )}
+        {blockers.length > 0 && (
+          <div role="alert" className="rounded-inner border border-danger/40 bg-danger-soft p-3">
+            <p className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-danger">
+              <AlertTriangle size={14} aria-hidden /> {t('personnel.archive.blocked')}
+            </p>
+            <ul className="list-disc pl-5 text-[12.5px] text-fg-muted">
+              {blockers.map((b) => (
+                <li key={b.id}>
+                  {b.kind_label}: <b className="text-fg">№{b.number || b.id}</b>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-[12.5px] leading-relaxed text-fg-muted">{t('personnel.archive.explain')}</p>
+        <Field label={t('personnel.archive.reason')} required>
+          <Combobox
+            value={reasonCode}
+            onChange={(v) => {
+              setReasonCode(v)
+              setError(null)
+            }}
+            options={reasons}
+            placeholder={t('personnel.archive.reasonPh')}
+            invalid={!!error && !reasonCode}
           />
         </Field>
+        <Field label={t('personnel.archive.note')}>
+          <Textarea
+            value={note}
+            rows={3}
+            maxLength={1000}
+            placeholder={t('personnel.archive.notePh')}
+            onChange={(e) => {
+              setNote(e.target.value)
+              setError(null)
+            }}
+          />
+        </Field>
+        <FormError>{error}</FormError>
       </div>
     </Modal>
   )
