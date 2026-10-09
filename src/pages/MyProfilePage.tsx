@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { KeyRound, Pencil, Shield, User as UserIcon, UserCircle } from 'lucide-react'
+import { Bell, KeyRound, Pencil, Shield, User as UserIcon, UserCircle } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -16,13 +16,15 @@ import { MyEditForm } from '@/features/employees/profile/MyEditForm'
 import { MyGeneralInfo } from '@/features/employees/profile/MyGeneralInfo'
 import { ProfileSessions } from '@/features/employees/profile/ProfileSessions'
 import { useMyEmployee } from '@/features/employees/profile/useMyAccount'
+import { NotificationSettingsPanel } from '@/features/notifications/NotificationSettingsPanel'
 
-type Tab = 'account' | 'general' | 'edit' | 'security'
+type Tab = 'account' | 'general' | 'edit' | 'security' | 'notifications'
 const ALL_TABS: { id: Tab; icon: React.ReactNode }[] = [
   { id: 'account', icon: <UserCircle size={15} /> },
   { id: 'general', icon: <UserIcon size={15} /> },
   { id: 'edit', icon: <Pencil size={15} /> },
   { id: 'security', icon: <Shield size={15} /> },
+  { id: 'notifications', icon: <Bell size={15} /> },
 ]
 
 /**
@@ -32,7 +34,8 @@ const ALL_TABS: { id: Tab; icon: React.ReactNode }[] = [
  *                            F.I.Sh./login/pochta/telefon/rasmni tahrirlash;
  *   «Umumiy ma'lumotlarim» — o'z xodim kartasi (faqat ko'rish);
  *   «Tahrirlash»           — `PATCH /employees/me/self-update`;
- *   «Xavfsizlik»           — yangi parol va faol sessiyalar.
+ *   «Xavfsizlik»           — yangi parol va faol sessiyalar;
+ *   «Bildirishnomalar»     — qaysi turdagi bildirishnomalar kelishi (TZ L3 985).
  *
  * Xodim kartasiga bog'lanmagan hisoblar (administrator, mehmon) faqat kabinet
  * va «Xavfsizlik» ni ko'radi. `?tab=security` xavfsizlik tabini ochadi
@@ -54,7 +57,7 @@ export function MyProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const tabs = hasEmployee ? ALL_TABS : ALL_TABS.filter((x) => x.id === 'account' || x.id === 'security')
+  const tabs = hasEmployee ? ALL_TABS : ALL_TABS.filter((x) => x.id === 'account' || x.id === 'security' || x.id === 'notifications')
   const [params, setParams] = useSearchParams()
   const raw = params.get('tab') as Tab | null
   const tab: Tab = raw && tabs.some((x) => x.id === raw) ? raw : 'account'
@@ -146,6 +149,7 @@ export function MyProfilePage() {
       )}
       {needsCard && cardBody()}
       {tab === 'security' && <ProfileSessions />}
+      {tab === 'notifications' && <NotificationSettingsPanel />}
 
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </PageContainer>

@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
 import dayjs from 'dayjs'
-import { AlertTriangle, CheckCircle2, Copy, Download, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Copy, Download, Radio, XCircle } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -20,9 +21,12 @@ import { FilterReset } from '@/components/data/FilterReset'
 import { FilterToggle } from '@/components/data/FilterToggle'
 import { useListParams } from '@/hooks/useListParams'
 import { formatDateTime } from '@/lib/format'
-import { PDF_MIME, XLSX_MIME, downloadFile } from '@/lib/download'
-import { AUDIT_LOGS } from '@/api/endpoints'
-import { errorMessage } from '@/api/errorMessage'
+import { PDF_MIME, XLSX_MIME } from '@/lib/download'
+import { errorCode, errorMessage } from '@/api/errorMessage'
+import { filterChip } from '@/components/ui/control'
+import { cn } from '@/lib/cn'
+import { runAuditExport } from '@/features/audit/useAuditExport'
+import { ExportJobPanel } from '@/features/audit/ExportJobPanel'
 import { useBranchStore } from '@/store/branchStore'
 import {
   AUDIT_CATEGORIES,
@@ -30,6 +34,7 @@ import {
   CATEGORY_ACTIONS,
   auditParams,
   useAuditActors,
+  useAuditLive,
   useAuditLogs,
   useAuditStats,
   type AuditCategory,
@@ -155,23 +160,58 @@ export function AuditLogPage() {
     order: sort.dir,
     enabled: !rangeInvalid,
   }
-  const { rows, total, pages, loading, fetching, denied, error, refetch } = useAuditLogs(page, size, query)
+  const { rows: baseRows, total, pages, loading, fetching, denied, error, refetch } = useAuditLogs(page, size, query)
   const stats = useAuditStats(query, !denied)
+
+  /*
+   * TZ A4 919 «мониторинг в реальном времени»: page 1 in the default order
+   * (newest first) only — new rows are put on top, which means nothing on
+   * another page or under another sort.
+   */
+  const [liveOn, setLiveOn] = useState(false)
+  const liveAllowed = page === 1 && sort.key === 'time' && sort.dir === 'desc' && !rangeInvalid && !denied
+  const live = useAuditLive(query, baseRows, {
+    active: liveOn && liveAllowed,
+    ready: !loading && !error,
+    onOverflow: () => void refetch(),
+  })
+  const rows = live.rows
+
+  // TZ A4 919: the background export job — in the URL, so the notification
+  // («Audit jurnali eksporti tayyor») opens this same panel.
+  const [sp, setSp] = useSearchParams()
+  const jobId = Number(sp.get('job')) || null
+  const setJob = (id: number | null) =>
+    setSp(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (id) next.set('job', String(id))
+        else next.delete('job')
+        return next
+      },
+      { replace: true },
+    )
 
   const [exporting, setExporting] = useState(false)
   const exportAs = async (fmt: (typeof EXPORTS)[number]) => {
     setExporting(true)
     try {
-      await downloadFile({
-        url: `${AUDIT_LOGS}/export`,
-        mime: fmt.mime,
-        filename: `audit-jurnali_${dayjs().format('DD.MM.YYYY')}.${fmt.format}`,
+      const res = await runAuditExport(
         // A-D10: column and action names in the interface language.
-        params: { ...auditParams(query), format: fmt.format, lang: i18n.language || 'uz' },
-      })
-      toast.ok(t('audit.exported'))
+        { ...auditParams(query), format: fmt.format, lang: i18n.language || 'uz' },
+        `audit-jurnali_${dayjs().format('DD.MM.YYYY')}.${fmt.format}`,
+        fmt.mime,
+      )
+      if (res.kind === 'job') {
+        setJob(res.job.job_id)
+        toast.info(t('auditJob.started', { count: res.job.row_count ?? 0 }))
+      } else {
+        toast.ok(t('audit.exported'))
+      }
     } catch (e) {
-      toast.error(errorMessage(e, t('audit.exportFailed')))
+      toast.error(
+        errorCode(e) === 'job_enqueue_failed' ? t('auditJob.enqueueFailed') : errorMessage(e, t('audit.exportFailed')),
+      )
     } finally {
       setExporting(false)
     }
@@ -286,7 +326,7 @@ export function AuditLogPage() {
     <PageContainer>
       <PageHeader
         title={t('audit.title')}
-        subtitle={`${t(`audit.catHint_${category}` as never)} — ${t('audit.totalRows', { count: total })}`}
+        subtitle={`${t(`audit.catHint_${category}` as never)} — ${t('audit.totalRows', { count: total + live.added })}`}
         actions={
           denied ? undefined : (
             <ActionMenu
@@ -304,6 +344,8 @@ export function AuditLogPage() {
           )
         }
       />
+
+      {jobId && <ExportJobPanel jobId={jobId} onClose={() => setJob(null)} />}
 
       <Segmented
         className="mb-4"
@@ -327,6 +369,20 @@ export function AuditLogPage() {
           />
           <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={narrowingCount} />
           <FilterReset count={activeCount} onReset={reset} />
+          <button
+            type="button"
+            aria-pressed={liveOn && liveAllowed}
+            disabled={!liveAllowed}
+            title={liveAllowed ? t('auditLive.hint') : t('auditLive.onlyFirstPage')}
+            onClick={() => setLiveOn((v) => !v)}
+            className={cn(filterChip(liveOn && liveAllowed), 'disabled:cursor-not-allowed disabled:opacity-50 lg:ml-auto')}
+          >
+            <Radio size={14} aria-hidden="true" className={cn(liveOn && liveAllowed && 'text-success')} />
+            {t('auditLive.toggle')}
+            {liveOn && liveAllowed && live.lastPoll && (
+              <span className="tabular-nums text-[11px] text-fg-subtle">{dayjs(live.lastPoll).format('HH:mm:ss')}</span>
+            )}
+          </button>
           {filtersOpen && (
             <div className="grid w-full grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {/* The journal's OWN branch picker — empty means every branch. */}
@@ -420,6 +476,7 @@ export function AuditLogPage() {
           sort={sort}
           onSort={(s) => setFilter('sort', s.key === 'time' && s.dir === 'desc' ? '' : `${SORT_FIELD[s.key]}:${s.dir}`)}
           onRowClick={setViewing}
+          rowClassName={(row) => (live.fresh.has(row.id) ? 'bg-success-soft/70 transition-colors duration-700' : undefined)}
         />
 
         <Pagination page={page} size={size} total={total} pages={pages} onPage={setPage} onSize={setSize} loading={fetching} />

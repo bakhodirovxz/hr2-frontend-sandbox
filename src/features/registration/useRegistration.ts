@@ -36,7 +36,19 @@ interface RegistrationOptions {
   branches: RegistrationOption[]
   departments: RegistrationOption[]
   job_positions: RegistrationOption[]
+  /** TZ 4.2.2 · 1894 — sign-in methods to choose from (`password` | `qr`). */
+  auth_methods?: AuthMethodOption[]
 }
+
+/** `qr` has `requires_password` — the password is still set (the phone signs in with it once). */
+export interface AuthMethodOption {
+  code: string
+  label?: string
+  note?: string
+  requires_password?: boolean
+}
+
+export type AuthMethod = 'password' | 'qr'
 
 export interface RegistrationRow {
   id: number
@@ -75,6 +87,8 @@ export interface RegistrationRow {
   reviewed_by_name?: string | null
   created_employee_id?: number | null
   username?: string | null
+  /** TZ 4.2.2 · 1894 — the sign-in method chosen at registration. */
+  auth_method?: string | null
 }
 
 export interface RegistrationPayload {
@@ -103,6 +117,7 @@ export interface RegistrationPayload {
   claimed_branch_id: number | null
   claimed_department_id: number | null
   claimed_job_position_id: number | null
+  auth_method: AuthMethod
 }
 
 /** Ochiq forma uchun tanlov ro'yxatlari (autentifikatsiyasiz). */
