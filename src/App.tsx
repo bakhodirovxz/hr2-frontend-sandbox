@@ -33,6 +33,8 @@ const SystemHealthPage = page(() => import('@/pages/SystemHealthPage'), 'SystemH
 const LmsPage = page(() => import('@/pages/LmsPage'), 'LmsPage')
 const DictionariesPage = page(() => import('@/pages/DictionariesPage'), 'DictionariesPage')
 const StructurePage = page(() => import('@/pages/StructurePage'), 'StructurePage')
+const DepartmentsPage = page(() => import('@/pages/DepartmentsPage'), 'DepartmentsPage')
+const JobPositionsPage = page(() => import('@/pages/JobPositionsPage'), 'JobPositionsPage')
 const StaffPositionsPage = page(() => import('@/pages/StaffPositionsPage'), 'StaffPositionsPage')
 const EmployeesPage = page(() => import('@/pages/EmployeesPage'), 'EmployeesPage')
 const EmployeeProfilePage = page(() => import('@/pages/EmployeeProfilePage'), 'EmployeeProfilePage')
@@ -79,6 +81,9 @@ export function App() {
                       {/* 4.2.5–4.2.7 */}
                       <Route path="/dictionaries" element={<DictionariesPage />} />
                       <Route path="/structure" element={<StructurePage />} />
+                      {/* S1, S2, 4.2.6 — tuzilmani boshqarish (structure: edit) */}
+                      <Route path="/departments" element={<DepartmentsPage />} />
+                      <Route path="/job-positions" element={<JobPositionsPage />} />
                       <Route path="/staffing" element={<StaffPositionsPage />} />
                       <Route path="/employees" element={<EmployeesPage />} />
                       <Route path="/employees/:id" element={<EmployeeProfilePage />} />
