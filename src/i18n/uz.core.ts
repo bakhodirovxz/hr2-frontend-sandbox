@@ -9,7 +9,7 @@
  * (`AppShell`) mount bo'lishidan oldin, boot so'rovi bilan PARALLEL keladi.
  *
  * QAYSI BO'LIMLAR SHU YERDA: `common`, `errors`, `date`, `list`, `login`,
- * `qr`, `register`, `reset`, `sso`, `header`, `tabel`, `a11y`. Yangi bo'lim
+ * `qr`, `register`, `reset`, `authx`, `header`, `tabel`, `a11y`. Yangi bo'lim
  * qo'shsangiz — kirishdan OLDIN ko'rinadigan bo'lsa shu yerga, aks holda
  * `uz.rest.ts` ga. `uz.ts` ikkalasini birlashtiradi va `t()` tiplari o'sha
  * yerdan chiqadi, ya'ni tiplash uchun farqi yo'q.
@@ -220,6 +220,9 @@ const core = {
     invalid_push_endpoint: 'Kiritilgan ma‘lumot noto‘g‘ri',
     invalid_refresh_token: 'Sessiya yangilanmadi — qayta kiring',
     invalid_reset_token: 'Tiklash havolasi yaroqsiz',
+    account_locked: 'Noto‘g‘ri urinishlar ko‘pligi sababli hisob vaqtincha bloklangan',
+    account_not_found: 'Bunday login yoki elektron pochtali hisob topilmadi',
+    no_email_on_account: 'Hisobingizda elektron pochta yo‘q — parolni administrator tiklaydi',
     invalid_status: 'Holat noto‘g‘ri yoki amal allaqachon bajarilgan',
     invalid_token: 'Token noto‘g‘ri',
     invalid_token_type: 'Token turi noto‘g‘ri',
@@ -425,7 +428,7 @@ const core = {
     user_username_exists: 'Ushbu login (email) allaqachon mavjud',
     validation_error: 'Ma’lumotlarni tekshiring',
     visitor_not_found: 'Mehmon topilmadi',
-    weak_password: 'Parol talabga javob bermaydi: kamida 8 belgi, katta va kichik harf hamda raqam bo‘lsin; login yoki oddiy so‘z bo‘lmasin',
+    weak_password: 'Parol kamida {{min}} ta belgidan iborat bo‘lishi kerak',
     password_reused: 'Bu parol yaqinda ishlatilgan — oldingi parollardan farq qiladigan yangi parol tanlang',
     password_expired: 'Parolingizning amal qilish muddati tugagan. Davom etish uchun yangi parol o‘rnating',
     captcha_required: 'Iltimos, rasmdagi belgilarni kiriting',
@@ -723,16 +726,6 @@ const core = {
     badLink: 'Havola noto‘g‘ri, eskirgan yoki allaqachon ishlatilgan. Parolni tiklashni qaytadan so‘rang.',
     failed: 'Tizimda xatolik yuz berdi. Birozdan so‘ng qaytadan urinib ko‘ring.',
   },
-  sso: {
-    signingIn: 'OneID orqali kirilmoqda…',
-    errGeneric: 'OneID orqali kirishda xatolik yuz berdi. Qaytadan urinib ko‘ring.',
-    errNotConfigured: 'OneID hozircha sozlanmagan. Administrator bilan bog‘laning.',
-    errState: 'Sessiya muddati tugadi yoki yaroqsiz. Qaytadan urinib ko‘ring.',
-    errNotValidated: 'OneID hisobingiz tasdiqlanmagan. ERI yoki Mobile-ID orqali tasdiqlang.',
-    errNoPin: 'OneID’dan JShShIR olinmadi. Administrator bilan bog‘laning.',
-    errNoEmployee: 'JShShIR raqamingiz tizimda xodim sifatida ro‘yxatdan o‘tmagan.',
-    errInactive: 'Hisobingiz faol emas. Administrator bilan bog‘laning.',
-  },
   login: {
     forgotLink: 'Parolni unutdingizmi?',
     forgotTitle: 'Parolni tiklash',
@@ -777,21 +770,16 @@ const core = {
     level_medium: 'O‘rtacha',
     level_strong: 'Kuchli',
     ruleLength: 'Kamida 8 ta belgi',
-    ruleUpper: 'Katta harf (A–Z)',
-    ruleLower: 'Kichik harf (a–z)',
+    ruleLetter: 'Kamida bitta harf',
     ruleDigit: 'Raqam (0–9)',
     ruleNoLogin: 'Login parol ichida bo‘lmasin',
-    ruleNotCommon: 'Juda oddiy parol',
     strongHint: 'Kuchli bo‘lishi uchun 12+ belgi yoki maxsus belgi (!, #, %…) qo‘shing.',
     notStrongEnough: 'Parol talabga javob bermaydi — ro‘yxatdagi shartlarni bajaring',
     mismatch: 'Parollar mos kelmadi',
     confirm: 'Yangi parolni takrorlang',
     mustChangeTitle: 'Parolni almashtirish shart',
-    mustChangeExpired: 'Parolingiz 6 oydan beri almashtirilmagan. Xavfsizlik talabiga ko‘ra davom etishdan oldin yangi parol o‘rnating.',
     mustChangeTemporary: 'Sizga vaqtinchalik parol berilgan. Davom etishdan oldin o‘zingizning parolingizni o‘rnating.',
     changedRelogin: 'Parol almashtirildi. Yangi parol bilan qayta kiring.',
-    expiresIn: 'Parolingiz muddati {{count}} kundan so‘ng tugaydi.',
-    expiresToday: 'Parolingiz muddati bugun tugaydi.',
     changeNow: 'Hozir almashtirish',
     defaultPasswordHint: 'Siz hali boshlang‘ich paroldan foydalanyapsiz. Xavfsizlik uchun uni o‘zingizning parolingizga almashtiring.',
   },
@@ -1067,6 +1055,33 @@ const core = {
     errAlreadySubmitted:
       'Bu JShShIR bo‘yicha ariza allaqachon berilgan. Natijani kuting.',
     errFailed: 'Arizani yuborib bo‘lmadi. Qaytadan urinib ko‘ring.',
+  },
+
+  /** Kirish, parol tiklash va ro'yxatdan o'tish — P2 qo'shimchalari (TZ U1, U3, 4.2.2). */
+  authx: {
+    forgotLink: 'Parolingizni unutdingizmi?',
+    forgotIdentifier: 'Login yoki elektron pochta',
+    forgotDesc: 'Login yoki elektron pochtangizni kiriting — parolni tiklash havolasi hisobingizdagi pochtaga yuboriladi.',
+    forgotRequired: 'Login yoki elektron pochtani kiriting',
+    forgotSent: 'Parolni tiklash havolasi hisobingizdagi elektron pochtaga yuborildi.',
+    forgotNotFound: 'Bunday login yoki elektron pochtali hisob topilmadi',
+    forgotNoEmail: 'Hisobingizda elektron pochta yo‘q — parolni administrator tiklaydi',
+    locked: 'Noto‘g‘ri urinishlar ko‘pligi sababli hisob vaqtincha bloklangan. Parolni tiklang yoki administratorga murojaat qiling.',
+    lockedUntil:
+      'Noto‘g‘ri urinishlar ko‘pligi sababli hisob vaqtincha bloklangan — {{time}} gacha. Parolni tiklang yoki administratorga murojaat qiling.',
+    backToLogin: 'Login sahifasiga qaytish',
+    stepDocs: 'Hujjat va foto',
+    stepAccount: 'Hisob va tashkilot',
+    stepOf: '{{n}}-bosqich / {{total}}',
+    qrNote: 'Tizimga QR-kod orqali yoki login va parol bilan kirasiz.',
+    userType: 'Foydalanuvchi turi',
+    userTypeIndividual: 'Jismoniy shaxs',
+    passwordHint: 'Kamida 8 ta belgi; harflar va raqamlar aralash bo‘lsin.',
+    passwordPlaceholder: 'Kamida 8 ta belgi, harf va raqam',
+    claimHint: 'Ko‘rsatgan ma’lumotlaringizni administrator tekshiradi va tasdiqlagach tegishli huquqlar beriladi.',
+    photoOnlyImage: 'Faqat rasm fayli yuklang',
+    errTooMany: 'Juda ko‘p urinish. Birozdan so‘ng qaytadan urinib ko‘ring.',
+    errConflict: 'Bu ma’lumotlar bilan hisob allaqachon mavjud.',
   },
 
   // ── Ro'yxatdan o'tish arizalari, administrator (TZ 4.2.2) ───────────────

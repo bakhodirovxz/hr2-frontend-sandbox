@@ -32,12 +32,10 @@ export function PasswordStrength({
 
   const rows: { key: string; ok: boolean; label: string }[] = [
     { key: 'length', ok: check.rules.length, label: t('password.ruleLength') },
-    { key: 'uppercase', ok: check.rules.uppercase, label: t('password.ruleUpper') },
-    { key: 'lowercase', ok: check.rules.lowercase, label: t('password.ruleLower') },
+    { key: 'letter', ok: check.rules.letter, label: t('password.ruleLetter') },
     { key: 'digit', ok: check.rules.digit, label: t('password.ruleDigit') },
   ]
   if (check.failed.includes('contains_username')) rows.push({ key: 'u', ok: false, label: t('password.ruleNoLogin') })
-  if (check.failed.includes('common')) rows.push({ key: 'c', ok: false, label: t('password.ruleNotCommon') })
 
   return (
     <div className={cn('mt-2', className)} aria-live="polite">

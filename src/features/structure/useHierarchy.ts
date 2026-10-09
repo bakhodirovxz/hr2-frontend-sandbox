@@ -56,11 +56,39 @@ export function useHierarchy(branchId: number | null, enabled = true) {
   return { nodes: q.data ?? [], loading: q.isLoading }
 }
 
+/** One department as it stood on the day (TZ 2029/2061). */
+export interface SnapshotDepartment {
+  id: number
+  code?: string | null
+  name?: string | null
+  parent_id?: number | null
+  closed_at?: string | null
+  head_employee_id?: number | null
+}
+
+export interface SnapshotPosition {
+  id: number
+  name?: string | null
+  category?: string | null
+  razryad?: number | null
+}
+
+export interface SnapshotStaffPosition {
+  id: number
+  department_id?: number | null
+  job_position_id?: number | null
+  planned_units?: number | null
+  closed?: boolean
+}
+
 interface SnapshotResponse {
   found: boolean
   on?: string
   taken_at?: string | null
   reason?: string | null
+  departments?: SnapshotDepartment[]
+  positions?: SnapshotPosition[]
+  staff_positions?: SnapshotStaffPosition[]
   payload?: { nodes?: HierarchyNode[]; edges?: HierarchyConnection[] } | null
 }
 
@@ -82,7 +110,7 @@ export function useStructureSnapshot(branchId: number | null, on: string) {
 
   const data = q.data
   const nodes: HierarchyNode[] | null =
-    data?.found && data.payload
+    data?.found && data.payload?.nodes?.length
       ? (data.payload.nodes ?? []).map((n) => ({
           ...n,
           outgoing_connections: (data.payload?.edges ?? []).filter((e) => e.source_id === n.id),
@@ -92,6 +120,10 @@ export function useStructureSnapshot(branchId: number | null, on: string) {
 
   return {
     nodes,
+    found: !!data?.found,
+    departments: data?.found ? data.departments ?? [] : [],
+    positions: data?.positions ?? [],
+    staffPositions: data?.staff_positions ?? [],
     takenAt: data?.taken_at ?? null,
     /** A date was asked for but nothing was recorded then — the caller falls
      *  back to the live chart and says so, rather than showing an empty page. */

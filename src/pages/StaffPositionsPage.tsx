@@ -1,68 +1,78 @@
-import { ImportWizard } from '@/features/import/ImportWizard'
-import { queryClient } from '@/api/queryClient'
-import { useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
+import dayjs from 'dayjs'
 import {
   AlertTriangle,
+  Archive,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   BellRing,
-  ListChecks,
+  Check,
   Columns3,
   Download,
   FileCode2,
   FileText,
-  Lock,
-  LockOpen,
+  Megaphone,
   Pencil,
   Plus,
-  Upload,
-  MoreHorizontal,
+  RotateCcw,
 } from 'lucide-react'
-import { ActionMenu } from '@/components/ui/ActionMenu'
-import dayjs from 'dayjs'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
-import { Button, Card, Checkbox, EmptyState, Select, useToast } from '@/components/ui'
-import { DataTable, type Column, type SortState } from '@/components/data/DataTable'
+import { ActionMenu } from '@/components/ui/ActionMenu'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { IconButton } from '@/components/ui/IconButton'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { useToast } from '@/components/ui/Toast'
+import { filterChip, tabPill } from '@/components/ui/control'
+import { FilterReset } from '@/components/data/FilterReset'
+import { LoadError } from '@/components/data/LoadError'
 import { Pagination } from '@/components/data/Pagination'
-import { ConfirmDialog } from '@/components/data/ConfirmDialog'
-import { cn } from '@/lib/cn'
-import { PDF_MIME, XLSX_MIME, XML_MIME, downloadFile } from '@/lib/download'
+import { SearchInput } from '@/components/data/SearchInput'
+import { TD_COMPACT, TD_MESSAGE, TH } from '@/components/data/tableStyles'
+import { errorMessage } from '@/api/errorMessage'
 import {
   STAFF_POSITIONS_EXPORT_EXCEL,
   STAFF_POSITIONS_EXPORT_PDF,
   STAFF_POSITIONS_EXPORT_XML,
 } from '@/api/endpoints'
-import { errorMessage } from '@/api/errorMessage'
-import { SearchInput } from '@/components/data/SearchInput'
-import { FilterReset } from '@/components/data/FilterReset'
 import { useListParams } from '@/hooks/useListParams'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
+import { cn } from '@/lib/cn'
+import { PDF_MIME, XLSX_MIME, XML_MIME, downloadFile } from '@/lib/download'
 import { useAuthStore } from '@/store/authStore'
-import { useBranchStore } from '@/store/branchStore'
-import { StaffPositionModal } from '@/features/staff/StaffPositionModal'
-import { VacancyNotifyModal } from '@/features/staff/VacancyNotifyModal'
-import { ExportColumnsModal } from '@/features/staff/ExportColumnsModal'
+import { RequiredLanguagesChips } from '@/features/vacancies/RequiredLanguagesChips'
 import { BulkStaffModal } from '@/features/staff/BulkStaffModal'
+import { ExportColumnsModal } from '@/features/staff/ExportColumnsModal'
+import { StaffCloseModal } from '@/features/staff/StaffCloseModal'
+import { StaffPositionModal } from '@/features/staff/StaffPositionModal'
+import { VacancyApplicationsPanel } from '@/features/staff/VacancyApplicationsPanel'
+import { VacancyNotifyModal } from '@/features/staff/VacancyNotifyModal'
 import {
   STAFF_CATEGORIES,
+  canCreateVacancy,
   canManageStaff,
   fmtUnits,
+  headDepartmentIds,
+  staffListParams,
   useStaffIssues,
   useStaffMutations,
+  useStaffPosition,
   useStaffPositions,
   useStaffSummary,
   type StaffPosition,
 } from '@/features/staff/useStaffPositions'
-import { tabPill } from '@/components/ui/control'
 
-type Tab = 'shtat' | 'vakansiya' | 'muammo'
-
-/** Table column → server `sort_by`; only these columns are sortable. */
-const SORT_COLUMNS: Record<string, string> = {
-  department: 'department',
-  position: 'job_position',
-  category: 'category',
-  planned: 'planned_units',
-}
+type Tab = 'shtat' | 'muammo' | 'arizalar'
+const FILTER_KEYS = ['tab', 'vacant', 'dept', 'pos', 'cat', 'closed', 'sort', 'dir'] as const
+/** Server `sort_by` keys (StaffPositionService._SORTABLE). */
+const SORTABLE = ['department', 'job_position', 'category', 'razryad', 'planned_units'] as const
 
 const CATEGORY_TONE: Record<string, string> = {
   rahbar: 'bg-warning/[0.13] text-warning',
@@ -71,52 +81,39 @@ const CATEGORY_TONE: Record<string, string> = {
   ishchi: 'bg-success/[0.12] text-success',
 }
 
+const rowKey = (r: StaffPosition) => `${r.department_id}-${r.job_position_id}`
+
 /**
- * SHTAT VA VAKANSIYA — TZ 4.2.6 + 4.2.10.
+ * SHTAT VA VAKANSIYALAR — TZ 4.2.6, 4.2.10, V1, V2, V3.
  *
- * Three readings of ONE register, because the same rows answer three different
- * questions and splitting them into three screens would let the numbers drift:
+ * Vacancies are not typed in: the backend derives them (approved − occupied),
+ * so the same register answers the establishment question and the vacancy
+ * one; «Faqat bo'sh o'rinlar» switches the table to the vacancy view. Rows are
+ * grouped by department — the unit a staffing decision is made in, and the
+ * unit the bulk editor works on.
  *
- *   · SHTAT — the establishment as approved: planned vs occupied, per post;
- *   · VAKANSIYA — only the lines with an opening, which is what the portal
- *     export publishes and what the announcement fields belong to;
- *   · MUAMMOLAR — the register's own defects (an employee with no department
- *     never reaches the table at all, so a screen that only showed the table
- *     would quietly under-count the whole organisation).
- *
- * Occupied units are DERIVED from live employees and can never be typed in;
- * only the planned figure is an editorial decision, and every change to it
- * asks for a reason and lands in the row's change log.
+ * Manage (edit, reduce, bulk, XML, settings, issues, applications) —
+ * `canWriteOrg(user,'vacancies','full')`; a department head may only OPEN a
+ * vacancy in his own and lower units (`canWrite(user,'vacancies')`).
+ * `?open={id}` opens one staff line.
  */
 export function StaffPositionsPage() {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const user = useAuthStore((s) => s.user)
   const manage = canManageStaff(user)
-  const [importing, setImporting] = useState(false)
-
-  // The backend may add a new issue code before the dictionary catches up; a
-  // missing key must show the code, never `staff.issue_<code>`.
-  const label = (key: string, fallback: string) =>
-    i18n.exists(key) ? t(key as never) : fallback
-  const branchId = useBranchStore((s) => s.selectedBranchId)
+  const canCreate = canCreateVacancy(user)
+  const headIds = useMemo(() => headDepartmentIds(user), [user])
+  const isHeadOnly = !manage && (headIds?.length ?? 0) > 0
 
   const { search, page, size, filters, setSearch, setPage, setSize, setFilter, setFilters } =
-    useListParams(['tab', 'dept', 'pos', 'cat', 'closed', 'sort', 'dir'])
-  // A pasted ?tab=muammo link still lands on the list for a non-manager.
-  const tab = ((filters.tab as Tab) === 'muammo' && !manage ? 'shtat' : (filters.tab as Tab)) || 'shtat'
-  const includeClosed = filters.closed === '1'
-  const debouncedSearch = search
-
-  // TZ 4.2.10: «сортировка по возрастанию и убыванию по любому столбцу» — on
-  // the SERVER, across every page. Sorting the page in hand only shuffled the
-  // 50 rows on screen. Both halves are validated before they are sent.
-  const sortBy = SORT_COLUMNS[filters.sort]
+    useListParams(FILTER_KEYS)
+  const requested = (filters.tab as Tab) || 'shtat'
+  // A pasted ?tab=muammo link still lands on the table for a non-manager.
+  const tab: Tab = requested !== 'shtat' && !manage ? 'shtat' : requested
+  const onlyVacant = filters.vacant === '1'
+  const sortBy = (SORTABLE as readonly string[]).includes(filters.sort) ? filters.sort : ''
   const sortDir: 'asc' | 'desc' = filters.dir === 'desc' ? 'desc' : 'asc'
-  const sort: SortState | null = sortBy ? { key: filters.sort, dir: sortDir } : null
-
-  const filterCount = [filters.dept, filters.pos, filters.cat, filters.closed, search].filter(Boolean).length
-  const resetFilters = () => setFilters({ dept: null, pos: null, cat: null, closed: null, q: null })
 
   const departments = useDepartmentOptions()
   const positions = useJobPositionOptions()
@@ -124,55 +121,83 @@ export function StaffPositionsPage() {
   const query = {
     page,
     size,
-    search: debouncedSearch,
-    departmentId: filters.dept,
+    search,
+    departmentId: filters.dept || (isHeadOnly && headIds!.length === 1 ? headIds![0] : undefined),
     jobPositionId: filters.pos,
     category: filters.cat,
-    onlyVacant: tab === 'vakansiya',
-    includeClosed,
+    onlyVacant,
+    includeClosed: filters.closed === '1',
     sortBy,
     sortDir,
   }
-  const { rows, total, pages, loading, denied, error, refetch } = useStaffPositions(query, tab !== 'muammo')
+  const list = useStaffPositions(query, tab === 'shtat')
   const { summary, failed: summaryFailed } = useStaffSummary()
-  const issues = useStaffIssues(tab === 'muammo')
+  const issues = useStaffIssues(manage)
 
-  const { close, reopen } = useStaffMutations()
-
-  // Bulk edit is scoped to ONE department: that is the unit a staffing decision
-  // is actually made in, and it keeps the dialog short enough to check by eye.
-  const [bulkDept, setBulkDept] = useState<string | null>(null)
-
-  // Departments present on the CURRENT page — bulk edit works on what the user
-  // can see, never on rows hidden behind a filter or another page.
-  const bulkDepartments = useMemo(() => {
-    const names = new Set<string>()
-    for (const r of rows) if (r.department_name) names.add(r.department_name)
-    return Array.from(names).sort()
-  }, [rows])
-  const bulkRows = useMemo(
-    () => (bulkDept ? rows.filter((r) => r.department_name === bulkDept) : []),
-    [rows, bulkDept],
+  // A head sees his own units only (TZ V1 «Руководители»).
+  const rows = useMemo(
+    () => (isHeadOnly ? list.rows.filter((r) => headIds!.includes(Number(r.department_id))) : list.rows),
+    [list.rows, isHeadOnly, headIds],
   )
-  const [editRow, setEditRow] = useState<StaffPosition | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [closeTarget, setCloseTarget] = useState<StaffPosition | null>(null)
-  const [exporting, setExporting] = useState<string | null>(null)
-  const [notifyOpen, setNotifyOpen] = useState(false)
-  // Chosen Excel columns. EMPTY means "every column" — the server treats an
-  // absent `columns` param that way, so the picker never has to enumerate the
-  // full set just to say "all".
-  const [exportCols, setExportCols] = useState<string[]>([])
-  const [colsOpen, setColsOpen] = useState(false)
+  const groups = useMemo(() => {
+    const map = new Map<string, StaffPosition[]>()
+    for (const r of rows) {
+      const name = r.department_name || t('orgRef.noDepartment')
+      if (!map.has(name)) map.set(name, [])
+      map.get(name)!.push(r)
+    }
+    return [...map.entries()].map(([name, items]) => ({
+      name,
+      rows: items,
+      planned: items.reduce((s, r) => s + Number(r.planned_units || 0), 0),
+      occupied: items.reduce((s, r) => s + Number(r.occupied_units || 0), 0),
+      vacant: items.reduce((s, r) => s + Number(r.vacant_units || 0), 0),
+    }))
+  }, [rows, t])
 
+  const [drawer, setDrawer] = useState<{ row: StaffPosition | null; vacancy: boolean } | null>(null)
+  const [closeRow, setCloseRow] = useState<StaffPosition | null>(null)
+  const [bulk, setBulk] = useState<{ name: string; rows: StaffPosition[] } | null>(null)
+  const [colsOpen, setColsOpen] = useState(false)
+  const [notifyOpen, setNotifyOpen] = useState(false)
+  const [exportCols, setExportCols] = useState<string[]>([])
+  const [exporting, setExporting] = useState<string | null>(null)
+
+  // `?open=12` — open that staff line and drop the parameter.
+  const [params, setParams] = useSearchParams()
+  const openParam = Number(params.get('open')) || null
+  const opened = useStaffPosition(manage ? openParam : null)
+  useEffect(() => {
+    if (!openParam) return
+    if (!manage || opened.data || opened.isError) {
+      if (opened.data) setDrawer({ row: opened.data, vacancy: false })
+      if (opened.isError) toast.error(errorMessage(opened.error, t('orgRef.notFound')))
+      setParams(
+        (prev) => {
+          const sp = new URLSearchParams(prev)
+          sp.delete('open')
+          return sp
+        },
+        { replace: true },
+      )
+    }
+  }, [openParam, manage, opened.data, opened.isError, opened.error, setParams, toast, t])
+
+  const toggleSort = (key: string) =>
+    setFilters({ sort: key, dir: sortBy === key && sortDir === 'asc' ? 'desc' : null })
+
+  const filterCount = [filters.dept, filters.pos, filters.cat, filters.closed, filters.vacant, search].filter(Boolean).length
+  const resetFilters = () => setFilters({ dept: null, pos: null, cat: null, closed: null, vacant: null, q: null })
+
+  /* TZ 4.2.10 «Экспорт данных в форматы Excel, PDF и XML» — with the filters
+     on screen; XML is the uzgidro.uz portal feed (open places only). */
   const doExport = async (format: 'excel' | 'pdf' | 'xml') => {
     const cfg = {
       excel: { url: STAFF_POSITIONS_EXPORT_EXCEL, mime: XLSX_MIME, ext: 'xlsx' },
       pdf: { url: STAFF_POSITIONS_EXPORT_PDF, mime: PDF_MIME, ext: 'pdf' },
       xml: { url: STAFF_POSITIONS_EXPORT_XML, mime: XML_MIME, ext: 'xml' },
     }[format]
-    const base =
-      format === 'xml' ? 'Vakansiyalar_UZGIDRO' : tab === 'vakansiya' ? 'Vakansiyalar' : 'Shtat_jadvali'
+    const base = format === 'xml' ? 'Vakansiyalar_UZGIDRO' : onlyVacant ? 'Vakansiyalar' : 'Shtat_jadvali'
     setExporting(format)
     try {
       await downloadFile({
@@ -181,19 +206,7 @@ export function StaffPositionsPage() {
         mime: cfg.mime,
         filename: `${base}_${dayjs().format('DD.MM.YYYY')}.${cfg.ext}`,
         params: {
-          organization_branch_id: branchId || undefined,
-          search: debouncedSearch || undefined,
-          department_id: filters.dept || undefined,
-          job_position_id: filters.pos || undefined,
-          category: filters.cat || undefined,
-          only_vacant: tab === 'vakansiya' || undefined,
-          // The chosen COLUMN SORT travels with the file. v1 forwards the whole
-          // list query (`const { page, size, ...params } = listParams`); v2 was
-          // rebuilding the params by hand and left these two out, so a table
-          // sorted by department exported in the server's default order.
-          sort_by: sortBy || undefined,
-          sort_dir: sortBy ? sortDir : undefined,
-          // Excel only: PDF and XML have a fixed layout server-side.
+          ...staffListParams(query),
           columns: format === 'excel' && exportCols.length ? exportCols : undefined,
         },
       })
@@ -205,370 +218,153 @@ export function StaffPositionsPage() {
     }
   }
 
-  const toggleClosed = async () => {
-    if (!closeTarget?.id) return
-    try {
-      if (closeTarget.is_closed) await reopen.mutateAsync({ id: closeTarget.id })
-      else await close.mutateAsync({ id: closeTarget.id })
-      toast.ok(closeTarget.is_closed ? t('staff.reopened') : t('staff.closed'))
-      setCloseTarget(null)
-    } catch (e) {
-      toast.error(errorMessage(e, t('staff.saveFailed')))
-    }
-  }
-
-  const columns: Column<StaffPosition & { id: number }>[] = useMemo(() => {
-    const base: Column<StaffPosition & { id: number }>[] = [
-      {
-        key: 'department',
-        skeleton: 'w-[260px]',
-        header: t('employees.colDepartment'),
-        sortValue: (r) => r.department_name ?? '',
-        cell: (r) => (
-          <span className="block truncate font-medium text-fg">{r.department_name || '—'}</span>
-        ),
-      },
-      {
-        key: 'position',
-        skeleton: 'w-[220px]',
-        header: t('employees.colPosition'),
-        sortValue: (r) => r.job_position_name ?? '',
-        cell: (r) => <span className="block truncate text-fg-muted">{r.job_position_name || '—'}</span>,
-      },
-      {
-        key: 'razryad',
-        skeleton: 'w-8',
-        header: t('structure.colRazryad'),
-        className: 'w-[90px] tabular-nums text-fg-muted',
-        sortValue: (r) => r.razryad ?? -1,
-        cell: (r) => r.razryad ?? '—',
-      },
-      {
-        key: 'category',
-        skeleton: 'w-20',
-        header: t('staff.category'),
-        className: 'w-[130px]',
-        sortValue: (r) => r.category ?? '',
-        cell: (r) =>
-          r.category ? (
-            <span
-              className={cn(
-                'inline-flex rounded-pill px-2.5 py-1 text-[11px] font-semibold',
-                CATEGORY_TONE[r.category] ?? 'bg-fg/[0.06] text-fg-muted',
-              )}
-            >
-              {t(`staff.cat_${r.category}` as never)}
-            </span>
-          ) : (
-            <span className="text-fg-subtle">—</span>
-          ),
-      },
-      {
-        key: 'planned',
-        skeleton: 'w-8',
-        header: t('staff.planned'),
-        className: 'w-[90px] text-right tabnum',
-        sortValue: (r) => Number(r.planned_units ?? 0),
-        cell: (r) => fmtUnits(r.planned_units),
-      },
-      {
-        key: 'occupied',
-        skeleton: 'w-8',
-        header: t('staff.occupied'),
-        className: 'w-[90px] text-right tabnum',
-        cell: (r) => fmtUnits(r.occupied_units),
-      },
-      {
-        key: 'vacant',
-        skeleton: 'w-8',
-        header: t('staff.vacant'),
-        className: 'w-[90px] text-right tabnum',
-        cell: (r) => {
-          const n = Number(r.vacant_units ?? 0)
-          return (
-            <span className={n > 0 ? 'font-semibold text-success' : n < 0 ? 'font-semibold text-danger' : 'text-fg-muted'}>
-              {fmtUnits(r.vacant_units)}
-            </span>
-          )
-        },
-      },
-      {
-        key: 'since',
-        skeleton: 'w-20',
-        header: t('staff.vacantSince'),
-        className: 'w-[130px] tabnum text-fg-muted',
-        cell: (r) =>
-          r.vacancy_open_date ? dayjs(r.vacancy_open_date).format('DD.MM.YYYY') : '—',
-      },
-      // Vacancy detail — the server has always returned these (StaffPositionRead)
-      // and the edit modal writes them, but the list never drew them, so an open
-      // vacancy showed no requirements, no closing date and nobody to contact.
-      {
-        key: 'candidate_requirements',
-        skeleton: 'w-40',
-        header: t('staff.requirements'),
-        className: 'w-[220px]',
-        cell: (r) =>
-          r.candidate_requirements ? (
-            <span className="line-clamp-2 text-fg-muted" title={r.candidate_requirements}>
-              {r.candidate_requirements}
-            </span>
-          ) : (
-            <span className="text-fg-subtle">—</span>
-          ),
-      },
-      {
-        key: 'application_deadline',
-        skeleton: 'w-20',
-        header: t('staff.deadline'),
-        className: 'w-[120px] tabular-nums',
-        sortValue: (r) => r.application_deadline ?? '',
-        cell: (r) => {
-          if (!r.application_deadline) return <span className="text-fg-subtle">—</span>
-          // A deadline already gone is the thing a recruiter needs to spot.
-          const past = dayjs(r.application_deadline).isBefore(dayjs(), 'day')
-          return (
-            <span className={past ? 'font-medium text-danger' : 'text-fg-muted'}>
-              {dayjs(r.application_deadline).format('DD.MM.YYYY')}
-            </span>
-          )
-        },
-      },
-      {
-        key: 'contact',
-        skeleton: 'w-32',
-        header: t('staff.contactPerson'),
-        className: 'w-[180px]',
-        cell: (r) =>
-          r.contact_person || r.contact_phone || r.contact_email ? (
-            <div className="flex flex-col text-[12px] leading-tight">
-              {r.contact_person && <span className="text-fg">{r.contact_person}</span>}
-              {r.contact_phone && <span className="text-fg-muted">{r.contact_phone}</span>}
-              {r.contact_email && <span className="truncate text-fg-muted">{r.contact_email}</span>}
-            </div>
-          ) : (
-            <span className="text-fg-subtle">—</span>
-          ),
-      },
-      {
-        key: 'state',
-        skeleton: 'w-16',
-        header: t('dictionaries.colStatus'),
-        className: 'w-[120px]',
-        cell: (r) =>
-          !r.has_staff_row ? (
-            <span className="inline-flex rounded-pill bg-warning/[0.13] px-2.5 py-1 text-[11px] font-semibold text-warning">
-              {t('staff.noStaffRow')}
-            </span>
-          ) : r.is_closed ? (
-            <span className="inline-flex rounded-pill bg-fg/[0.06] px-2.5 py-1 text-[11px] font-semibold text-fg-subtle">
-              {t('staff.closedState')}
-            </span>
-          ) : (
-            <span className="inline-flex rounded-pill bg-success/[0.12] px-2.5 py-1 text-[11px] font-semibold text-success">
-              {t('staff.openState')}
-            </span>
-          ),
-      },
-    ]
-
-    if (!manage) return base
-    return [
-      ...base,
-      {
-        key: 'actions',
-        skeleton: 'w-16',
-        header: '',
-        className: 'w-[92px]',
-        cell: (r) => (
-          <div className="flex justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setEditRow(r)
-                setModalOpen(true)
-              }}
-              aria-label={t('common.edit')}
-              title={t('common.edit')}
-              className="grid h-icon-xs w-icon-xs place-items-center rounded-tag bg-fg/[0.06] text-fg-muted transition-colors hover:bg-fg/[0.12] hover:text-fg"
-            >
-              <Pencil size={13} />
-            </button>
-            {r.id != null && (
-              <button
-                type="button"
-                onClick={() => setCloseTarget(r)}
-                aria-label={r.is_closed ? t('staff.reopen') : t('staff.close')}
-                title={r.is_closed ? t('staff.reopen') : t('staff.close')}
-                className="grid h-icon-xs w-icon-xs place-items-center rounded-tag bg-fg/[0.06] text-fg-muted transition-colors hover:bg-fg/[0.12] hover:text-fg"
-              >
-                {r.is_closed ? <LockOpen size={13} /> : <Lock size={13} />}
-              </button>
-            )}
-          </div>
-        ),
-      },
-    ]
-  }, [manage, t])
-
-  // A virtual row (employees but no approved line) has no id — the table keys
-  // on one, so synthesise a stable local key from the pair it represents.
-  const tableRows = useMemo(
-    () =>
-      rows.map((r, i) => ({
-        ...r,
-        id: r.id ?? -(r.department_id * 10000 + r.job_position_id + i),
-      })) as (StaffPosition & { id: number })[],
-    [rows],
-  )
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'shtat', label: t('staff.tab_shtat') },
+    ...(manage
+      ? [
+          { key: 'muammo' as Tab, label: `${t('staff.tab_muammo')}${issues.groups.length ? ` (${issues.groups.length})` : ''}` },
+          { key: 'arizalar' as Tab, label: t('orgRef.tabApplications') },
+        ]
+      : []),
+  ]
+  const colSpan = onlyVacant ? 12 : 8
 
   return (
     <PageContainer className="flex min-h-full flex-col">
-      <ImportWizard entity="staff_positions" open={importing} onClose={() => setImporting(false)} onDone={() => {
-        refetch()
-        // The summary tiles and the issues panel are separate queries.
-        void queryClient.invalidateQueries({ queryKey: ['staff-positions'] })
-      }} />
       <PageHeader
         title={t('nav.staffing')}
         subtitle={t('staff.subtitle')}
         actions={
-          /* Eight equal buttons became two menus and the primary action
-             (redesign 2026-09-24). Each item keeps its own server gate. */
           <>
             <ActionMenu
               label={t('staff.download')}
               icon={<Download size={14} />}
+              width={300}
               items={[
                 { key: 'excel', label: 'Excel', icon: <Download size={14} />, loading: exporting === 'excel', onClick: () => doExport('excel') },
                 { key: 'pdf', label: 'PDF', icon: <FileText size={14} />, loading: exporting === 'pdf', onClick: () => doExport('pdf') },
-                // `/export-xml` is require_structure_manager (HR / master): the
-                // portal feed carries salaries and contacts.
-                ...(manage ? [{ key: 'xml', label: 'XML', hint: t('staff.xmlHint'), icon: <FileCode2 size={14} />, loading: exporting === 'xml', onClick: () => doExport('xml') }] : []),
-                {
-                  key: 'cols',
-                  label: `${t('staff.exportColumns')}${exportCols.length > 0 ? ` (${exportCols.length})` : ''}`,
-                  hint: t('staff.exportColumnsHint'),
-                  icon: <Columns3 size={14} />,
-                  divider: true,
-                  onClick: () => setColsOpen(true),
-                },
+                ...(manage
+                  ? [
+                      { key: 'xml', label: 'XML', hint: t('staff.xmlHint'), icon: <FileCode2 size={14} />, loading: exporting === 'xml', onClick: () => doExport('xml') },
+                      {
+                        key: 'cols',
+                        label: `${t('staff.exportColumns')}${exportCols.length ? ` (${exportCols.length})` : ''}`,
+                        hint: t('staff.exportColumnsHint'),
+                        icon: <Columns3 size={14} />,
+                        divider: true,
+                        onClick: () => setColsOpen(true),
+                      },
+                      { key: 'notify', label: t('staff.notifyTitle'), hint: t('staff.notifyHint'), icon: <BellRing size={14} />, onClick: () => setNotifyOpen(true) },
+                    ]
+                  : []),
               ]}
             />
-            {manage && (
-              <ActionMenu
-                label={t('staff.more')}
-                icon={<MoreHorizontal size={14} />}
-                width={300}
-                items={[
-                  { key: 'import', label: t('import.button'), icon: <Upload size={14} />, onClick: () => setImporting(true) },
-                  ...(bulkDepartments.length > 0 ? [{ key: 'bulk', label: t('staff.bulkEdit'), hint: t('staff.bulkEditHint'), icon: <ListChecks size={14} />, onClick: () => setBulkDept(bulkDepartments[0]) }] : []),
-                  { key: 'notify', label: t('staff.notifyTitle'), hint: t('staff.notifyHint'), icon: <BellRing size={14} />, onClick: () => setNotifyOpen(true) },
-                ]}
-              />
+            {canCreate && (
+              <Button size="sm" variant="secondary" leftIcon={<Megaphone size={15} />} onClick={() => setDrawer({ row: null, vacancy: true })}>
+                {t('orgRef.createVacancy')}
+              </Button>
             )}
             {manage && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditRow(null)
-                  setModalOpen(true)
-                }}
-                leftIcon={<Plus size={15} />}
-              >
-                {t('staff.newRow')}
+              <Button size="sm" leftIcon={<Plus size={15} />} onClick={() => setDrawer({ row: null, vacancy: false })}>
+                {t('orgRef.add')}
               </Button>
             )}
           </>
         }
       />
 
-      {/* ── The establishment at a glance ────────────────────────────── */}
-      {/* Rendered before the numbers arrive as well: the strip appearing
-          later pushed the whole table down by its height (CLS 0.05). */}
+      {/* «Nechta rahbar, nechta mutaxassis» — the totals by category. */}
       {!summaryFailed && (
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={t('staff.planned')} value={summary ? fmtUnits(summary.planned_units) : '…'} />
-        <Stat label={t('staff.occupied')} value={summary ? fmtUnits(summary.occupied_units) : '…'} tone="brand" />
-        {/* Negative vacancy = more people than approved places — a problem, not good news. */}
-        <Stat
-          label={t('staff.vacant')}
-          value={summary ? fmtUnits(summary.vacant_units) : '…'}
-          tone={summary && Number(summary.vacant_units) < 0 ? 'danger' : 'success'}
-          hint={summary && Number(summary.vacant_units) < 0 ? t('staff.overstaffed') : undefined}
-        />
-        <Stat label={t('staff.rows')} value={summary ? String(summary.rows) : '…'} />
-      </div>
+        <div className="mb-4 flex flex-wrap gap-3">
+          <SummaryCard
+            label={t('orgRef.total_')}
+            value={summary ? `${fmtUnits(summary.occupied_units)} / ${fmtUnits(summary.planned_units)}` : '…'}
+            unit={t('orgRef.occupiedPlanned')}
+            lines={
+              summary
+                ? [
+                    <span key="v" className="text-success">
+                      {t('orgRef.vacantInRows', { units: fmtUnits(summary.vacant_units), rows: summary.vacant_rows })}
+                    </span>,
+                    Number(summary.over_units) > 0 ? (
+                      <span key="o" className="text-danger">
+                        {t('orgRef.overUnits', { units: fmtUnits(summary.over_units) })}
+                      </span>
+                    ) : null,
+                  ]
+                : []
+            }
+          />
+          {(summary?.by_category ?? []).map((b) => (
+            <SummaryCard
+              key={b.category ?? 'none'}
+              label={b.category ? t(`staff.cat_${b.category}` as never) : t('orgRef.noCategory')}
+              value={`${fmtUnits(b.occupied_units)} / ${fmtUnits(b.planned_units)}`}
+              lines={[
+                <span key="v" className={Number(b.vacant_units) > 0 ? 'text-success' : 'text-fg-subtle'}>
+                  {t('orgRef.vacantUnits', { units: fmtUnits(b.vacant_units) })}
+                  {Number(b.over_units) > 0 && (
+                    <span className="text-danger"> · {t('orgRef.overShort', { units: fmtUnits(b.over_units) })}</span>
+                  )}
+                </span>,
+              ]}
+            />
+          ))}
+        </div>
       )}
 
-      <Card className="flex min-h-[520px] flex-col">
-        {/* Tabs */}
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-4 py-3">
-          {/* «Muammolar» reads /staff-positions/issues, which is gated by
-              require_structure_manager (HR / master) — a deputy or ministr
-              got the tab and a «Ruxsat yo'q» panel behind it. */}
-          {(manage ? (['shtat', 'vakansiya', 'muammo'] as Tab[]) : (['shtat', 'vakansiya'] as Tab[])).map((k) => (
+      <Card className="flex min-h-[520px] flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-4 py-3" role="tablist">
+          {tabs.map((x) => (
             <button
-              key={k}
+              key={x.key}
               type="button"
-              onClick={() => setFilters({ tab: k === 'shtat' ? null : k, page: null })}
-              aria-pressed={tab === k}
-              className={tabPill(tab === k)}
+              role="tab"
+              aria-selected={tab === x.key}
+              onClick={() => setFilters({ tab: x.key === 'shtat' ? null : x.key, page: null })}
+              className={tabPill(tab === x.key)}
             >
-              {t(`staff.tab_${k}` as never)}
-              {k === 'muammo' && issues.total > 0 ? ` (${issues.total})` : ''}
+              {x.label}
             </button>
           ))}
         </div>
 
-        {tab === 'muammo' ? (
+        {tab === 'arizalar' ? (
+          <VacancyApplicationsPanel />
+        ) : tab === 'muammo' ? (
           <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {issues.loading ? (
               <p className="text-sm text-fg-subtle">{t('common.loading')}</p>
-            ) : issues.denied ? (
-              <EmptyState
-                icon={<Lock size={20} />}
-                title={t('staff.denied')}
-                description={t('staff.deniedHint')}
-              />
+            ) : issues.error ? (
+              <LoadError error={issues.error} onRetry={() => void issues.refetch()} />
             ) : issues.groups.length === 0 ? (
-              <EmptyState
-                icon={<AlertTriangle size={20} />}
-                title={t('staff.noIssues')}
-                description={t('staff.noIssuesHint')}
-              />
+              <EmptyState icon={<Check size={20} />} title={t('staff.noIssues')} description={t('staff.noIssuesHint')} />
             ) : (
               issues.groups.map((g) => (
                 <div key={g.code} className="rounded-inner border border-line bg-surface-2/40 p-4">
-                  <div className="flex flex-wrap items-baseline gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AlertTriangle size={15} className="text-warning" />
                     <h3 className="text-[14px] font-bold text-fg">
-                      {label(`staff.issue_${g.code}`, g.code)}
+                      {i18n.exists(`staff.issue_${g.code}`) ? t(`staff.issue_${g.code}` as never) : g.code}
                     </h3>
-                    <span className="rounded-pill bg-warning/[0.13] px-2 py-0.5 text-[11px] font-semibold text-warning">
-                      {g.total}
-                    </span>
+                    <Badge tone="warning">{g.total}</Badge>
                   </div>
-                  {label(`staff.issueHint_${g.code}`, '') && (
-                    <p className="mt-1 text-xs text-fg-muted">
-                      {label(`staff.issueHint_${g.code}`, '')}
-                    </p>
+                  {i18n.exists(`staff.issueHint_${g.code}`) && (
+                    <p className="mt-1 text-xs text-fg-muted">{t(`staff.issueHint_${g.code}` as never)}</p>
                   )}
                   {g.rows.length > 0 && (
-                    <ul className="mt-2.5 flex flex-wrap gap-1.5">
-                      {g.rows.slice(0, 40).map((r, i) => (
-                        <li
-                          key={`${g.code}-${r.id ?? i}`}
-                          className="rounded-tag bg-fg/[0.06] px-2 py-1 text-[12px] text-fg-muted"
-                          title={r.detail ?? undefined}
-                        >
-                          {r.name ?? '—'}
-                          {r.count ? ` · ${r.count}` : ''}
+                    <ul className="mt-2.5 flex flex-col gap-1">
+                      {g.rows.slice(0, 30).map((r, i) => (
+                        <li key={`${g.code}-${r.id ?? i}`} className="flex flex-wrap gap-2 text-[12.5px] text-fg-muted">
+                          <span className="text-fg">· {r.name ?? '—'}</span>
+                          {r.count != null && (
+                            <span className="text-warning">{t('orgRef.recordsCount', { count: r.count })}</span>
+                          )}
+                          {r.detail && <span className="text-fg-subtle">{r.detail}</span>}
                         </li>
                       ))}
-                      {g.rows.length > 40 && (
-                        <li className="px-2 py-1 text-[12px] text-fg-subtle">
-                          +{g.rows.length - 40}
-                        </li>
+                      {g.total > 30 && (
+                        <li className="text-[12px] text-fg-subtle">{t('orgRef.andMore', { count: g.total - 30 })}</li>
                       )}
                     </ul>
                   )}
@@ -579,12 +375,7 @@ export function StaffPositionsPage() {
         ) : (
           <>
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder={t('staff.searchPlaceholder')}
-                className="w-full max-w-[260px]"
-              />
+              <SearchInput value={search} onChange={setSearch} placeholder={t('staff.searchPlaceholder')} className="w-full max-w-[260px]" />
               <Select
                 value={filters.dept}
                 onChange={(e) => setFilter('dept', e.target.value)}
@@ -604,119 +395,370 @@ export function StaffPositionsPage() {
               <Select
                 value={filters.cat}
                 onChange={(e) => setFilter('cat', e.target.value)}
-                options={STAFF_CATEGORIES.map((c) => ({
-                  value: c,
-                  label: t(`staff.cat_${c}` as never),
-                }))}
+                options={[
+                  ...STAFF_CATEGORIES.map((c) => ({ value: c, label: t(`staff.cat_${c}` as const) })),
+                  { value: 'none', label: t('orgRef.noCategory') },
+                ]}
                 placeholder={t('staff.allCategories')}
                 aria-label={t('staff.category')}
                 wrapperClassName="w-[170px]"
               />
+              <button
+                type="button"
+                aria-pressed={onlyVacant}
+                onClick={() => setFilter('vacant', onlyVacant ? '' : '1')}
+                className={filterChip(onlyVacant)}
+              >
+                {t('orgRef.onlyVacant')}
+                {!!summary?.vacant_rows && <Badge tone="success">{summary.vacant_rows}</Badge>}
+              </button>
               <Checkbox
-                checked={includeClosed}
+                checked={filters.closed === '1'}
                 onChange={(e) => setFilter('closed', e.target.checked ? '1' : '')}
                 label={t('staff.includeClosed')}
               />
               <FilterReset count={filterCount} onReset={resetFilters} />
             </div>
 
-            {denied ? (
-              <EmptyState
-                icon={<Lock size={20} />}
-                title={t('staff.denied')}
-                description={t('staff.deniedHint')}
-              />
-            ) : (
-              <>
-                <DataTable
-        tableId="staff-positions"
-                  rows={tableRows}
-                  columns={columns}
-                  onRowClick={manage ? (r) => { setEditRow(r); setModalOpen(true) } : undefined}
-                  loading={loading}
-          error={error}
-          onRetry={refetch}
-                  emptyTitle={tab === 'vakansiya' ? t('staff.noVacancies') : t('staff.empty')}
-                  emptyDescription={t('staff.emptyHint')}
-                  minWidth={1080}
-                  density="compact"
-                  filtered={filterCount > 0}
-                  sort={sort}
-                  onSort={(next) => setFilters({ sort: SORT_COLUMNS[next.key] ? next.key : null, dir: next.dir })}
-                />
-                <Pagination
-                  page={page}
-                  size={size}
-                  total={total}
-                  pages={pages}
-                  onPage={setPage}
-                  onSize={setSize}
-                  loading={loading}
-                />
-              </>
-            )}
+            <div className="scroll-thin min-h-0 flex-1 overflow-auto">
+              <table className="w-full min-w-[900px] text-left">
+                <thead className="sticky top-0 z-[1] border-b border-line bg-surface-2">
+                  <tr>
+                    <th className={cn(TH, 'w-12')}>#</th>
+                    <SortTh label={t('employees.colPosition')} k="job_position" sortBy={sortBy} dir={sortDir} onSort={toggleSort} />
+                    <SortTh label={t('staff.category')} k="category" sortBy={sortBy} dir={sortDir} onSort={toggleSort} className="w-[130px]" />
+                    <SortTh label={t('structure.colRazryad')} k="razryad" sortBy={sortBy} dir={sortDir} onSort={toggleSort} className="w-[100px]" />
+                    <SortTh label={t('orgRef.colPlanned')} k="planned_units" sortBy={sortBy} dir={sortDir} onSort={toggleSort} className="w-[110px]" />
+                    <th className={cn(TH, 'w-[80px]')}>{t('staff.occupied')}</th>
+                    <th className={cn(TH, 'w-[80px]')}>{t('orgRef.colVacant')}</th>
+                    {onlyVacant && <th className={cn(TH, 'w-[120px]')}>{t('orgRef.vacantSince')}</th>}
+                    {onlyVacant && <th className={cn(TH, 'w-[240px]')}>{t('staff.requirements')}</th>}
+                    {onlyVacant && <th className={cn(TH, 'w-[120px]')}>{t('orgRef.deadlineShort')}</th>}
+                    {onlyVacant && <th className={cn(TH, 'w-[180px]')}>{t('orgRef.contact')}</th>}
+                    <th className={cn(TH, 'w-[110px] text-right')}>{t('orgRef.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.error ? (
+                    <tr>
+                      <td colSpan={colSpan} className="p-6">
+                        <LoadError error={list.error} onRetry={() => void list.refetch()} />
+                      </td>
+                    </tr>
+                  ) : list.loading ? (
+                    <tr>
+                      <td colSpan={colSpan} className={TD_MESSAGE}>
+                        {t('common.loading')}
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={colSpan} className="p-6">
+                        <EmptyState
+                          title={onlyVacant ? t('orgRef.noVacant') : t('staff.empty')}
+                          description={filterCount ? t('staff.emptyHint') : undefined}
+                          action={<FilterReset count={filterCount} onReset={resetFilters} />}
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    groups.map((g) => (
+                      <Fragment key={g.name}>
+                        <tr className="border-y border-line bg-brand-soft/60">
+                          <td colSpan={colSpan} className="px-6 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <span className="text-[12px] font-bold uppercase tracking-wider text-brand-strong">{g.name}</span>
+                              <span className="flex flex-wrap items-center gap-3 text-[12px] text-fg-muted">
+                                <span>
+                                  {t('orgRef.groupLine', {
+                                    count: g.rows.length,
+                                    planned: fmtUnits(g.planned),
+                                    occupied: fmtUnits(g.occupied),
+                                  })}
+                                  {g.vacant !== 0 && (
+                                    <>
+                                      {' · '}
+                                      {t('orgRef.colVacant').toLowerCase()}{' '}
+                                      <b className={g.vacant > 0 ? 'text-success' : 'text-danger'}>{fmtUnits(g.vacant)}</b>
+                                    </>
+                                  )}
+                                </span>
+                                {manage && !onlyVacant && (
+                                  <Button size="sm" variant="outline" onClick={() => setBulk({ name: g.name, rows: g.rows })}>
+                                    {t('orgRef.editDepartment')}
+                                  </Button>
+                                )}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {g.rows.map((r, idx) => (
+                          <StaffRow
+                            key={rowKey(r)}
+                            row={r}
+                            index={idx + 1}
+                            manage={manage}
+                            onlyVacant={onlyVacant}
+                            onEdit={() => setDrawer({ row: r, vacancy: false })}
+                            onClose={() => setCloseRow(r)}
+                          />
+                        ))}
+                      </Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} size={size} total={list.total} pages={list.pages} onPage={setPage} onSize={setSize} loading={list.loading} />
           </>
         )}
       </Card>
 
-      <StaffPositionModal open={modalOpen} onClose={() => setModalOpen(false)} row={editRow} />
-      <ExportColumnsModal
-        open={colsOpen}
-        onClose={() => setColsOpen(false)}
-        selected={exportCols}
-        onApply={setExportCols}
+      <StaffPositionModal
+        open={!!drawer}
+        onClose={() => setDrawer(null)}
+        row={drawer?.row ?? null}
+        vacancyMode={!!drawer?.vacancy}
+        allowedDepartmentIds={isHeadOnly ? headIds : null}
       />
-      <BulkStaffModal
-        open={!!bulkDept}
-        onClose={() => setBulkDept(null)}
-        departmentName={bulkDept ?? ''}
-        rows={bulkRows}
-      />
-      <VacancyNotifyModal
-        open={notifyOpen}
-        onClose={() => setNotifyOpen(false)}
-        branchId={branchId}
-        canManage={manage}
-      />
-
-      <ConfirmDialog
-        open={!!closeTarget}
-        onClose={() => setCloseTarget(null)}
-        onConfirm={toggleClosed}
-        title={closeTarget?.is_closed ? t('staff.reopenTitle') : t('staff.closeTitle')}
-        description={
-          closeTarget?.is_closed ? t('staff.reopenConfirm') : t('staff.closeConfirm')
-        }
-        danger={!closeTarget?.is_closed}
-        loading={close.isPending || reopen.isPending}
-        confirmLabel={closeTarget?.is_closed ? t('staff.reopen') : t('staff.close')}
-      />
+      <StaffCloseModal row={closeRow} onClose={() => setCloseRow(null)} />
+      <BulkStaffModal open={!!bulk} onClose={() => setBulk(null)} departmentName={bulk?.name ?? ''} rows={bulk?.rows ?? []} />
+      <ExportColumnsModal open={colsOpen} onClose={() => setColsOpen(false)} selected={exportCols} onApply={setExportCols} />
+      <VacancyNotifyModal open={notifyOpen} onClose={() => setNotifyOpen(false)} />
     </PageContainer>
   )
 }
 
-function Stat({
+function SortTh({
   label,
-  value,
-  tone,
-  hint,
+  k,
+  sortBy,
+  dir,
+  onSort,
+  className,
 }: {
   label: string
-  value: string
-  tone?: 'brand' | 'success' | 'danger'
-  hint?: string
+  k: string
+  sortBy: string
+  dir: 'asc' | 'desc'
+  onSort: (k: string) => void
+  className?: string
 }) {
+  const active = sortBy === k
+  const Icon = !active ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown
   return (
-    <Card className="px-4 py-3">
-      <p className="text-[11.5px] text-fg-subtle">{label}{hint && <span className="ml-1.5 font-semibold text-danger">· {hint}</span>}</p>
-      <p
-        className={cn(
-          'tabnum mt-0.5 text-[26px] font-bold leading-none',
-          tone === 'brand' ? 'text-brand-strong' : tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-fg',
-        )}
-      >
+    <th className={cn(TH, className)} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" onClick={() => onSort(k)} className={cn('inline-flex items-center gap-1 hover:text-fg', active && 'text-brand-strong')}>
+        {label}
+        <Icon size={12} className={active ? '' : 'opacity-40'} />
+      </button>
+    </th>
+  )
+}
+
+function SummaryCard({ label, value, unit, lines }: { label: string; value: string; unit?: string; lines: ReactNode[] }) {
+  return (
+    <Card className="min-w-[170px] px-4 py-3">
+      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-fg-subtle">{label}</p>
+      <p className="tabnum mt-0.5 text-[20px] font-bold leading-tight text-fg">
         {value}
+        {unit && <span className="ml-1.5 text-[12px] font-normal text-fg-subtle">{unit}</span>}
       </p>
+      {lines.filter(Boolean).map((l, i) => (
+        <p key={i} className="tabnum mt-0.5 text-[12px]">
+          {l}
+        </p>
+      ))}
     </Card>
+  )
+}
+
+/** One staff line. The planned figure is edited in place (v1 «inline»): Enter saves, Esc cancels. */
+function StaffRow({
+  row,
+  index,
+  manage,
+  onlyVacant,
+  onEdit,
+  onClose,
+}: {
+  row: StaffPosition
+  index: number
+  manage: boolean
+  onlyVacant: boolean
+  onEdit: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const { create, update } = useStaffMutations()
+  const [editing, setEditing] = useState<string | null>(null)
+  const virtual = row.has_staff_row === false
+  const vacant = Number(row.vacant_units ?? 0)
+
+  const save = async () => {
+    if (editing == null) return
+    const units = Number(editing)
+    if (editing.trim() === '' || !Number.isFinite(units) || units < 0) {
+      toast.error(t('staff.unitsInvalid'))
+      return
+    }
+    if (!virtual && units === Number(row.planned_units)) {
+      setEditing(null)
+      return
+    }
+    try {
+      // No approved line yet (employees, but no staff row) — this CREATES it.
+      if (virtual) {
+        await create.mutateAsync({
+          department_id: row.department_id,
+          job_position_id: row.job_position_id,
+          planned_units: units,
+          reason: t('orgRef.addedToStaff'),
+        })
+      } else {
+        await update.mutateAsync({ id: row.id as number, body: { planned_units: units } })
+      }
+      toast.ok(virtual ? t('orgRef.addedToStaff') : t('staff.updated'))
+      setEditing(null)
+    } catch (e) {
+      toast.error(errorMessage(e, t('staff.saveFailed')))
+    }
+  }
+
+  return (
+    <tr className={cn('border-b border-line/60 hover:bg-surface-2/40', virtual && 'bg-danger/[0.04]', row.is_closed && 'opacity-50')}>
+      <td className={cn(TD_COMPACT, 'tabnum text-fg-subtle')}>{index}</td>
+      <td className={TD_COMPACT}>
+        <span className={cn('text-fg', row.is_closed && 'line-through')}>{row.job_position_name || '—'}</span>
+        {virtual && (
+          <span title={t('orgRef.noStaffRowHint')} className="ml-2 align-middle">
+            <Badge tone="danger">{t('orgRef.noStaffRow')}</Badge>
+          </span>
+        )}
+        {row.is_closed && (
+          <span className="ml-2 align-middle">
+            <Badge tone="neutral">{t('orgRef.reducedBadge')}</Badge>
+          </span>
+        )}
+      </td>
+      <td className={TD_COMPACT}>
+        {row.category ? (
+          <span className={cn('inline-flex rounded-pill px-2.5 py-1 text-[11px] font-semibold', CATEGORY_TONE[row.category] ?? 'bg-fg/[0.06] text-fg-muted')}>
+            {t(`staff.cat_${row.category}` as const)}
+          </span>
+        ) : (
+          <span className="text-fg-subtle">—</span>
+        )}
+      </td>
+      <td className={cn(TD_COMPACT, 'tabnum text-fg-muted')}>{row.razryad ?? '—'}</td>
+      <td className={TD_COMPACT}>
+        {editing != null ? (
+          <span className="flex items-center gap-1">
+            <Input
+              type="number"
+              step="0.5"
+              min="0"
+              autoFocus
+              value={editing}
+              aria-label={t('orgRef.colPlanned')}
+              wrapperClassName="w-[76px]"
+              onChange={(e) => setEditing(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void save()
+                if (e.key === 'Escape') setEditing(null)
+              }}
+            />
+            <IconButton size="sm" label={t('common.save')} onClick={() => void save()}>
+              <Check size={14} className="text-success" />
+            </IconButton>
+          </span>
+        ) : manage && !onlyVacant && !virtual && !row.is_closed ? (
+          <button
+            type="button"
+            title={t('orgRef.inlineHint')}
+            onClick={() => setEditing(fmtUnits(row.planned_units))}
+            className="tabnum rounded px-2 py-1 text-fg hover:bg-fg/[0.06]"
+          >
+            {fmtUnits(row.planned_units)}
+          </button>
+        ) : (
+          <span className="tabnum px-2 text-fg">{fmtUnits(row.planned_units)}</span>
+        )}
+      </td>
+      <td className={cn(TD_COMPACT, 'tabnum text-fg-muted')}>{fmtUnits(row.occupied_units)}</td>
+      <td className={TD_COMPACT}>
+        <span className={cn('tabnum', vacant > 0 ? 'font-semibold text-success' : vacant < 0 ? 'font-semibold text-danger' : 'text-fg-subtle')}>
+          {fmtUnits(row.vacant_units)}
+        </span>
+      </td>
+      {onlyVacant && (
+        <td className={cn(TD_COMPACT, 'tabnum text-fg-muted')}>
+          {row.vacancy_open_date ? dayjs(row.vacancy_open_date).format('DD.MM.YYYY') : '—'}
+        </td>
+      )}
+      {onlyVacant && (
+        <td className={TD_COMPACT}>
+          {row.candidate_requirements ? (
+            <span className="line-clamp-2 text-fg-muted" title={row.candidate_requirements}>
+              {row.candidate_requirements}
+            </span>
+          ) : (
+            !row.required_languages?.length && <span className="text-fg-subtle">{t('orgRef.announcementEmpty')}</span>
+          )}
+          <RequiredLanguagesChips value={row.required_languages} />
+        </td>
+      )}
+      {onlyVacant && (
+        <td className={cn(TD_COMPACT, 'tabnum')}>
+          {row.application_deadline ? (
+            <span className={dayjs(row.application_deadline).isBefore(dayjs(), 'day') ? 'text-danger' : 'text-fg-muted'}>
+              {dayjs(row.application_deadline).format('DD.MM.YYYY')}
+            </span>
+          ) : (
+            <span className="text-fg-subtle">—</span>
+          )}
+        </td>
+      )}
+      {onlyVacant && (
+        <td className={cn(TD_COMPACT, 'text-[12px] leading-tight')}>
+          {row.contact_person || row.contact_phone || row.contact_email ? (
+            <div className="flex flex-col">
+              {row.contact_person && <span className="text-fg">{row.contact_person}</span>}
+              {row.contact_phone && <span className="text-fg-muted">{row.contact_phone}</span>}
+              {row.contact_email && <span className="truncate text-fg-subtle">{row.contact_email}</span>}
+            </div>
+          ) : (
+            <span className="text-fg-subtle">—</span>
+          )}
+        </td>
+      )}
+      <td className={cn(TD_COMPACT, 'text-right')}>
+        {manage && (
+          <span className="inline-flex justify-end gap-1">
+            {virtual ? (
+              !onlyVacant && (
+                <Button size="sm" variant="outline" onClick={() => setEditing(fmtUnits(row.occupied_units))}>
+                  {t('orgRef.addToStaff')}
+                </Button>
+              )
+            ) : onlyVacant ? (
+              <IconButton size="sm" label={t('orgRef.editAnnouncement')} onClick={onEdit}>
+                <Megaphone size={14} />
+              </IconButton>
+            ) : (
+              <>
+                <IconButton size="sm" label={t('common.edit')} onClick={onEdit}>
+                  <Pencil size={14} />
+                </IconButton>
+                <IconButton size="sm" label={row.is_closed ? t('staff.reopen') : t('orgRef.reduceRow')} onClick={onClose}>
+                  {row.is_closed ? <RotateCcw size={14} /> : <Archive size={14} />}
+                </IconButton>
+              </>
+            )}
+          </span>
+        )}
+      </td>
+    </tr>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { PasswordStrength } from '@/components/ui/PasswordStrength'
@@ -11,6 +11,7 @@ import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { publicClient } from '@/api/client'
+import { errorCode, errorMessage } from '@/api/errorMessage'
 import { CONTROL_PAD, control } from '@/components/ui/control'
 import { cn } from '@/lib/cn'
 
@@ -58,8 +59,14 @@ export function ResetPasswordPage() {
       await publicClient.post('auth/reset-password', { token, new_password: password })
       setDone(true)
     } catch (err) {
+      // Yaroqsiz / eskirgan / ishlatilgan havola → 400 `invalid_reset_token`;
+      // parol siyosati (harf+raqam, login emas, eskisiga teng emas) → 400/422
+      // o'z kodi bilan — server matni ko'rsatiladi.
       const status = (err as { response?: { status?: number } })?.response?.status
-      setError(status === 400 || status === 404 ? t('reset.badLink') : t('reset.failed'))
+      const code = errorCode(err)
+      if ((status === 400 && (!code || code === 'invalid_reset_token')) || status === 404) setError(t('reset.badLink'))
+      else if (status === 400 || status === 422) setError(errorMessage(err, t('reset.failed')))
+      else setError(t('reset.failed'))
     } finally {
       setBusy(false)
     }
@@ -135,6 +142,11 @@ export function ResetPasswordPage() {
             </Button>
           </form>
         )}
+        <p className="mt-5 text-center text-sm">
+          <Link to="/login" className="font-medium text-brand-strong hover:underline">
+            {t('authx.backToLogin')}
+          </Link>
+        </p>
       </div>
     </div>
   )

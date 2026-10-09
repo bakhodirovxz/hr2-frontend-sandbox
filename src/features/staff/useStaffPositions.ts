@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/api/http'
+import { apiGet, apiPatch, apiPost, apiPut } from '@/api/http'
 import {
   STAFF_POSITIONS,
   STAFF_POSITIONS_ISSUES,
@@ -12,9 +12,10 @@ import {
   STAFF_POSITIONS_EXPORT_COLUMNS,
   STAFF_POSITIONS_NOTIFY_SETTINGS,
 } from '@/api/endpoints'
+import { canWrite, canWriteOrg } from '@/auth/permissions'
 import { useBranchStore } from '@/store/branchStore'
 import type { User } from '@/types'
-import * as roles from '@/auth/roles'
+import type { RequiredLanguage } from '@/features/vacancies/useVacancies'
 
 /**
  * SHTAT VA VAKANSIYA — TZ 4.2.6 (штатная структура) + 4.2.10 (вакантные места).
@@ -22,18 +23,14 @@ import * as roles from '@/auth/roles'
  * One register answers both: a staff row carries how many units are APPROVED,
  * how many are OCCUPIED (derived from live employees, never typed in) and
  * therefore how many are VACANT. The vacancy announcement (requirements,
- * salary band, deadline, contacts) hangs off the same row, because a vacancy
- * that is not a staff line is a promise nobody has budgeted for.
+ * salary band, deadline, contacts) hangs off the same row.
  */
 
 export type StaffCategory = 'rahbar' | 'mutaxassis' | 'xizmatchi' | 'ishchi'
 
-export const STAFF_CATEGORIES: StaffCategory[] = [
-  'rahbar',
-  'mutaxassis',
-  'xizmatchi',
-  'ishchi',
-]
+export const STAFF_CATEGORIES: StaffCategory[] = ['rahbar', 'mutaxassis', 'xizmatchi', 'ishchi']
+
+export const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'temporary'] as const
 
 export interface StaffPosition {
   /** Null on a VIRTUAL row: employees exist but no approved staff line does. */
@@ -54,7 +51,6 @@ export interface StaffPosition {
   category?: StaffCategory | null
   razryad?: number | null
   branch_name?: string | null
-  branch_regions?: string[]
   // Vakansiya e'loni (4.2.10)
   candidate_requirements?: string | null
   education_level_code?: string | null
@@ -65,13 +61,13 @@ export interface StaffPosition {
   contact_phone?: string | null
   contact_email?: string | null
   publish_to_portal?: boolean
-  /** What the candidate must bring, and what the post offers in return. */
   experience_years?: number | null
   required_skills?: string | null
   work_schedule?: string | null
   employment_type?: string | null
-  /** open | paused | closed */
+  /** open | closed */
   vacancy_status?: string | null
+  required_languages?: RequiredLanguage[] | null
 }
 
 interface CategorySummary {
@@ -79,13 +75,15 @@ interface CategorySummary {
   planned_units: number | string
   occupied_units: number | string
   vacant_units: number | string
+  over_units?: number | string
   rows: number
 }
 
-interface StaffSummary {
+export interface StaffSummary {
   planned_units: number | string
   occupied_units: number | string
   vacant_units: number | string
+  over_units?: number | string
   rows: number
   vacant_rows: number
   by_category: CategorySummary[]
@@ -104,20 +102,44 @@ interface IssueGroup {
   rows: IssueRow[]
 }
 
-interface StaffChange {
+/** TZ V2 «История» — one field of one change: label, old → new. */
+export interface StaffChangeField {
+  field: string
+  label?: string | null
+  old?: unknown
+  new?: unknown
+}
+
+export interface StaffChange {
   id: number
   action: string
   old_planned_units?: number | string | null
   new_planned_units?: number | string | null
   reason?: string | null
   created_at?: string | null
+  at?: string | null
+  by?: string | null
   changed_by_name?: string | null
+  fields?: StaffChangeField[]
 }
 
-/** Same set the backend's structure-manager guard accepts. */
+/** TZ V2 «Редактирование вакансии» — HR on its own level (`vacancies = full`). */
 export function canManageStaff(user: User | null | undefined): boolean {
-  // Server `require_structure_manager` → `org_structure_scope`, which DENIES a ministr (measured 403).
-  return roles.isSiteMasterAdmin(user) || roles.isHR(user)
+  return canWriteOrg(user, 'vacancies', 'full')
+}
+
+/** TZ V1 «Создание вакансии» — HR, and a department head for his own units. */
+export function canCreateVacancy(user: User | null | undefined): boolean {
+  return canWrite(user, 'vacancies')
+}
+
+/**
+ * Departments a NON-manager may open a vacancy in: the ones he heads and every
+ * sub-department (TZ «своего и нижестоящего уровня»). `null` = unrestricted.
+ */
+export function headDepartmentIds(user: User | null | undefined): number[] | null {
+  if (canManageStaff(user)) return null
+  return (user?.actor?.unit_department_ids ?? user?.headed_department_ids ?? []).map(Number)
 }
 
 /** Units come back as decimals; "1.00" must read as "1" and "0.50" as "0.5". */
@@ -127,17 +149,31 @@ export function fmtUnits(value: number | string | null | undefined): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2)))
 }
 
-interface StaffQuery {
+export interface StaffQuery {
   page: number
   size: number
   search?: string
-  departmentId?: string
+  departmentId?: string | number
   jobPositionId?: string
   category?: string
   onlyVacant?: boolean
   includeClosed?: boolean
   sortBy?: string
   sortDir?: 'asc' | 'desc'
+}
+
+/** The list query as the server reads it — shared by the table and the exports. */
+export function staffListParams(q: StaffQuery): Record<string, unknown> {
+  return {
+    search: q.search || undefined,
+    department_id: q.departmentId || undefined,
+    job_position_id: q.jobPositionId || undefined,
+    category: q.category || undefined,
+    only_vacant: q.onlyVacant || undefined,
+    include_closed: q.includeClosed || undefined,
+    sort_by: q.sortBy || undefined,
+    sort_dir: q.sortBy ? q.sortDir : undefined,
+  }
 }
 
 export function useStaffPositions(query: StaffQuery, enabled = true) {
@@ -147,19 +183,7 @@ export function useStaffPositions(query: StaffQuery, enabled = true) {
     queryFn: () =>
       apiGet<{ items: StaffPosition[]; total: number; page: number; size: number; pages: number }>(
         STAFF_POSITIONS,
-        {
-          organization_branch_id: branchId || undefined,
-          page: query.page,
-          size: query.size,
-          search: query.search || undefined,
-          department_id: query.departmentId || undefined,
-          job_position_id: query.jobPositionId || undefined,
-          category: query.category || undefined,
-          only_vacant: query.onlyVacant || undefined,
-          include_closed: query.includeClosed || undefined,
-          sort_by: query.sortBy || undefined,
-          sort_dir: query.sortDir || undefined,
-        },
+        { page: query.page, size: query.size, ...staffListParams(query) },
       ),
     enabled,
     placeholderData: (prev) => prev,
@@ -171,49 +195,44 @@ export function useStaffPositions(query: StaffQuery, enabled = true) {
     loading: q.isLoading,
     error: q.error,
     refetch: q.refetch,
-    denied: q.isError,
   }
+}
+
+/** One staff line — the `?open={id}` deep link. */
+export function useStaffPosition(id: number | null) {
+  return useQuery({
+    queryKey: ['staff-positions', 'detail', id],
+    queryFn: () => apiGet<StaffPosition>(STAFF_POSITION_DETAIL(id as number)),
+    enabled: id != null,
+    retry: false,
+  })
 }
 
 export function useStaffSummary() {
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const q = useQuery({
     queryKey: ['staff-positions', 'summary', branchId],
-    queryFn: () =>
-      apiGet<StaffSummary>(STAFF_POSITIONS_SUMMARY, {
-        organization_branch_id: branchId || undefined,
-      }),
+    queryFn: () => apiGet<StaffSummary>(STAFF_POSITIONS_SUMMARY),
     retry: false,
   })
-  return { summary: q.data ?? null, loading: q.isLoading, failed: q.isError }
+  return { summary: q.data ?? null, failed: q.isError }
 }
 
 /**
- * The register's own defect list: employees with no department, positions with
- * no category, spelling duplicates, over-staffed rows. Nothing here is fixed
- * automatically — every one of them is a decision the personnel office owns.
+ * The register's own defect list. Nothing here is fixed automatically — every
+ * one of them is a decision the personnel office owns.
  */
 export function useStaffIssues(enabled: boolean) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const q = useQuery({
     queryKey: ['staff-positions', 'issues', branchId],
-    queryFn: () =>
-      apiGet<{ groups: IssueGroup[] }>(STAFF_POSITIONS_ISSUES, {
-        organization_branch_id: branchId || undefined,
-      }),
+    queryFn: () => apiGet<{ groups: IssueGroup[] }>(STAFF_POSITIONS_ISSUES),
     enabled,
     retry: false,
   })
-  const groups = q.data?.groups ?? []
-  return {
-    groups,
-    total: groups.reduce((s, g) => s + (g.total || 0), 0),
-    loading: q.isLoading,
-    error: q.error,
-    refetch: q.refetch,
-    // A 403 must read as "not for you", never as "nothing wrong here".
-    denied: q.isError,
-  }
+  // Only the REAL problems: seven groups sitting at 0 buried the one that mattered.
+  const groups = (q.data?.groups ?? []).filter((g) => g.total > 0)
+  return { groups, loading: q.isLoading, error: q.error, refetch: q.refetch }
 }
 
 export function useStaffChanges(id: number | null | undefined) {
@@ -221,6 +240,7 @@ export function useStaffChanges(id: number | null | undefined) {
     queryKey: ['staff-positions', 'changes', id],
     queryFn: () => apiGet<StaffChange[]>(STAFF_POSITION_CHANGES(id as number)),
     enabled: !!id,
+    retry: false,
   })
   return { changes: q.data ?? [], loading: q.isLoading }
 }
@@ -228,61 +248,41 @@ export function useStaffChanges(id: number | null | undefined) {
 export function useStaffMutations() {
   const qc = useQueryClient()
   const invalidate = () => qc.invalidateQueries({ queryKey: ['staff-positions'] })
+  // Errors are shown next to the field / in the dialog — no global toast twice.
+  const meta = { silent: true }
   return {
     invalidate,
     create: useMutation({
+      meta,
       mutationFn: (body: Record<string, unknown>) => apiPost<StaffPosition>(STAFF_POSITIONS, body),
       onSuccess: invalidate,
     }),
     update: useMutation({
+      meta,
       mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
         apiPatch<StaffPosition>(STAFF_POSITION_DETAIL(id), body),
       onSuccess: invalidate,
     }),
-    close: useMutation({
-      mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-        apiPost<StaffPosition>(STAFF_POSITION_CLOSE(id), null, { params: { reason } }),
+    /** TZ V2 «Изменение статуса ... с указанием причины» — the reason is mandatory. */
+    setClosed: useMutation({
+      meta,
+      mutationFn: ({ id, closed, reason }: { id: number; closed: boolean; reason: string }) =>
+        apiPost<StaffPosition>(closed ? STAFF_POSITION_CLOSE(id) : STAFF_POSITION_REOPEN(id), { reason }),
       onSuccess: invalidate,
     }),
-    reopen: useMutation({
-      mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-        apiPost<StaffPosition>(STAFF_POSITION_REOPEN(id), null, { params: { reason } }),
-      onSuccess: invalidate,
-    }),
-    remove: useMutation({
-      mutationFn: (id: number) => apiDelete(STAFF_POSITION_DETAIL(id)),
+    /**
+     * One department's planned units in ONE request: the backend records one
+     * change entry with a shared reason, instead of N scattered ones.
+     */
+    bulk: useMutation({
+      meta,
+      mutationFn: (body: {
+        rows: { department_id: number; job_position_id: number; planned_units: number }[]
+        reason?: string
+      }) => apiPost<{ updated: number }>(STAFF_POSITIONS_BULK_UPSERT, body),
       onSuccess: invalidate,
     }),
   }
-}
-
-// ── Ommaviy shtat tahriri (TZ 4.2.10) ────────────────────────────────────────
-/**
- * One department's planned units, edited as a block and saved in ONE request.
- *
- * WHY a bulk route rather than N PATCHes: a department is planned as a whole —
- * moving two units from one position to another is a single decision, and the
- * backend records ONE change entry with a shared reason for it. Saving row by
- * row would scatter that decision across N history entries and leave the table
- * half-applied if a later row failed.
- *
- * Only genuinely changed rows are sent (web v1 ShtatPage does the same), so an
- * accidental "save" with nothing edited is a no-op rather than a bogus history
- * line on every position of the department.
- */
-export interface StaffBulkRow {
-  department_id: number
-  job_position_id: number
-  planned_units: number
-}
-
-export function useStaffBulkUpsert() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (body: { rows: StaffBulkRow[]; reason?: string }) =>
-      apiPost<{ updated: number }>(STAFF_POSITIONS_BULK_UPSERT, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-positions'] }),
-  })
 }
 
 // ── Eksport ustunlari (TZ 4.2.10 «Настройки экспорта») ───────────────────────
@@ -291,12 +291,7 @@ export interface ExportColumn {
   label: string
 }
 
-/**
- * The column set the Excel export understands. Fetched rather than hard-coded
- * so the picker cannot drift from `StaffPositionService.EXPORT_COLUMNS`: a
- * column renamed on the server would otherwise silently produce an export
- * missing that column, with no error anywhere.
- */
+/** Fetched, not hard-coded, so the picker cannot drift from the server's set. */
 export function useStaffExportColumns(enabled = true) {
   return useQuery({
     queryKey: ['staff-positions', 'export-columns'] as const,
@@ -306,28 +301,34 @@ export function useStaffExportColumns(enabled = true) {
   })
 }
 
-// ── Vakansiya xabarnomasi (TZ 4.2.10 «Получение отчетов о вакантных местах») ─
+// ── Vakansiya xabarnomasi (TZ 4.2.10, D-D3) ──────────────────────────────────
 export interface VacancyNotifySettings {
   id?: number | null
+  requested_branch_id?: number | null
+  is_own?: boolean
+  branches?: { id: number; name: string }[]
+  can_org_wide?: boolean
+  recipients?: { id: number; legal_name: string | null }[]
+  weekdays?: { value: number; label: string }[]
   organization_branch_id?: number | null
   frequency?: string | null
-  frequency_label?: string | null
   day_of_week?: number | null
   day_of_month?: number | null
   hour?: number | null
-  /** Empty for a caller whose org-structure scope is DENY — the server hides
-   *  the recipient list rather than refusing the whole request. */
   recipient_ids?: number[]
+  notify_new?: boolean
   last_sent_at?: string | null
   frequencies?: { value: string; label: string }[]
 }
 
-export function useVacancyNotifySettings(branchId: number | null, enabled = true) {
+/** `branch` — '' = the server's default for the caller, 'org' = organisation-wide. */
+export function useVacancyNotifySettings(branch: string, enabled = true) {
   return useQuery({
-    queryKey: ['staff-positions', 'notify-settings', branchId] as const,
+    queryKey: ['staff-positions', 'notify-settings', branch] as const,
     queryFn: () =>
       apiGet<VacancyNotifySettings>(STAFF_POSITIONS_NOTIFY_SETTINGS, {
-        organization_branch_id: branchId || undefined,
+        _no_branch_inject: true,
+        organization_branch_id: branch && branch !== 'org' ? Number(branch) : undefined,
       }),
     enabled,
   })
@@ -336,8 +337,59 @@ export function useVacancyNotifySettings(branchId: number | null, enabled = true
 export function useSaveVacancyNotifySettings() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Partial<VacancyNotifySettings>) =>
-      apiPut<VacancyNotifySettings>(STAFF_POSITIONS_NOTIFY_SETTINGS, body),
+    meta: { silent: true },
+    mutationFn: (body: Record<string, unknown>) =>
+      apiPut<VacancyNotifySettings>(STAFF_POSITIONS_NOTIFY_SETTINGS, body, {
+        params: { _no_branch_inject: true },
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-positions', 'notify-settings'] }),
+  })
+}
+
+// ── Vakansiyaga arizalar (TZ V3 / 4.2.10) ────────────────────────────────────
+export interface VacancyApplication {
+  id: number
+  staff_position_id: number
+  organization_branch_id?: number | null
+  full_name: string
+  phone?: string | null
+  email?: string | null
+  about?: string | null
+  preferred_date?: string | null
+  status: string
+  status_label?: string | null
+  interview_at?: string | null
+  review_note?: string | null
+  created_at?: string | null
+  vacancy_title?: string | null
+  job_position_name?: string | null
+  department_name?: string | null
+}
+
+export function useApplicationStatuses() {
+  return useQuery({
+    queryKey: ['vacancy-applications', 'statuses'],
+    queryFn: () => apiGet<{ value: string; label: string }[]>('vacancy-applications/statuses'),
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
+export function useVacancyApplications(status: string, enabled: boolean) {
+  const branchId = useBranchStore((s) => s.selectedBranchId)
+  return useQuery({
+    queryKey: ['vacancy-applications', 'list', branchId, status],
+    queryFn: () =>
+      apiGet<VacancyApplication[]>('vacancy-applications', { status: status || undefined }),
+    enabled,
+  })
+}
+
+export function useUpdateApplication() {
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { silent: true },
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      apiPatch<VacancyApplication>(`vacancy-applications/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['vacancy-applications'] }),
   })
 }

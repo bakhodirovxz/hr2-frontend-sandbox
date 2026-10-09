@@ -43,6 +43,7 @@ const EmployeesPage = page(() => import('@/pages/EmployeesPage'), 'EmployeesPage
 const EmployeeProfilePage = page(() => import('@/pages/EmployeeProfilePage'), 'EmployeeProfilePage')
 const HrQualityPage = page(() => import('@/pages/HrQualityPage'), 'HrQualityPage')
 const KpiPage = page(() => import('@/pages/KpiPage'), 'KpiPage')
+const KpiPerformancePage = page(() => import('@/pages/KpiPerformancePage'), 'KpiPerformancePage')
 const WorkPlanPage = page(() => import('@/pages/WorkPlanPage'), 'WorkPlanPage')
 const TrainingsPage = page(() => import('@/pages/TrainingsPage'), 'TrainingsPage')
 const InspectionsPage = page(() => import('@/pages/InspectionsPage'), 'InspectionsPage')
@@ -102,6 +103,7 @@ export function App() {
                       <Route path="/hr-quality" element={<HrQualityPage />} />
                       {/* 4.2.8 — KPI, K2, K4, K5 */}
                       <Route path="/kpi" element={<KpiPage />} />
+                      <Route path="/kpi/performances/:id" element={<KpiPerformancePage />} />
                       <Route path="/work-plans" element={<WorkPlanPage />} />
                       <Route path="/trainings" element={<TrainingsPage />} />
                       <Route path="/audits" element={<InspectionsPage />} />

@@ -24,6 +24,8 @@ import {
 import { cn } from '@/lib/cn'
 import { useDepartmentRecords } from '@/hooks/useReferenceData'
 import type { Department } from './useStructure'
+import { useDepartmentsAll } from './useDepartmentAdmin'
+import { buildTree, type TreeNode } from './structureTree'
 import { errorMessage } from '@/api/errorMessage'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
@@ -95,8 +97,46 @@ export function OrgChart({ branchId, canEdit }: Props) {
      When no snapshot exists for the chosen day the live chart stays on screen
      with a notice, rather than an empty canvas that looks like data loss. */
   const historyMode = !!snapshot.nodes
-  const nodes = snapshot.nodes ?? live.nodes
-  const editable = canEdit && !historyMode
+
+  /* B-D9 (TZ S3): a branch with no scheme records yet must not show an empty
+     canvas — the chart is laid out from the departments and their parents
+     (`parent_id`). Read-only: editing needs real scheme records. */
+  const noRecords = !live.loading && live.nodes.length === 0 && !historyMode
+  const depts = useDepartmentsAll(false)
+  const derived = useMemo<HierarchyNode[] | null>(() => {
+    if (!noRecords || !depts.data?.length) return null
+    const roots = buildTree(depts.data.filter((d) => !d.closed_at))
+    const out: HierarchyNode[] = []
+    let cursor = 0
+    const place = (n: TreeNode<(typeof depts.data)[number]>, depth: number): number => {
+      let x: number
+      if (!n.children.length) {
+        x = cursor * 270
+        cursor += 1
+      } else {
+        const xs = n.children.map((k) => place(k, depth + 1))
+        x = (xs[0] + xs[xs.length - 1]) / 2
+      }
+      const heads = (n.raw.heads ?? []).map((h) => h.legal_name).filter(Boolean)
+      out.push({
+        id: n.id,
+        name: n.name,
+        description: [n.code, ...heads].filter(Boolean).join(' · ') || null,
+        employee_count: n.raw.staff_count ?? 0,
+        node_type: 'deptNode',
+        position_x: x,
+        position_y: depth * 170,
+        accent_color: ACCENTS[depth % ACCENTS.length],
+        outgoing_connections: n.children.map((k) => ({ id: k.id, source_id: n.id, target_id: k.id })),
+      })
+      return x
+    }
+    roots.forEach((r) => place(r, 0))
+    return out
+  }, [noRecords, depts.data])
+  const derivedMode = !!derived
+  const nodes = snapshot.nodes ?? derived ?? live.nodes
+  const editable = canEdit && !historyMode && !derivedMode
 
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 })
   const [sizes, setSizes] = useState<Record<number, { w: number; h: number }>>({})
@@ -567,7 +607,12 @@ export function OrgChart({ branchId, canEdit }: Props) {
             {snapshot.takenAt ? ` · ${formatDateTime(snapshot.takenAt)}` : ''}
           </span>
         )}
-        {snapshot.missing && (
+        {derivedMode && (
+          <span className="pointer-events-auto inline-flex h-9 items-center rounded-tag border border-brand/35 bg-brand-soft px-3 text-[12px] font-semibold text-brand-strong">
+            {t('orgRef.derivedScheme')}
+          </span>
+        )}
+        {!!asOf && !snapshot.loading && !historyMode && (
           <span className="pointer-events-auto inline-flex h-9 items-center rounded-tag border border-line bg-surface px-3 text-[12px] text-fg-muted">
             {t('structure.chartNoSnapshot')}
           </span>
@@ -585,11 +630,13 @@ export function OrgChart({ branchId, canEdit }: Props) {
       </div>
 
       {/* ── edit bar ───────────────────────────────────────────────────── */}
-      {editable && (
+      {canEdit && !historyMode && (
         <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2.5">
-          <span className="hidden max-w-[520px] text-right text-[11px] leading-tight text-fg-subtle lg:block">
-            {t('structure.chartHint')}
-          </span>
+          {editable && (
+            <span className="hidden max-w-[520px] text-right text-[11px] leading-tight text-fg-subtle lg:block">
+              {t('structure.chartHint')}
+            </span>
+          )}
           <Button
             size="sm"
             leftIcon={<Plus size={15} />}

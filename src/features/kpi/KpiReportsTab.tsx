@@ -1,374 +1,418 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BadgeCheck, Download, Eye, FileText, Plus, QrCode, ShieldCheck, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
-import { formatAppDate, formatDateTime, inTashkent } from '@/lib/format'
-import { DetailRow } from '@/components/data/DetailRow'
-import { apiDelete, apiGet, apiPost } from '@/api/http'
-import { ReportTableView } from '@/features/reports/ReportTableView'
-import type { ReportTableJson } from '@/features/reports/types'
-import {
-  KPI_REPORT,
-  KPI_REPORTS,
-  KPI_REPORT_APPROVE,
-  KPI_REPORT_DOWNLOAD,
-  KPI_REPORT_PREVIEW,
-  KPI_REPORT_VERIFY,
-} from '@/api/endpoints'
-import { errorMessage } from '@/api/errorMessage'
-import {
-  Button,
-  Card,
-  EmptyState,
-  Modal,
-  useToast,
-} from '@/components/ui'
-import { CenteredSpinner } from '@/components/ui/Spinner'
-import { ConfirmDialog } from '@/components/data/ConfirmDialog'
+import { BarChart3, Download, Eye, FileSpreadsheet, FileText, Plus, Trash2, X } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Combobox } from '@/components/ui/Combobox'
+import { DateInput } from '@/components/ui/DateInput'
+import { Field } from '@/components/ui/Field'
+import { FormError } from '@/components/ui/FormError'
+import { IconButton } from '@/components/ui/IconButton'
+import { Input } from '@/components/ui/Input'
+import { Segmented } from '@/components/ui/Segmented'
+import { Select } from '@/components/ui/Select'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { useToast } from '@/components/ui/Toast'
+import { DataTable, type Column } from '@/components/data/DataTable'
 import { useConfirm } from '@/components/data/useConfirm'
-import { XLSX_MIME, downloadFile } from '@/lib/download'
+import { TD, TH } from '@/components/data/tableStyles'
+import { EmployeeMultiPicker, type PickedPerson } from '@/features/employees/EmployeeMultiPicker'
+import { MultiPicker } from '@/features/reports/MultiPicker'
+import { useServerText } from '@/features/statistics/serverText'
+import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
+import { errorMessage } from '@/api/errorMessage'
+import { isInvalidRange } from '@/lib/dateRange'
 import { cn } from '@/lib/cn'
-import { useBranchStore } from '@/store/branchStore'
-import { useKpiPermissions } from './useKpiPermissions'
-import { useAuthStore } from '@/store/authStore'
-import * as roles from '@/auth/roles'
+import {
+  downloadReport,
+  fmtDay,
+  periodBounds,
+  useGroupNames,
+  useIndicators,
+  useKpiMutations,
+  useReportData,
+  useReports,
+  type KpiReport,
+  type KpiReportInput,
+  type PeriodType,
+  type ReportGroupBy,
+  type ReportType,
+} from './api'
+import { PERIOD_KEY } from './KpiIntervals'
+import { useMonthOptions } from './KpiResultsTab'
+import { useKpiAccess } from './useKpiAccess'
 
-interface KpiReport {
-  id: number
-  title?: string | null
-  period_start?: string | null
-  period_end?: string | null
-  status?: string | null
-  row_count?: number | null
-  signature_kind?: string | null
-  approved_by_name?: string | null
-  approved_by_position?: string | null
-  approved_at?: string | null
-  verify_token?: string | null
-  revoked_at?: string | null
-  revoked_by_name?: string | null
-  revoke_reason?: string | null
-  superseded_by_id?: number | null
-  created_at?: string | null
-}
+// recharts (~420 KB) loads only when a report is opened.
+const ReportBarChart = lazy(() => import('@/features/statistics/ReportBarChart'))
 
-const STATUS_TONE: Record<string, string> = {
-  draft: 'bg-fg/[0.06] text-fg-muted',
-  ready: 'bg-brand/[0.14] text-brand-strong',
-  approved: 'bg-success/[0.12] text-success',
-  revoked: 'bg-danger/[0.10] text-danger',
+const REPORT_TYPES: ReportType[] = ['individual', 'department', 'summary']
+const TYPE_KEY: Record<ReportType, string> = { individual: 'kpi.repIndividual', department: 'kpi.repDepartment', summary: 'kpi.repSummary' }
+type PeriodMode = PeriodType | 'custom'
+const PERIOD_MODES: PeriodMode[] = ['month', 'quarter', 'year', 'custom']
+const MODE_KEY: Record<PeriodMode, string> = { ...PERIOD_KEY, custom: 'kpi.periodCustom' }
+const GROUP_BY: { value: ReportGroupBy; key: string }[] = [
+  { value: 'employee', key: 'kpi.groupByEmployee' },
+  { value: 'department', key: 'kpi.groupByDepartment' },
+  { value: 'indicator', key: 'kpi.groupByIndicator' },
+  { value: 'group', key: 'kpi.groupByGroup' },
+]
+const SORTS: { value: string; key: string }[] = [
+  { value: '-percent', key: 'kpi.sortPercentDesc' },
+  { value: 'percent', key: 'kpi.sortPercentAsc' },
+  { value: '-deviation_pct', key: 'kpi.sortDeviationDesc' },
+  { value: 'deviation_pct', key: 'kpi.sortDeviationAsc' },
+  { value: 'employee', key: 'kpi.sortEmployee' },
+]
+/** Report column keys → dictionary (the server's labels are Uzbek only). */
+const COLUMN_KEY: Record<string, string> = {
+  employee: 'kpi.colEmployee',
+  department: 'kpi.colDepartment',
+  position: 'kpi.colPosition',
+  indicator: 'kpi.colIndicatorShort',
+  group: 'kpi.colGroup',
+  group_key: 'kpi.colGroup',
+  key: 'kpi.colGrouping',
+  plan: 'kpi.colPlan',
+  fact: 'kpi.colFact',
+  penalty: 'kpi.penalty',
+  net: 'kpi.colNet',
+  percent: 'kpi.colPercent',
+  deviation_abs: 'kpi.colDeviation',
+  deviation_pct: 'kpi.colDeviationPct',
+  employees: 'kpi.employees',
+  entries: 'kpi.colEntries',
 }
 
 /**
- * KPI HISOBOTI — a period's results frozen into a signed file.
- *
- * The point is not the spreadsheet: it is that an APPROVED report carries the
- * approver's name and position and a verify token, so a copy printed and
- * carried out of the building can be checked back against the system. The
- * signature is the approver's OWN, not an E-IMZO one — that decision is
- * recorded in the Verifix parity round and must not be "upgraded" silently.
+ * «Hisobot» (K3): build a KPI report — type, period, people, departments,
+ * position, indicators, group, grouping and sorting — keep it in the list,
+ * open it on screen (plan / fact / penalty chart + table) or download it as
+ * Excel, PDF or Word.
  */
-export function KpiReportsTab({ canManage }: { canManage: boolean }) {
-  // Server gates: create → `kpi_report.run`, approve → `kpi_report.sign_file`,
-  // delete → any `kpi_report` grant. Measured as the ministr: `run` yes,
-  // `sign_file` no — so "approve" 403'd while the button was shown.
-  const perms = useKpiPermissions()
-  const canRun = canManage && perms.can('kpi_report', 'run')
-  const canSign = perms.can('kpi_report', 'sign_file')
-  const canDelete = canManage && perms.can('kpi_report')
-  // An approved or revoked report went out with a QR: only the master admin
-  // may remove it (the server answers 403 to everyone else).
-  const isMaster = roles.isSiteMasterAdmin(useAuthStore((s) => s.user))
+export function KpiReportsTab() {
   const { t } = useTranslation()
+  const sx = useServerText()
   const toast = useToast()
   const confirm = useConfirm()
-  const qc = useQueryClient()
-  const branchId = useBranchStore((s) => s.selectedBranchId)
-  const navigate = useNavigate()
+  const acc = useKpiAccess()
+  const mut = useKpiMutations()
+  const canRun = acc.may('kpi_report', 'run')
+  const { reports, loading, error, refetch } = useReports()
+  const { indicators } = useIndicators({}, canRun)
+  const groups = useGroupNames(indicators)
+  const departments = useDepartmentOptions()
+  const positions = useJobPositionOptions()
+  const [opened, setOpened] = useState<KpiReport | null>(null)
+  const monthOptions = useMonthOptions(36)
 
-  const q = useQuery({
-    queryKey: ['kpi', 'reports', branchId],
-    queryFn: () => apiGet<KpiReport[]>(KPI_REPORTS),
-    retry: false,
-  })
-  const reports = q.data ?? []
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['kpi', 'reports'] })
+  const [type, setType] = useState<ReportType>('individual')
+  const [mode, setMode] = useState<PeriodMode>('month')
+  const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [title, setTitle] = useState('')
+  const [people, setPeople] = useState<PickedPerson[]>([])
+  const [deptIds, setDeptIds] = useState<(string | number)[]>([])
+  const [posId, setPosId] = useState('')
+  const [indIds, setIndIds] = useState<(string | number)[]>([])
+  const [group, setGroup] = useState('')
+  const [groupBy, setGroupBy] = useState<ReportGroupBy>('')
+  const [sort, setSort] = useState('')
+  const [err, setErr] = useState('')
 
-  const [previewRow, setPreviewRow] = useState<{ row: KpiReport; table: ReportTableJson } | null>(null)
-  const [deleteRow, setDeleteRow] = useState<KpiReport | null>(null)
-  const [verifyRow, setVerifyRow] = useState<{ row: KpiReport; data: unknown } | null>(null)
-  type VerifyData = {
-    id?: number; title?: string | null; status?: string | null; row_count?: number | null
-    period_start?: string | null; period_end?: string | null
-    approved_by_name?: string | null; approved_by_position?: string | null; approved_at?: string | null
-  }
-  const [busy, setBusy] = useState<number | null>(null)
+  const bounds = useMemo(() => {
+    if (mode === 'custom') return from && to ? { start: from, end: to, label: `${fmtDay(from)} — ${fmtDay(to)}` } : null
+    const b = periodBounds(mode, month ? `${month}-01` : null)
+    if (!b) return null
+    const d = dayjs(b.begin)
+    const label =
+      mode === 'year'
+        ? t('kpi.autoYear', { y: d.year() })
+        : mode === 'quarter'
+          ? t('kpi.autoQuarter', { y: d.year(), q: Math.floor(d.month() / 3) + 1 })
+          : d.format('MM.YYYY')
+    return { start: b.begin, end: b.end, label }
+  }, [mode, month, from, to, t])
 
-  const approve = useMutation({
-    mutationFn: (id: number) => apiPost<KpiReport>(KPI_REPORT_APPROVE(id), {}),
-    onSuccess: invalidate,
-  })
-  const remove = useMutation({
-    mutationFn: (id: number) => apiDelete(KPI_REPORT(id)),
-    onSuccess: invalidate,
-  })
-
-  /**
-   * Shakllantirish happens on the generic run page (`/reports/kpi_report`):
-   * the same parameters, a live preview with drill-down, then «Saqlash va
-   * tasdiqlashga yuborish» stores the frozen document that appears here.
-   */
-  const openRun = () => navigate('/reports/kpi_report')
-
-  const preview = async (row: KpiReport) => {
-    setBusy(row.id)
+  const create = async () => {
+    setErr('')
+    if (!bounds) return setErr(mode === 'custom' ? t('kpi.periodRequired') : t('kpi.monthRequired'))
+    if (isInvalidRange(bounds.start, bounds.end)) return setErr(t('list.invalidRange'))
+    const body: KpiReportInput = {
+      title: title.trim() || `${t('kpi.reportTitleDefault')} — ${bounds.label}`,
+      period_start: bounds.start,
+      period_end: bounds.end,
+      report_type: type,
+      period_type: mode,
+    }
+    if (people.length) body.employee_ids = people.map((p) => p.id)
+    if (deptIds.length) body.division_ids = deptIds.map(Number)
+    if (posId) body.job_position_ids = [Number(posId)]
+    if (indIds.length) body.indicator_ids = indIds.map(Number)
+    if (group) body.group_names = [group]
+    if (groupBy) body.group_by = groupBy
+    if (sort) body.sort = sort
     try {
-      const table = await apiGet<ReportTableJson>(KPI_REPORT_PREVIEW(row.id))
-      setPreviewRow({ row, table })
+      const r = await mut.createReport.mutateAsync(body)
+      setTitle('')
+      toast.ok(t('kpi.reportCreated'))
+      if (r?.id) setOpened(r)
     } catch (e) {
-      toast.error(errorMessage(e, t('kpi.reportFailed')))
-    } finally {
-      setBusy(null)
+      setErr(errorMessage(e, t('kpi.reportFailed')))
     }
   }
 
-  const download = async (row: KpiReport) => {
-    setBusy(row.id)
+  const download = async (r: KpiReport, format: 'xlsx' | 'pdf' | 'docx') => {
     try {
-      await downloadFile({
-        url: KPI_REPORT_DOWNLOAD(row.id),
-        mime: XLSX_MIME,
-        filename: `KPI_hisobot_${row.id}.xlsx`,
-      })
-      toast.ok(t('kpi.exported'))
+      await downloadReport(r.id, format)
     } catch (e) {
-      toast.error(errorMessage(e, t('kpi.exportFailed')))
-    } finally {
-      setBusy(null)
+      toast.error(errorMessage(e, t('kpi.downloadFailed')))
     }
   }
 
-  const verify = async (row: KpiReport) => {
-    setBusy(row.id)
-    try {
-      // The verify endpoint needs the report's token (two-factor check, like
-      // the public QR page) — without it the server answered 422.
-      const data = await apiGet<unknown>(KPI_REPORT_VERIFY(row.id), { token: row.verify_token })
-      setVerifyRow({ row, data })
-    } catch (e) {
-      toast.error(errorMessage(e, t('kpi.reportVerifyFailed')))
-    } finally {
-      setBusy(null)
-    }
+  const columns: Column<KpiReport>[] = [
+    {
+      key: 'title',
+      header: t('kpi.reportTitle'),
+      skeleton: 'w-48',
+      cell: (r) => <span className={cn('font-medium text-fg', opened?.id === r.id && 'text-brand')}>{r.title || '—'}</span>,
+    },
+    {
+      key: 'type',
+      header: t('kpi.reportType'),
+      skeleton: 'w-20',
+      className: 'whitespace-nowrap text-fg-muted',
+      cell: (r) => {
+        const ty = r.filters?.report_type
+        return ty && TYPE_KEY[ty] ? t(TYPE_KEY[ty] as never) : '—'
+      },
+    },
+    {
+      key: 'period',
+      header: t('kpi.colPeriod'),
+      skeleton: 'w-32',
+      className: 'whitespace-nowrap tabular-nums text-fg-muted',
+      cell: (r) => {
+        const pt = r.filters?.period_type as PeriodMode | undefined
+        return (
+          <>
+            {fmtDay(r.period_start)} — {fmtDay(r.period_end)}
+            {pt && MODE_KEY[pt] && <span className="ml-1.5 text-[11.5px] text-fg-subtle">({t(MODE_KEY[pt] as never)})</span>}
+          </>
+        )
+      },
+    },
+    { key: 'rows', header: t('kpi.colRows'), headerClassName: 'text-right', className: 'text-right tabular-nums', skeleton: 'w-8', cell: (r) => r.row_count ?? '—' },
+    {
+      key: 'actions',
+      header: '',
+      className: 'whitespace-nowrap text-right',
+      cell: (r) => (
+        <span className="inline-flex gap-0.5">
+          <IconButton size="sm" label={t('kpi.view')} onClick={() => setOpened(r)}>
+            <Eye size={14} />
+          </IconButton>
+          <IconButton size="sm" label={t('common.download')} onClick={() => download(r, 'xlsx')}>
+            <Download size={14} />
+          </IconButton>
+          {canRun && (
+            <IconButton
+              size="sm"
+              label={t('common.delete')}
+              onClick={async () => {
+                if (!(await confirm({ kind: 'delete', subject: r.title }))) return
+                try {
+                  await mut.deleteReport.mutateAsync(r.id)
+                  if (opened?.id === r.id) setOpened(null)
+                  toast.ok(t('common.deleted'))
+                } catch (e) {
+                  toast.error(errorMessage(e, t('common.actionFailed')))
+                }
+              }}
+            >
+              <Trash2 size={14} />
+            </IconButton>
+          )}
+        </span>
+      ),
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      {canRun && (
+        <Card className="flex flex-col gap-4 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <FileSpreadsheet size={17} className="text-brand" aria-hidden />
+            <h3 className="text-[14px] font-semibold text-fg">{t('kpi.reportBuild')}</h3>
+            <span className="text-[12px] text-fg-subtle">{t('kpi.reportFormats')}</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Field label={t('kpi.reportType')} wide>
+              <Segmented value={type} onChange={setType} options={REPORT_TYPES.map((x) => ({ value: x, label: t(TYPE_KEY[x] as never) }))} />
+            </Field>
+            <Field label={t('kpi.periodType')} wide>
+              <Segmented value={mode} onChange={setMode} options={PERIOD_MODES.map((x) => ({ value: x, label: t(MODE_KEY[x] as never) }))} />
+            </Field>
+            {mode === 'custom' ? (
+              <>
+                <Field label={t('kpi.periodStart')}>
+                  <DateInput value={from} onChange={setFrom} aria-label={t('kpi.periodStart')} invalid={isInvalidRange(from, to)} />
+                </Field>
+                <Field label={t('kpi.periodEnd')}>
+                  <DateInput value={to} onChange={setTo} min={from || undefined} aria-label={t('kpi.periodEnd')} invalid={isInvalidRange(from, to)} />
+                </Field>
+              </>
+            ) : (
+              <Field label={mode === 'month' ? t('kpi.month') : t('kpi.monthInPeriod')} hint={bounds ? `${fmtDay(bounds.start)} — ${fmtDay(bounds.end)}` : undefined}>
+                <Combobox value={month} onChange={(v) => v && setMonth(v)} options={monthOptions} clearable={false} placeholder={t('kpi.month')} className="w-full" />
+              </Field>
+            )}
+            <Field label={t('kpi.reportTitle')} wide={mode !== 'custom'}>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${t('kpi.reportTitleDefault')} — ${bounds?.label ?? ''}`} />
+            </Field>
+            <Field label={t('kpi.employees')} wide>
+              <EmployeeMultiPicker value={people} onChange={setPeople} placeholder={t('kpi.allEmployees')} />
+            </Field>
+            <Field label={t('kpi.departments')} wide>
+              <MultiPicker value={deptIds} onChange={setDeptIds} options={departments} placeholder={t('kpi.allDepartments')} />
+            </Field>
+            <Field label={t('kpi.colPosition')}>
+              <Combobox value={posId} onChange={setPosId} options={positions} placeholder={t('kpi.allPositions')} className="w-full" />
+            </Field>
+            <Field label={t('kpi.indicatorGroup')}>
+              <Combobox value={group} onChange={setGroup} options={groups.map((g) => ({ value: g, label: sx(g) }))} placeholder={t('kpi.allGroups')} className="w-full" />
+            </Field>
+            <Field label={t('kpi.indicators')} wide>
+              <MultiPicker
+                value={indIds}
+                onChange={setIndIds}
+                options={indicators.filter((i) => !i.is_justification).map((i) => ({ value: i.id, label: sx(i.name) || `#${i.id}` }))}
+                placeholder={t('kpi.allIndicators')}
+              />
+            </Field>
+            <Field label={t('kpi.grouping')}>
+              <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value as ReportGroupBy)} placeholder={t('kpi.noGrouping')} options={GROUP_BY.map((g) => ({ value: g.value, label: t(g.key as never) }))} />
+            </Field>
+            <Field label={t('kpi.sorting')}>
+              <Select value={sort} onChange={(e) => setSort(e.target.value)} placeholder={t('kpi.defaultSort')} options={SORTS.map((s) => ({ value: s.value, label: t(s.key as never) }))} />
+            </Field>
+            <div className="flex items-end md:col-span-2 xl:col-span-2">
+              <Button leftIcon={<Plus size={15} />} loading={mut.createReport.isPending} onClick={create}>
+                {t('kpi.build')}
+              </Button>
+            </div>
+          </div>
+          <FormError className="text-xs">{err}</FormError>
+        </Card>
+      )}
+
+      {opened && <KpiReportView key={opened.id} report={opened} onClose={() => setOpened(null)} onDownload={(f) => download(opened, f)} />}
+
+      <Card className="flex flex-col overflow-hidden">
+        <div className="border-b border-line p-4">
+          <h3 className="text-[14px] font-semibold text-fg">{t('kpi.reportsList')}</h3>
+        </div>
+        <DataTable
+          rows={reports}
+          columns={columns}
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          onRowClick={(r) => setOpened(r)}
+          emptyTitle={t('kpi.reportsEmpty')}
+          minWidth={720}
+          skeletonRows={3}
+        />
+      </Card>
+    </div>
+  )
+}
+
+/** A stored report on screen: the plan / fact (/ penalty) chart and the table. */
+function KpiReportView({ report, onClose, onDownload }: { report: KpiReport; onClose: () => void; onDownload: (f: 'xlsx' | 'pdf' | 'docx') => void }) {
+  const { t } = useTranslation()
+  const sx = useServerText()
+  const { data, loading, error } = useReportData(report.id)
+
+  const columns = (data?.columns ?? []).map((c) => ({ ...c, label: COLUMN_KEY[c.key] ? t(COLUMN_KEY[c.key] as never) : sx(c.label) }))
+  const rows = data?.rows ?? []
+  const series = (data?.chart?.series ?? []).map((k) => ({ key: k, label: COLUMN_KEY[k] ? t(COLUMN_KEY[k] as never) : k }))
+  const chartRows = (data?.chart?.data ?? []).map((d) => ({ ...d, __x: d.label }))
+
+  const cell = (v: unknown, type: string) => {
+    if (v == null || v === '') return '—'
+    if (type === 'number' && typeof v === 'number') return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    return sx(String(v))
   }
 
   return (
-    <Card className="flex flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
-        <p className="text-xs text-fg-muted">{t('kpi.reportsHint')}</p>
-        {canRun && (
-          <Button
-            size="sm"
-            className="ml-auto"
-            leftIcon={<Plus size={15} />}
-            onClick={openRun}
-          >
-            {t('kpi.reportNew')}
+    <Card className="flex flex-col gap-4 border-brand/30 p-4" aria-label={report.title ?? undefined}>
+      <div className="flex flex-wrap items-center gap-2">
+        <BarChart3 size={17} className="text-brand" aria-hidden />
+        <h3 className="text-[14px] font-semibold text-fg">{report.title}</h3>
+        <span className="text-[12px] tabular-nums text-fg-subtle">
+          {fmtDay(report.period_start)} — {fmtDay(report.period_end)}
+        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" leftIcon={<FileSpreadsheet size={14} />} onClick={() => onDownload('xlsx')}>
+            Excel
           </Button>
-        )}
+          <Button size="sm" variant="outline" leftIcon={<FileText size={14} />} onClick={() => onDownload('pdf')}>
+            PDF
+          </Button>
+          <Button size="sm" variant="outline" leftIcon={<FileText size={14} />} onClick={() => onDownload('docx')}>
+            Word
+          </Button>
+          <IconButton size="sm" label={t('common.close')} onClick={onClose}>
+            <X size={15} />
+          </IconButton>
+        </div>
       </div>
 
-      {q.isLoading ? (
-        <CenteredSpinner />
-      ) : q.isError ? (
-        <EmptyState icon={<FileText size={20} />} title={t('kpi.reportsDenied')} />
-      ) : reports.length === 0 ? (
-        <EmptyState title={t('kpi.reportsEmpty')} description={t('kpi.reportsEmptyHint')} />
+      {loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : error ? (
+        <p className="py-8 text-center text-sm text-danger">{errorMessage(error, t('list.loadFailed'))}</p>
+      ) : rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-fg-subtle">{t('kpi.noData')}</p>
       ) : (
-        <ul className="divide-y divide-line">
-          {reports.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-fg">
-                  {r.title || t('kpi.reportDefaultTitle')}
-                </span>
-                <span className="tabnum block text-[11px] text-fg-subtle">
-                  {r.period_start ? dayjs(r.period_start).format('DD.MM.YYYY') : '—'} —{' '}
-                  {r.period_end ? dayjs(r.period_end).format('DD.MM.YYYY') : '—'}
-                  {r.row_count != null ? ` · ${t('kpi.reportRows', { count: r.row_count })}` : ''}
-                </span>
-                {r.status === 'revoked' && (
-                  <span className="mt-0.5 block text-[11px] text-danger">
-                    {t('kpi.reportRevokedLine', { reason: r.revoke_reason ?? '—', who: r.revoked_by_name ?? '—' })}
-                    {r.superseded_by_id ? ` · ${t('kpi.reportSuperseded', { id: r.superseded_by_id })}` : ''}
-                  </span>
-                )}
-              </span>
-
-              {r.approved_by_name && (
-                <span className="min-w-0 shrink-0 text-right text-[11px] text-fg-subtle">
-                  <span className="block truncate text-fg-muted">{r.approved_by_name}</span>
-                  {r.approved_at && (
-                    <span className="tabnum block">
-                      {inTashkent(r.approved_at).format('DD.MM.YYYY HH:mm')}
-                    </span>
-                  )}
-                </span>
-              )}
-
-              <span
-                className={cn(
-                  'shrink-0 rounded-pill px-2.5 py-1 text-[11px] font-semibold',
-                  STATUS_TONE[r.status ?? 'draft'] ?? 'bg-fg/[0.06] text-fg-muted',
-                )}
-              >
-                {t(`kpi.reportStatus_${r.status ?? 'draft'}` as never)}
-              </span>
-
-              <span className="flex shrink-0 gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  title={t('reports.preview')}
-                  disabled={busy === r.id}
-                  onClick={() => preview(r)}
-                >
-                  <Eye size={14} />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  title={t('kpi.reportDownload')}
-                  disabled={busy === r.id}
-                  onClick={() => download(r)}
-                >
-                  <Download size={14} />
-                </Button>
-                {r.verify_token && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title={t('kpi.reportVerify')}
-                    disabled={busy === r.id}
-                    onClick={() => verify(r)}
-                  >
-                    <QrCode size={14} />
-                  </Button>
-                )}
-                {canSign && r.status !== 'approved' && r.status !== 'revoked' && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={approve.isPending}
-                    leftIcon={<BadgeCheck size={14} />}
-                    onClick={async () => {
-                      const ok = await confirm({
-                        kind: 'sign',
-                        subject: r.title || t('kpi.reportDefaultTitle'),
-                        confirmLabel: t('kpi.reportApprove'),
-                      })
-                      if (!ok) return
-                      try {
-                        await approve.mutateAsync(r.id)
-                        toast.ok(t('kpi.reportApproved'))
-                      } catch (e) {
-                        toast.error(errorMessage(e, t('kpi.reportFailed')))
-                      }
-                    }}
-                  >
-                    {t('kpi.reportApprove')}
-                  </Button>
-                )}
-                {canDelete && (isMaster || (r.status !== 'approved' && r.status !== 'revoked')) && (
-                  <Button aria-label={t('common.delete')} size="sm" variant="ghost" onClick={() => setDeleteRow(r)}>
-                    <Trash2 size={14} className="text-danger" />
-                  </Button>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <Modal
-        open={!!previewRow}
-        onClose={() => setPreviewRow(null)}
-        size="full"
-        title={previewRow?.row.title || t('kpi.reportDefaultTitle')}
-        footer={
-          <Button variant="ghost" onClick={() => setPreviewRow(null)}>
-            {t('common.close')}
-          </Button>
-        }
-      >
-        {previewRow && <ReportTableView table={previewRow.table} maxHeight="60vh" />}
-      </Modal>
-
-      <Modal
-        open={!!verifyRow}
-        onClose={() => setVerifyRow(null)}
-        size="sm"
-        title={t('kpi.reportVerify')}
-        footer={
-          <Button variant="ghost" onClick={() => setVerifyRow(null)}>
-            {t('common.close')}
-          </Button>
-        }
-      >
-        {/* Same shape as the public QR page — a reader must not see raw JSON. */}
-        {(() => {
-          const d = (verifyRow?.data ?? {}) as VerifyData
-          const approved = d.status === 'approved'
-          return (
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                {approved ? <BadgeCheck size={18} className="text-success" /> : <ShieldCheck size={18} className="text-fg-muted" />}
-                <span className="text-sm font-semibold text-fg">
-                  {approved ? t('kpiVerify.genuine') : t('kpiVerify.found')}
-                </span>
-                <span className="text-xs text-fg-subtle">
-                  {t('kpiVerify.report')} №{d.id}
-                </span>
-              </div>
-              <dl className="divide-y divide-line/60">
-                <DetailRow label={t('kpiVerify.name')} value={d.title} />
-                <DetailRow
-                  label={t('kpiVerify.period')}
-                  value={d.period_start && d.period_end ? `${formatAppDate(d.period_start)} — ${formatAppDate(d.period_end)}` : null}
-                />
-                <DetailRow label={t('kpiVerify.rowCount')} value={d.row_count} />
-                <DetailRow
-                  label={t('kpiVerify.approvedBy')}
-                  value={d.approved_by_name ? [d.approved_by_name, d.approved_by_position].filter(Boolean).join(', ') : null}
-                />
-                <DetailRow label={t('kpiVerify.approvedAt')} value={d.approved_at ? formatDateTime(d.approved_at) : null} />
-              </dl>
+        <>
+          {series.length > 0 && (
+            <div className="rounded-xl border border-line p-3">
+              <p className="mb-1.5 text-[12px] text-fg-muted">{t('kpi.planAndFact')}</p>
+              <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+                <ReportBarChart rows={chartRows} series={series} height={300} />
+              </Suspense>
             </div>
-          )
-        })()}
-      </Modal>
-
-      <ConfirmDialog
-        open={!!deleteRow}
-        onClose={() => setDeleteRow(null)}
-        onConfirm={async () => {
-          if (!deleteRow) return
-          try {
-            await remove.mutateAsync(deleteRow.id)
-            toast.ok(t('kpi.reportDeleted'))
-          } catch (e) {
-            toast.error(errorMessage(e, t('kpi.reportFailed')))
-          }
-          setDeleteRow(null)
-        }}
-        title={t('kpi.reportDeleteTitle')}
-        description={deleteRow?.title ?? ''}
-        danger
-        confirmLabel={t('common.delete')}
-        loading={remove.isPending}
-      />
+          )}
+          <div className="scroll-thin max-h-[460px] overflow-auto rounded-xl border border-line">
+            <table className="w-full border-collapse text-left" style={{ minWidth: Math.max(640, columns.length * 110) }}>
+              <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_rgb(var(--border))]">
+                <tr>
+                  {columns.map((c) => (
+                    <th key={c.key} scope="col" className={cn(TH, c.type === 'number' && 'text-right')}>
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="border-b border-line last:border-0">
+                    {columns.map((c) => (
+                      <td key={c.key} className={cn(TD, 'py-2.5', c.type === 'number' ? 'text-right tabular-nums' : 'text-fg', c.key === 'penalty' && Number(r[c.key]) > 0 && 'text-danger')}>
+                        {cell(r[c.key], c.type)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </Card>
   )
 }

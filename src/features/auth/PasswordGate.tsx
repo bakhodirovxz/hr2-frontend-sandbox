@@ -17,34 +17,33 @@ import { useAuthStore } from '@/store/authStore'
 import { useLogout } from '@/hooks/useAuth'
 
 /**
- * The password-rotation gate (2026-09-15).
+ * TZ U1 · 762 — the temporary-password gate.
  *
- * `/auth/me` says `password_must_change` when the password is older than
- * `security.password_max_age_days` (or is a temporary one while that switch
- * is on). From that moment the server answers every other route with 403
- * `password_expired`, so there is nothing else this shell could usefully
- * show: the dialog cannot be dismissed, the only exits are a new password or
- * logging out. A successful change revokes EVERY session (the server has
- * always done that), so the person is sent back to the login page to sign in
- * with the new one — better than letting the next request fail with a 401.
+ * `/auth/me` says `must_change_password` when an administrator (or HR) set the
+ * password (`users.default_password`). Until it is replaced the server answers
+ * every other route with 403 `password_change_required`, so there is nothing
+ * else this shell could usefully show: the dialog cannot be dismissed, the only
+ * exits are a new password or logging out. A successful change revokes EVERY
+ * session (`UserService.update_password`), so the person is sent back to the
+ * login page to sign in with the new one — better than a 401 on the next call.
  *
- * Below the threshold (`password_days_left` ≤ 14) the same component draws a
- * one-line warning strip instead, dismissable for the session.
+ * An initial password that is not yet forced (`password_change_warning`) only
+ * draws a one-line reminder strip, dismissable for the session.
  */
 export function PasswordGate() {
   const user = useAuthStore((s) => s.user)
   if (!user) return null
   // TZ U1: vaqtinchalik (administrator bergan) parol — almashtirmaguncha server
   // boshqa amallarga 403 `password_change_required` qaytaradi.
-  if (user.must_change_password) return <ForcedChangeModal expired={false} />
+  if (user.must_change_password) return <ForcedChangeModal />
   // Boshlang'ich parol hali almashtirilmagan — majburiy emas, eslatma.
-  if (user.default_password && user.password_change_warning) return <ExpiryStrip days={null} />
+  if (user.default_password && user.password_change_warning) return <DefaultPasswordStrip />
   return null
 }
 
-const WARN_DISMISS_KEY = 'pw-expiry-strip-dismissed'
+const WARN_DISMISS_KEY = 'pw-default-strip-dismissed'
 
-function ExpiryStrip({ days }: { days: number | null }) {
+function DefaultPasswordStrip() {
   const { t } = useTranslation()
   const [hidden, setHidden] = useState(() => {
     try {
@@ -68,13 +67,7 @@ function ExpiryStrip({ days }: { days: number | null }) {
       className="fixed inset-x-0 bottom-0 z-[60] flex items-center justify-center gap-3 border-t border-warning/40 bg-warning-soft px-4 py-2 text-[13px] text-fg sm:bottom-4 sm:left-1/2 sm:right-auto sm:w-auto sm:-translate-x-1/2 sm:rounded-xl sm:border sm:shadow-pop"
     >
       <ShieldAlert size={16} className="shrink-0 text-warning" />
-      <span>
-        {days == null
-          ? t('password.defaultPasswordHint')
-          : days > 0
-            ? t('password.expiresIn', { count: days })
-            : t('password.expiresToday')}
-      </span>
+      <span>{t('password.defaultPasswordHint')}</span>
       <Link to="/my-profile?tab=security" className="font-semibold text-brand-strong hover:underline">
         {t('password.changeNow')}
       </Link>
@@ -85,7 +78,7 @@ function ExpiryStrip({ days }: { days: number | null }) {
   )
 }
 
-function ForcedChangeModal({ expired }: { expired: boolean }) {
+function ForcedChangeModal() {
   const { t } = useTranslation()
   const toast = useToast()
   const logout = useLogout()
@@ -128,7 +121,7 @@ function ForcedChangeModal({ expired }: { expired: boolean }) {
           {t('password.mustChangeTitle')}
         </span>
       }
-      description={expired ? t('password.mustChangeExpired') : t('password.mustChangeTemporary')}
+      description={t('password.mustChangeTemporary')}
       footer={
         <>
           <Button variant="ghost" onClick={logout} disabled={save.isPending}>

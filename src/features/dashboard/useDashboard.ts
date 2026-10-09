@@ -6,6 +6,7 @@ import { DASHBOARD_EMPLOYEES_BY_CATEGORY, DASHBOARD_MAIN } from '@/api/endpoints
 import type { EmployeesByCategory, MainStats, TurnstileEvent } from '@/types/dashboard'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
+import { can } from '@/auth/permissions'
 import { buildAttendanceRows, countByStatus, countDirections } from './attendance'
 
 interface DashboardFilters {
@@ -77,6 +78,8 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
         date_to: day,
         ...f,
       }),
+    // Turniket o'tishlari — davomat moduli (filial administratorida yo'q).
+    enabled: can(user, 'attendance'),
     // O'tgan kun o'zgarmaydi; bugungi kun 2 daqiqada yangilanadi.
     refetchInterval: dayOffset === 0 ? 120_000 : false,
   })
@@ -108,7 +111,7 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
     exitsToday: directions.exits,
     insideCount,
     mainStats: mainQuery.data,
-    loading: mainQuery.isLoading || categoriesQuery.isLoading || eventsQuery.isLoading,
-    tableLoading: categoriesQuery.isLoading || eventsQuery.isLoading,
+    loading: mainQuery.isLoading || categoriesQuery.isLoading || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
+    tableLoading: categoriesQuery.isLoading || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
   }
 }

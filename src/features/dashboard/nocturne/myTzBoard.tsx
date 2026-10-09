@@ -95,7 +95,6 @@ const SERVICE_TONE: Partial<Record<ServiceStatus, RowTone>> = {
   in_review: 'warning',
   in_progress: 'warning',
   ready: 'success',
-  issued: 'success',
   rejected: 'danger',
   cancelled: 'neutral',
 }

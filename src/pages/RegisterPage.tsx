@@ -2,7 +2,6 @@ import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CheckCircle2, Trash2, Upload } from 'lucide-react'
-import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
@@ -21,6 +20,7 @@ import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
 import { useDynamicT } from '@/i18n/dynamicKey'
 import { cn } from '@/lib/cn'
+import { errorCode, errorMessage } from '@/api/errorMessage'
 import {
   CONFLICT_KEYS,
   DOC_RULES,
@@ -45,7 +45,7 @@ import {
  * o'zi tanlaydi, tasdiqlash oynasida esa administrator qayta belgilaydi.
  */
 
-const STEP_KEYS = ['register.stepPersonal', 'register.stepDocs', 'register.stepAccount'] as const
+const STEP_KEYS = ['register.stepPersonal', 'authx.stepDocs', 'authx.stepAccount'] as const
 
 const EMPTY = {
   last_name: '',
@@ -95,14 +95,6 @@ export function RegisterPage() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [error, setError] = useState('')
 
-  /**
-   * ⚠️ ALREADY SIGNED IN? THEN THIS FORM IS NOT FOR YOU.
-   *
-   * `LoginPage` has always sent an authenticated visitor home; this page did
-   * not, so a logged-in user who reached /royxatdan-otish was handed a blank
-   * sign-up wizard for an account they already have. Same rule, same place.
-   */
-  if (isAuthenticated) return <Navigate to="/" replace />
   const [photoPreview, setPhotoPreview] = useState('')
   const [done, setDone] = useState(false)
 
@@ -134,6 +126,13 @@ export function RegisterPage() {
     [options.data, form.claimed_branch_id],
   )
 
+  /**
+   * ⚠️ ALREADY SIGNED IN? THEN THIS FORM IS NOT FOR YOU — same rule as
+   * `LoginPage`. (After every hook: an early return above them broke the
+   * rules of hooks when the auth state changed while the page was open.)
+   */
+  if (isAuthenticated && !done) return <Navigate to="/" replace />
+
   const onPhoto = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     // ⚠️ Clear the input before any early return. A photo rejected for size
@@ -141,6 +140,10 @@ export function RegisterPage() {
     // `change` — the user retries and nothing happens.
     e.target.value = ''
     if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError(t('authx.photoOnlyImage'))
+      return
+    }
     if (file.size > 5 * 1024 * 1024) {
       setError(t('register.errPhotoBig'))
       return
@@ -154,10 +157,21 @@ export function RegisterPage() {
     reader.readAsDataURL(file)
   }
 
+  /** Hujjat raqamlari shakli — barcha xatolar birdaniga (qatorma-qator). */
+  const validateDocs = (): string => {
+    const out: string[] = []
+    for (const [key, re, messageKey] of DOC_RULES) {
+      const val = (form[key] || '').trim()
+      if (val && !re.test(val)) out.push(tk(messageKey))
+    }
+    return out.join('\n')
+  }
+
   const validateStep = (): string => {
     if (step === 0 && (!form.last_name.trim() || !form.first_name.trim())) {
       return t('register.errName')
     }
+    if (step === 1) return validateDocs()
     if (step === 2) {
       if (!form.username.trim()) return t('register.errUsername')
       if (!form.email.trim()) return t('register.errEmail')
@@ -167,14 +181,6 @@ export function RegisterPage() {
       if (checkPassword(form.password, form.username).failed.length) return t('password.notStrongEnough')
       if (form.password !== form.password2) return t('register.errPasswordMismatch')
       if (form.is_uge_employee && !form.claimed_branch_id) return t('register.errBranch')
-    }
-    return ''
-  }
-
-  const validateDocs = (): string => {
-    for (const [key, re, messageKey] of DOC_RULES) {
-      const val = (form[key] || '').trim()
-      if (val && !re.test(val)) return tk(messageKey)
     }
     return ''
   }
@@ -196,6 +202,9 @@ export function RegisterPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    // Arizani FAQAT oxirgi bosqichdagi «Arizani yuborish» jo'natadi; oldingi
+    // bosqichda Enter — keyingi bosqichga o'tish.
+    if (step < STEP_KEYS.length - 1) return next()
     const msg = validateStep() || validateDocs()
     if (msg) {
       setError(msg)
@@ -236,19 +245,11 @@ export function RegisterPage() {
       setDone(true)
       setTimeout(() => navigate('/login', { replace: true }), 5000)
     } catch (err) {
-      // ⚠️ Xato tanasi YASSI keladi: {code, i18n_key, params, message} —
-      // `detail` ni o'qish bilan cheklanilsa foydalanuvchi 409 SABABINI
-      // umuman ko'rmasdi va «nega ishlamadi» deb qolardi.
-      const data = axios.isAxiosError(err)
-        ? (err.response?.data as { code?: string; message?: string; detail?: unknown } | undefined)
-        : undefined
-      const key = data?.code ? CONFLICT_KEYS[data.code] : undefined
-      const raw =
-        data?.message ??
-        (typeof data?.detail === 'object'
-          ? (data?.detail as { message?: string })?.message
-          : (data?.detail as string | undefined))
-      setError(key ? tk(key) : raw || t('register.errFailed'))
+      const status = (err as { response?: { status?: number } })?.response?.status
+      const code = errorCode(err)
+      if (status === 429) setError(t('authx.errTooMany'))
+      else if (status === 409) setError(code && CONFLICT_KEYS[code] ? tk(CONFLICT_KEYS[code]) : errorMessage(err, t('authx.errConflict')))
+      else setError(errorMessage(err, t('register.errFailed')))
     }
   }
 
@@ -259,6 +260,7 @@ export function RegisterPage() {
           <CheckCircle2 size={56} className="text-success" />
           <h2 className="mt-5 text-2xl font-bold text-fg">{t('register.doneTitle')}</h2>
           <p className="mt-2 text-sm leading-relaxed text-fg-muted">{t('register.doneText')}</p>
+          <p className="mt-2 text-sm leading-relaxed text-fg-muted">{t('authx.qrNote')}</p>
           <Link to="/login" className="mt-6">
             <Button size="lg">{t('register.toLogin')}</Button>
           </Link>
@@ -271,6 +273,7 @@ export function RegisterPage() {
     <Shell wide>
       <h2 className="text-2xl font-bold text-fg">{t('register.title')}</h2>
       <p className="mt-1.5 text-sm text-fg-muted">{t('register.subtitle')}</p>
+      <p className="mt-1 text-xs text-fg-subtle">{t('authx.qrNote')}</p>
 
       {/* Qadamlar chizig'i */}
       <ol className="mt-6 flex items-center gap-2">
@@ -300,6 +303,9 @@ export function RegisterPage() {
           </li>
         ))}
       </ol>
+      <p className="mt-3 text-xs font-medium text-fg-muted">
+        {t('authx.stepOf', { n: step + 1, total: STEP_KEYS.length })} — {tk(STEP_KEYS[step])}
+      </p>
 
       <form onSubmit={onSubmit} className="mt-6">
         {step === 0 && (
@@ -325,14 +331,6 @@ export function RegisterPage() {
                   { value: '1', label: t('register.male') },
                   { value: '2', label: t('register.female') },
                 ]}
-              />
-            </Field>
-            <Field label={t('register.phone')}>
-              <Input
-                value={form.phone_number}
-                onChange={setMasked('phone_number')}
-                placeholder="+998 90 123 45 67"
-                inputMode="tel"
               />
             </Field>
             <Field label={t('register.birthPlace')}>
@@ -432,6 +430,9 @@ export function RegisterPage() {
 
         {step === 2 && (
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t('authx.userType')} wide>
+              <Input value={t('authx.userTypeIndividual')} readOnly aria-readonly="true" className="cursor-default opacity-75" />
+            </Field>
             <Field label={t('register.username')} required>
               <Input
                 value={form.username}
@@ -447,11 +448,20 @@ export function RegisterPage() {
                 autoComplete="email"
               />
             </Field>
-            <Field label={t('register.password')} required hint={form.password ? undefined : t('register.passwordHint')}>
+            <Field label={t('register.phone')} wide>
+              <Input
+                value={form.phone_number}
+                onChange={setMasked('phone_number')}
+                placeholder="+998 90 123 45 67"
+                inputMode="tel"
+              />
+            </Field>
+            <Field label={t('register.password')} required hint={form.password ? undefined : t('authx.passwordHint')}>
               <Input
                 type="password"
                 value={form.password}
                 onChange={(e) => set('password')(e.target.value)}
+                placeholder={t('authx.passwordPlaceholder')}
                 autoComplete="new-password"
               />
             </Field>
@@ -508,14 +518,17 @@ export function RegisterPage() {
                     placeholder={t('register.notSelected')}
                   />
                 </Field>
+                <p className="text-xs leading-relaxed text-fg-subtle sm:col-span-2">{t('authx.claimHint')}</p>
               </>
             )}
           </div>
         )}
 
         {error && (
-          <div className="mt-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-            {error}
+          <div role="alert" className="mt-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {error.split('\n').map((line) => (
+              <div key={line}>{line}</div>
+            ))}
           </div>
         )}
 
@@ -527,6 +540,7 @@ export function RegisterPage() {
           )}
           {step < STEP_KEYS.length - 1 ? (
             <Button
+              key="next"
               type="button"
               onClick={next}
               className="ml-auto"
@@ -535,7 +549,10 @@ export function RegisterPage() {
               {t('common.next')}
             </Button>
           ) : (
-            <Button type="submit" className="ml-auto" loading={submit.isPending}>
+            // ⚠️ Alohida `key`: aks holda React o'sha DOM tugmani qayta ishlatib
+            // `type` ni «submit» ga almashtiradi va «Keyingisi» bosilgan zahoti
+            // forma yuborilib, 3-bosqich xato bilan ochilardi.
+            <Button key="submit" type="submit" className="ml-auto" loading={submit.isPending}>
               {t('register.submit')}
             </Button>
           )}
