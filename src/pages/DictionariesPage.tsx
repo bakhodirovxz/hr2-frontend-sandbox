@@ -16,13 +16,12 @@ import {
   Upload,
 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
-import { Button, Card, Input, Select, useToast } from '@/components/ui'
+import { Button, Card, Input, Modal, Select, Spinner, useToast } from '@/components/ui'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
-import { ConfirmDialog } from '@/components/data/ConfirmDialog'
 import { useConfirm } from '@/components/data/useConfirm'
 import { cn } from '@/lib/cn'
-import { XLSX_MIME, downloadFile, exportTable, type TableFormat } from '@/lib/download'
+import { PDF_MIME, XLSX_MIME, downloadFile, type TableFormat } from '@/lib/download'
 import { DICTIONARY_EXPORT } from '@/api/endpoints'
 import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
@@ -30,20 +29,34 @@ import { useFilterReset } from '@/hooks/useFilterReset'
 import { FilterReset } from '@/components/data/FilterReset'
 import { SearchInput } from '@/components/data/SearchInput'
 import { useAuthStore } from '@/store/authStore'
-import { DictionaryEntryModal } from '@/features/dictionaries/DictionaryEntryModal'
+import { DictionaryEntryCard } from '@/features/dictionaries/DictionaryEntryCard'
+import { DictionaryEntryModal, useExtraKindLabel } from '@/features/dictionaries/DictionaryEntryModal'
 import { DictionaryImportModal } from '@/features/dictionaries/DictionaryImportModal'
+import { useServerText } from '@/features/statistics/serverText'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import {
   canManageDictionaries,
-  fetchEntryUsage,
+  isExternalType,
+  localizedName,
   useDictionaryEntries,
   useDictionaryMutations,
   useDictionaryOptions,
   useDictionaryTypes,
+  useEntryUsage,
   type DictionaryEntry,
   type DictionaryType,
-  type DictionaryUsage,
 } from '@/features/dictionaries/useDictionaries'
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+/** «Organizations» mirror: code + name cell of one `extra` attribute, in the current language. */
+function orgCell(extra: Record<string, unknown> | null | undefined, key: 'ownership_form' | 'region' | 'district', lang: string) {
+  if (!extra) return '—'
+  const code = (key === 'ownership_form' ? extra.ownership_form : extra[`${key}_code`]) as string | undefined
+  const name = ((lang === 'ru' && extra[`${key}_name_ru`]) || extra[`${key}_name`]) as string | undefined
+  if (name) return code ? `${name} (${code})` : name
+  return code || '—'
+}
 
 /**
  * MA'LUMOTNOMALAR — TZ 4.2.5 (scenarios D1/D2).
@@ -62,7 +75,10 @@ const DICT_KEYS = ['type', 'parent', 'status'] as const
 const DICT_FILTERS = ['parent', 'status'] as const
 
 export function DictionariesPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = i18n.language
+  const st = useServerText()
+  const kindLabel = useExtraKindLabel()
   const toast = useToast()
   const confirm = useConfirm()
   const user = useAuthStore((s) => s.user)
@@ -93,8 +109,12 @@ export function DictionariesPage() {
   // Hierarchical dictionaries filter by their PARENT dictionary's rows.
   const { options: parentEntries } = useDictionaryOptions(type?.parent_type_code)
   const parentOptions = useMemo(
-    () => parentEntries.map((p) => ({ value: String(p.id), label: p.name })),
-    [parentEntries],
+    () => parentEntries.map((p) => ({ value: String(p.id), label: localizedName(p, lang) })),
+    [parentEntries, lang],
+  )
+  const parentType = useMemo(
+    () => (type?.parent_type_code ? types.find((x) => x.code === type.parent_type_code) ?? null : null),
+    [types, type],
   )
 
   const { sync, remove } = useDictionaryMutations()
@@ -102,12 +122,13 @@ export function DictionariesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DictionaryEntry | null>(null)
-  const [usage, setUsage] = useState<DictionaryUsage | null>(null)
-  const [exporting, setExporting] = useState(false)
+  // TZ D2 1572–1573: a click on a row opens the read-only card.
+  const [cardEntry, setCardEntry] = useState<DictionaryEntry | null>(null)
+  const usage = useEntryUsage(deleteTarget?.id ?? null)
+  const [exporting, setExporting] = useState<TableFormat | null>(null)
 
-  // Switching dictionary clears filters that only make sense inside the old one.
   useEffect(() => {
-    setUsage(null)
+    setCardEntry(null)
   }, [activeCode])
 
   const filteredTypes = useMemo(() => {
@@ -116,22 +137,16 @@ export function DictionariesPage() {
     return types.filter(
       (x) =>
         x.name.toLowerCase().includes(s) ||
+        localizedName(x, lang).toLowerCase().includes(s) ||
         (x.name_ru ?? '').toLowerCase().includes(s) ||
         x.code.toLowerCase().includes(s),
     )
-  }, [types, typeQuery])
+  }, [types, typeQuery, lang])
 
-  const readOnly = !manage || !!type?.external_source || !type?.is_editable
-
-  const openDelete = async (row: DictionaryEntry) => {
-    setDeleteTarget(row)
-    setUsage(null)
-    try {
-      setUsage(await fetchEntryUsage(row.id))
-    } catch {
-      /* usage is advisory — the delete call is still authoritative */
-    }
-  }
+  const external = isExternalType(type)
+  const readOnly = !manage || external || !type?.is_editable
+  // TZ 4.2.5 «Организации…»: ownership form, region and district.
+  const orgMirror = type?.external_source === 'organization_branches'
 
   const doDelete = async () => {
     if (!deleteTarget) return
@@ -162,62 +177,30 @@ export function DictionariesPage() {
   }
 
   /**
-   * Eksport — TZ 4.2.5: «…скачивать данные в формате word или excel, а также
-   * преобразовывать скаченные данные в PDF».
-   *
-   * ⚠️ EXCEL SERVERDAN, WORD va PDF ekrandagi jadvaldan. Sabab: Excel
-   * endpointi BUTUN ma'lumotnomani beradi (qidiruv bo'yicha filtrlangan
-   * holda ham u to'liq ro'yxat), Word va PDF esa ko'zga ko'rinadigan hujjat —
-   * ular foydalanuvchi ko'rib turgan sahifani, uning filtri va tartibi bilan
-   * saqlashi kerak.
+   * TZ 4.2.5 (1940): «скачивать данные в формате word или excel, а также
+   * преобразовывать скаченные данные в PDF». All three come from the server
+   * with the filters on screen (B-D15: search, «Tegishli», status).
    */
   const doExport = async (format: TableFormat) => {
     if (!type) return
-    setExporting(true)
+    setExporting(format)
     try {
-      if (format === 'xlsx') {
-        await downloadFile({
-          url: DICTIONARY_EXPORT(type.code),
-          filename: `malumotnoma-${type.code}.xlsx`,
-          params: search ? { search } : undefined,
-          mime: XLSX_MIME,
-        })
-      } else {
-        const headers = [
-          t('dictionaries.colName'),
-          t('dictionaries.colNameRu'),
-          ...(type.is_hierarchical ? [t('dictionaries.colParent')] : []),
-          t('dictionaries.colCode'),
-          t('dictionaries.colStatus'),
-        ]
-        await exportTable({
-          title: type.name || type.code,
-          // ⚠️ `common.search` — bu MAYDON O'RIN EGALLOVCHISI («Qidirish…»),
-          // sarlavha emas: hujjatda «Qidirish… ZZSINOV · 1» bo'lib chiqardi.
-          // ⚠️ `entries.length`, NOT `total`. Word/PDF deliberately save the
-          // page being looked at (see the note above), but the caption used
-          // the dictionary's TOTAL — so a 25-row file was headed "Jami 500 ta
-          // yozuv". The document now counts itself.
-          subtitle: search
-            ? t('dictionaries.exportFiltered', { q: search, count: entries.length })
-            : t('dictionaries.exportPage', { count: entries.length, total: total || entries.length }),
-          headers,
-          rows: entries.map((r) => [
-            r.name,
-            r.name_ru || '',
-            ...(type.is_hierarchical ? [r.parent_name || ''] : []),
-            r.code,
-            r.is_active ? t('dictionaries.active') : t('dictionaries.inactive'),
-          ]),
+      await downloadFile({
+        url: DICTIONARY_EXPORT(type.code),
+        filename: `malumotnoma-${type.code}.${format}`,
+        params: {
           format,
-          filename: `malumotnoma-${type.code}`,
-        })
-      }
+          search: search || undefined,
+          parent_id: filters.parent || undefined,
+          is_active: filters.status ? filters.status === 'active' : undefined,
+        },
+        mime: format === 'xlsx' ? XLSX_MIME : format === 'pdf' ? PDF_MIME : DOCX_MIME,
+      })
       toast.ok(t('dictionaries.exported'))
     } catch (e) {
       toast.error(errorMessage(e, t('dictionaries.exportFailed')))
     } finally {
-      setExporting(false)
+      setExporting(null)
     }
   }
 
@@ -233,19 +216,22 @@ export function DictionariesPage() {
       header: t('dictionaries.colName'),
       cell: (r) => (
         <div className="min-w-0">
-          <div className="truncate font-medium text-fg">{r.name}</div>
-          {r.description && (
-            <div className="truncate text-xs text-fg-subtle">{r.description}</div>
-          )}
+          <div className="truncate font-medium text-fg">{localizedName(r, lang)}</div>
+          {r.description && <div className="truncate text-xs text-fg-subtle">{st(r.description)}</div>}
+          {!!r.extra?.target && <div className="truncate text-xs text-brand-strong">{kindLabel(r.extra)}</div>}
         </div>
       ),
     },
-    {
-      key: 'name_ru',
-      header: t('dictionaries.colNameRu'),
-      className: 'w-[220px] text-fg-muted',
-      cell: (r) => r.name_ru || '—',
-    },
+    ...(lang === 'ru'
+      ? []
+      : [
+          {
+            key: 'name_ru',
+            header: t('dictionaries.colNameRu'),
+            className: 'w-[220px] text-fg-muted',
+            cell: (r: DictionaryEntry) => r.name_ru || '—',
+          },
+        ]),
     ...(type?.is_hierarchical
       ? [
           {
@@ -255,6 +241,14 @@ export function DictionariesPage() {
             cell: (r: DictionaryEntry) => r.parent_name || '—',
           },
         ]
+      : []),
+    ...(orgMirror
+      ? (['ownership_form', 'region', 'district'] as const).map((k) => ({
+          key: k,
+          header: t(`orgRef.org_${k}`),
+          className: 'w-[180px] text-fg-muted',
+          cell: (r: DictionaryEntry) => orgCell(r.extra, k, lang),
+        }))
       : []),
     {
       key: 'code',
@@ -288,7 +282,8 @@ export function DictionariesPage() {
               <div className="flex justify-end gap-1.5">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     setEditing(r)
                     setModalOpen(true)
                   }}
@@ -300,7 +295,10 @@ export function DictionariesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => openDelete(r)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDeleteTarget(r)
+                  }}
                   aria-label={t('common.delete')}
                   title={t('common.delete')}
                   className="grid h-icon-xs w-icon-xs place-items-center rounded-tag bg-danger/[0.12] text-danger transition-colors hover:bg-danger/25"
@@ -372,15 +370,15 @@ export function DictionariesPage() {
                           active ? 'text-brand-strong' : 'text-fg',
                         )}
                       >
-                        {x.name}
+                        {localizedName(x, lang)}
                       </span>
-                      {x.name_ru && (
+                      {lang !== 'ru' && x.name_ru && (
                         <span className="block truncate text-[11px] text-fg-subtle">
                           {x.name_ru}
                         </span>
                       )}
                     </span>
-                    {x.external_source ? (
+                    {isExternalType(x) ? (
                       <span className="shrink-0 text-fg-subtle" title={t('dictionaries.external')}>
                         <Link2 size={12} />
                       </span>
@@ -410,13 +408,18 @@ export function DictionariesPage() {
               <div className="shrink-0 border-b border-line px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <BookMarked size={15} className="text-brand-strong" />
-                  <h2 className="text-[15px] font-bold text-fg">{type.name}</h2>
-                  {type.name_ru && (
+                  {/* B-D24: the technical code is a tooltip, not a heading. */}
+                  <h2 className="text-[15px] font-bold text-fg" title={type.code}>
+                    {localizedName(type, lang)}
+                  </h2>
+                  {lang !== 'ru' && type.name_ru && (
                     <span className="text-[13px] text-fg-subtle">/ {type.name_ru}</span>
                   )}
-                  <code className="rounded-tag bg-fg/[0.06] px-1.5 py-0.5 text-[11px] text-brand-strong">
-                    {type.code}
-                  </code>
+                  {external && (
+                    <span className="inline-flex items-center gap-1 rounded-tag border border-warning/35 bg-warning-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning">
+                      <Link2 size={10} /> {t('orgRef.externalReadOnly')}
+                    </span>
+                  )}
                   {type.is_system && (
                     <span className="rounded-tag border border-line px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-fg-subtle">
                       {t('dictionaries.system')}
@@ -426,7 +429,7 @@ export function DictionariesPage() {
                 {type.description && (
                   <p className="mt-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
                     <Info size={12} className="mt-0.5 shrink-0" />
-                    {type.description}
+                    {st(type.description)}
                   </p>
                 )}
               </div>
@@ -443,7 +446,7 @@ export function DictionariesPage() {
                     wrapperClassName="w-[220px]"
                   />
                 )}
-                {!type.external_source && (
+                {!external && (
                   <Select
                     value={filters.status}
                     onChange={(e) => setFilter('status', e.target.value)}
@@ -464,9 +467,9 @@ export function DictionariesPage() {
                     label={t('staff.download')}
                     icon={<Download size={14} />}
                     items={[
-                      { key: 'xlsx', label: 'Excel', icon: <Download size={14} />, loading: exporting, onClick: () => doExport('xlsx') },
-                      { key: 'docx', label: 'Word', icon: <FileText size={14} />, loading: exporting, onClick: () => doExport('docx') },
-                      { key: 'pdf', label: 'PDF', icon: <FileType2 size={14} />, loading: exporting, onClick: () => doExport('pdf') },
+                      { key: 'xlsx', label: 'Excel', icon: <Download size={14} />, loading: exporting === 'xlsx', onClick: () => doExport('xlsx') },
+                      { key: 'docx', label: 'Word', icon: <FileText size={14} />, loading: exporting === 'docx', onClick: () => doExport('docx') },
+                      { key: 'pdf', label: 'PDF', icon: <FileType2 size={14} />, loading: exporting === 'pdf', onClick: () => doExport('pdf') },
                       ...(!readOnly ? [{ key: 'import', label: t('dictionaries.import'), icon: <Upload size={14} />, divider: true, onClick: () => setImportOpen(true) }] : []),
                     ]}
                   />
@@ -491,7 +494,7 @@ export function DictionariesPage() {
         tableId="dictionaries"
                 rows={entries}
                 columns={columns}
-                onRowClick={readOnly ? undefined : (r) => { setEditing(r); setModalOpen(true) }}
+                onRowClick={(r) => setCardEntry(r)}
                 loading={loading}
           error={error}
           onRetry={refetch}
@@ -527,6 +530,7 @@ export function DictionariesPage() {
             type={type}
             entry={editing}
             parentOptions={parentOptions}
+            parentType={parentType}
           />
           <DictionaryImportModal
             open={importOpen}
@@ -536,34 +540,48 @@ export function DictionariesPage() {
         </>
       )}
 
-      <ConfirmDialog
+      <DictionaryEntryCard entry={cardEntry} type={type} onClose={() => setCardEntry(null)} />
+
+      <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={doDelete}
+        size="sm"
         title={t('dictionaries.deleteTitle')}
-        danger
-        loading={remove.isPending}
-        confirmLabel={t('common.delete')}
-        description={
+        footer={
           <>
-            <p>{t('dictionaries.deleteConfirm', { name: deleteTarget?.name ?? '' })}</p>
-            {usage?.used && (
-              <div className="mt-3 rounded-inner bg-warning-soft px-3 py-2.5 text-left text-xs text-warning">
-                <p className="font-bold">{t('dictionaries.inUse')}</p>
-                <ul className="mt-1 list-disc pl-4">
-                  {usage.refs.map((r, i) => (
-                    <li key={i}>
-                      {r.label} — {r.count}
-                      {r.sample.length ? ` (${r.sample.slice(0, 3).join(', ')}…)` : ''}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1.5 opacity-80">{t('dictionaries.inUseHint')}</p>
-              </div>
-            )}
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={remove.isPending}>
+              {t('common.cancel')}
+            </Button>
+            {/* B-D28: an entry still in use cannot be deleted — the button waits for the check. */}
+            <Button variant="danger" onClick={doDelete} loading={remove.isPending} disabled={!usage.data || usage.data.used}>
+              {t('common.delete')}
+            </Button>
           </>
         }
-      />
+      >
+        <p className="text-sm text-fg-muted">
+          {t('dictionaries.deleteConfirm', { name: deleteTarget ? localizedName(deleteTarget, lang) : '' })}
+        </p>
+        {usage.isLoading && (
+          <div className="mt-3">
+            <Spinner />
+          </div>
+        )}
+        {usage.data?.used && (
+          <div className="mt-3 rounded-inner bg-warning-soft px-3 py-2.5 text-left text-xs text-warning">
+            <p className="font-bold">{t('dictionaries.inUse')}</p>
+            <ul className="mt-1 list-disc pl-4">
+              {usage.data.refs.map((r, i) => (
+                <li key={i}>
+                  {lang === 'ru' && r.label_ru ? r.label_ru : st(r.label)} — {t('orgRef.countItems', { count: r.count })}
+                  {r.sample.length ? ` (${r.sample.slice(0, 3).join(', ')}…)` : ''}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 opacity-80">{t('dictionaries.inUseHint')}</p>
+          </div>
+        )}
+      </Modal>
     </PageContainer>
   )
 }

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Field } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/api/errorMessage'
-import { useStaffBulkUpsert, fmtUnits, type StaffPosition } from './useStaffPositions'
+import { useStaffMutations, fmtUnits, type StaffPosition } from './useStaffPositions'
 
 /**
  * Edit one department's planned units as a block and save them in ONE request.
@@ -31,7 +31,7 @@ export function BulkStaffModal({
 }) {
   const { t } = useTranslation()
   const toast = useToast()
-  const bulk = useStaffBulkUpsert()
+  const { bulk } = useStaffMutations()
 
   const [values, setValues] = useState<Record<string, string>>({})
   const [reason, setReason] = useState('')
@@ -76,7 +76,8 @@ export function BulkStaffModal({
           job_position_id: r.job_position_id,
           planned_units: Number(values[keyOf(r)]),
         })),
-        reason: reason.trim() || undefined,
+        // v1 wrote the department into the log when no reason was typed.
+        reason: reason.trim() || t('orgRef.bulkDefaultReason', { name: departmentName }),
       })
       toast.ok(t('staff.bulkSaved'))
       onClose()
@@ -93,23 +94,23 @@ export function BulkStaffModal({
       title={`${t('staff.bulkEditTitle')} — ${departmentName}`}
       footer={
         <div className="flex w-full items-center gap-2">
-          <span className="text-xs text-muted">
-            {changed.length > 0 ? `${changed.length}` : ''}
+          <span className="text-xs text-fg-muted">
+            {changed.length > 0 ? t('orgRef.changedRows', { count: changed.length }) : ''}
           </span>
           <span className="flex-1" />
           <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
-          <Button onClick={submit} disabled={bulk.isPending || invalid}>
+          <Button onClick={submit} loading={bulk.isPending} disabled={invalid}>
             {t('common.save')}
           </Button>
         </div>
       }
     >
-      <p className="mb-3 text-xs text-muted">{t('staff.bulkEditHint')}</p>
+      <p className="mb-3 text-xs text-fg-muted">{t('staff.bulkEditHint')}</p>
 
       <div className="mb-3 flex flex-col gap-2">
         {rows.map((r) => (
           <div key={keyOf(r)} className="flex items-center gap-3">
-            <span className="flex-1 truncate text-sm text-secondary" title={r.job_position_name ?? ''}>
+            <span className="flex-1 truncate text-sm text-fg" title={r.job_position_name ?? ''}>
               {r.job_position_name ?? `#${r.job_position_id}`}
             </span>
             <Input
