@@ -137,29 +137,6 @@ export const STAFF_POSITIONS_SUMMARY = 'staff-positions/summary'
 // Discipline — the month's lateness ranking
 export const DASHBOARD_LATE_EMPLOYEES_TOTAL_TIME = 'dashboard/late-employees/most-frequent-total-time'
 
-// KPI (Verifix)
-export const KPI_MY_SCORECARD = 'kpi/my-scorecard'
-export const KPI_MY_TEAM = 'kpi/my-team'
-export const KPI_ENTRIES = 'kpi/entries'
-export const KPI_TASKS = 'kpi/tasks'
-export const KPI_TASK_STATUSES = 'kpi/task-statuses'
-export const KPI_INDICATORS = 'kpi/indicators'
-export const KPI_GROUPS = 'kpi/groups'
-export const KPI_INTERVALS = 'kpi/intervals'
-export const KPI_INTERVAL_CLOSE_CHECKLIST = (pk: number | string) => `kpi/intervals/${pk}/close-checklist`
-export const KPI_INTERVAL_CLOSE = (pk: number | string) => `kpi/intervals/${pk}/close`
-export const KPI_INTERVAL_REOPEN = (pk: number | string) => `kpi/intervals/${pk}/reopen`
-export const KPI_FACT_GRID = 'kpi/fact-grid'
-export const KPI_FACT_GRID_SIGNALS = 'kpi/fact-grid/signals'
-export const KPI_FACT_GRID_SAVE = 'kpi/fact-grid/save'
-export const KPI_PERFORMANCES = 'kpi/performances'
-export const KPI_PERFORMANCES_BULK_STATUS = 'kpi/performances/bulk-status'
-export const KPI_SEED_TASK_STATUSES = 'kpi/seed-task-statuses'
-export const KPI_SEED_INDICATOR_GROUPS = 'kpi/seed-indicator-groups'
-export const KPI_BONUSES = 'kpi/bonuses'
-export const KPI_STAKEHOLDERS = 'kpi/stakeholders'
-export const KPI_JUSTIFICATIONS = 'kpi/justifications'
-
 // ── TZ 4.2.5 — Ma'lumotnomalar ────────────────────────────────────────────
 export const DICTIONARIES = 'dictionaries'
 export const DICTIONARIES_SYNC = 'dictionaries/sync-catalog'
@@ -238,64 +215,6 @@ export const ORGANIZATION_BRANCH_SYNC_EMPLOYEES = (pk: number | string) =>
 // ── Sessiyalar (shaxsiy kabinet, TZ 4.2.4) ────────────────────────────────
 export const SESSIONS = 'sessions'
 export const SESSION_DETAIL = (id: number | string) => `sessions/${id}`
-
-// ── KPI — v1 paritet uchun qo'shilgan amallar ─────────────────────────────
-export const KPI_ENTRY_STATUS = (pk: number | string) => `kpi/entries/${pk}/status`
-export const KPI_ENTRY_RECOMPUTE = (pk: number | string) => `kpi/entries/${pk}/recompute`
-export const KPI_ENTRY_CALC_TRAIL = (pk: number | string) => `kpi/entries/${pk}/calculation-trail`
-export const KPI_ENTRY_EXTERNAL_VALUE = (pk: number | string) => `kpi/entries/${pk}/external-value`
-export const KPI_ENTRY_HISTORY = (pk: number | string) => `kpi/entries/${pk}/history`
-export const KPI_AUDIT = 'kpi/audit'
-export const KPI_TASK_SUBMIT = (pk: number | string) => `kpi/tasks/${pk}/submit`
-export const KPI_TASK_REVIEW = (pk: number | string) => `kpi/tasks/${pk}/review`
-export const KPI_PERFORMANCE_RECOMPUTE = (pk: number | string) => `kpi/performances/${pk}/recompute`
-export const KPI_PERFORMANCE_STATUS = (pk: number | string) => `kpi/performances/${pk}/status`
-export const KPI_PERFORMANCE_COPY = (pk: number | string) => `kpi/performances/${pk}/copy`
-export const KPI_PERFORMANCE_ARGUMENTS = (pk: number | string) => `kpi/performances/${pk}/arguments`
-export const KPI_PERFORMANCE_FILL_ARGUMENTS = (pk: number | string) =>
-  `kpi/performances/${pk}/fill-arguments`
-export const KPI_ARGUMENT = (pk: number | string) => `kpi/arguments/${pk}`
-export const KPI_GENERATE_CURRENT_MONTH = 'kpi/generate-current-month'
-export const KPI_GENERATE_MONTH_ENTRIES = 'kpi/generate-current-month-entries'
-export const KPI_EXPORT_ENTRIES = 'kpi/export/entries'
-export const KPI_EXPORT_PERFORMANCES = 'kpi/export/performances'
-export const KPI_EXPORT_MY_SCORECARD = 'kpi/export/my-scorecard'
-
-// ── KPI — OKR (maqsadlar), hisobot, rollar, formula ───────────────────────
-export const KPI_OBJECTIVES = 'kpi/objectives'
-export const KPI_OBJECTIVE = (pk: number | string) => `kpi/objectives/${pk}`
-export const KPI_OBJECTIVE_STATUS = (pk: number | string) => `kpi/objectives/${pk}/status`
-export const KPI_OBJECTIVE_COPY = (pk: number | string) => `kpi/objectives/${pk}/copy`
-export const KPI_KEY_RESULTS = 'kpi/key-results'
-export const KPI_KEY_RESULT = (pk: number | string) => `kpi/key-results/${pk}`
-export const KPI_KEY_RESULT_STATUS = (pk: number | string) => `kpi/key-results/${pk}/status`
-export const KPI_KR_TASKS = 'kpi/key-result-tasks'
-export const KPI_KR_TASK = (pk: number | string) => `kpi/key-result-tasks/${pk}`
-export const KPI_KR_TYPES = 'kpi/key-result-types'
-export const KPI_KR_TYPE = (pk: number | string) => `kpi/key-result-types/${pk}`
-export const KPI_GOALS_HIERARCHY = 'kpi/goals/hierarchy'
-
-export const KPI_REPORTS = 'kpi/reports'
-export const KPI_REPORT = (pk: number | string) => `kpi/reports/${pk}`
-export const KPI_REPORT_APPROVE = (pk: number | string) => `kpi/reports/${pk}/approve`
-export const KPI_REPORT_DOWNLOAD = (pk: number | string) => `kpi/reports/${pk}/download`
-export const KPI_REPORT_VERIFY = (pk: number | string) => `kpi/reports/${pk}/verify`
-
-export const KPI_ROLES = 'kpi/roles'
-export const KPI_ROLE = (pk: number | string) => `kpi/roles/${pk}`
-export const KPI_ROLE_MEMBERS = (pk: number | string) => `kpi/roles/${pk}/members`
-export const KPI_ROLE_MEMBER = (pk: number | string, empId: number | string) =>
-  `kpi/roles/${pk}/members/${empId}`
-export const KPI_ROLE_PERMISSIONS = 'kpi/role-permissions'
-export const KPI_PERMISSION_CATALOG = 'kpi/permission-catalog'
-
-export const KPI_FORMULA_VARIABLES = 'kpi/formula-variables'
-export const KPI_INDICATOR_CALCULATION = (pk: number | string) =>
-  `kpi/indicators/${pk}/calculation`
-export const KPI_BONUSES_DONE = 'kpi/bonuses/done'
-export const KPI_BONUS_USED = (pk: number | string) => `kpi/bonuses/${pk}/used`
-export const KPI_BONUS_OPER_TYPES = 'kpi/bonus-oper-types'
-export const KPI_BONUS_OPER_TYPE = (pk: number | string) => `kpi/bonus-oper-types/${pk}`
 
 // ── Global qidiruv (TZ 4.1.7) ─────────────────────────────────────────────
 export const SEARCH = 'search'
@@ -410,21 +329,6 @@ export const ORDER_ACT_CATEGORY_TEMPLATES = 'order-act-category-templates'
 export const ORDER_ACT_CATEGORY_TEMPLATE = (pk: number | string) =>
   `order-act-category-templates/${pk}`
 
-/**
- * KPI BONUS SCALE — the from/to → value rows attached to ONE indicator.
- *
- * The create and delete routes have existed since the KPI engine was written
- * and no screen ever called them, so a scale could be seeded but never edited:
- * `KpiIndicatorRead.bonus_ranges` was returned and simply not rendered.
- */
-export const KPI_BONUS_RANGES = 'kpi/bonus-ranges'
-export const KPI_BONUS_RANGE = (pk: number | string) => `kpi/bonus-ranges/${pk}`
-
-/** OKR rollup + gradation rules for one objective's children. */
-export const KPI_OBJECTIVE_CHILD_SETTINGS = (objectiveId: number | string) =>
-  `kpi/objectives/${objectiveId}/child-settings`
-export const KPI_CHILD_SETTING = (pk: number | string) => `kpi/child-settings/${pk}`
-
 // Hisobotlar — the generic report engine (backend `api/v1/reports.py`).
 export const REPORTS_CATALOG = 'reports/catalog'
 export const REPORT_RUN = (code: string) => `reports/${code}/run`
@@ -432,5 +336,3 @@ export const REPORT_OPTIONS = (code: string, param: string) => `reports/${code}/
 export const REPORT_PREFS = (code: string) => `reports/${code}/preferences`
 export const REPORT_TEMPLATES = (code: string) => `reports/${code}/templates`
 export const REPORT_TEMPLATE = (code: string, id: number | string) => `reports/${code}/templates/${id}`
-/** On-screen rendering of a stored KPI report (same table as its xlsx). */
-export const KPI_REPORT_PREVIEW = (pk: number | string) => `kpi/reports/${pk}/preview`
