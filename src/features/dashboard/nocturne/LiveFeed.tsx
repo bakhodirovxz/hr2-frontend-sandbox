@@ -18,11 +18,9 @@ import { errorMessage } from '@/api/errorMessage'
 import { downloadFile, XLSX_MIME } from '@/lib/download'
 import { TURNSTILE_NORMALIZED_EXPORT } from '@/api/endpoints'
 import { useBranchStore } from '@/store/branchStore'
-import { latenessMinutes } from '@/features/monitoring/useMonitoring'
+import { latenessMinutes } from '@/features/attendance/lateness'
 import { formatTime, getDisplayStatus } from '@/features/dashboard/attendance'
 import type { AttendanceRow, TurnstileEvent } from '@/types/dashboard'
-import type { TFunction } from 'i18next'
-import { formatDistance, type EventMobileCheckin } from '@/features/mobileCheckins/useMobileCheckins'
 import { Eyebrow, Panel, PanelEmpty } from './Panel'
 import { ListRow, PersonCell, RowList, ToneText, type RowTone } from './rows'
 import { PassDetailModal } from './PassDetailModal'
@@ -46,18 +44,6 @@ interface FeedItem {
   live?: boolean
   /** The pass behind the row — opens «Batafsil» (gate, time, map), as in v1. */
   pass?: AttendanceRow | null
-}
-
-/** «Telefon · Uzoq: 56 km · GES-28» — the second line of a phone pass. The
- *  distance goes before the place: the line is truncated, and the distance is
- *  what tells HR whether to look closer. */
-function mobileSub(m: EventMobileCheckin, t: TFunction): string {
-  const dist = formatDistance(m.distance_m)
-  return [
-    t('mobileCheckins.viaPhone'),
-    dist ? (m.is_far ? t('mobileCheckins.far', { distance: dist }) : dist) : null,
-    m.nearest_location?.name ?? m.destination_branch?.name,
-  ].filter(Boolean).join(' · ')
 }
 
 function deptName(row: { employee?: { department?: unknown } | null }): string {
@@ -163,14 +149,10 @@ export function LiveFeed({
         return {
           key: String(e.id ?? `${e.employee_id}-${e.happen_time}-${i}`),
           name: e.employee?.legal_name || t('common.unknown'),
-          // Telefon belgisi: qayerdan qo'yilgani o'sha qatorda ko'rinsin —
-          // manzildan uzoq bo'lsa qizil (kadr bosib tafsilotda bekor qiladi).
-          sub: e.mobile_checkin
-            ? mobileSub(e.mobile_checkin, t)
-            : deptName(e) || e.turnstile?.acs_dev_name || e.turnstile_name || '',
+          sub: deptName(e) || e.turnstile?.acs_dev_name || e.turnstile_name || '',
           time: formatTime(e.happen_time),
           note: entry ? t('dashboard.passIn') : t('dashboard.passOut'),
-          tone: e.mobile_checkin?.is_far ? 'danger' : entry ? 'success' : 'neutral',
+          tone: entry ? 'success' : 'neutral',
           // The face the reader saw at THIS pass (its 160px copy, else the
           // full snapshot); the profile photo when the camera sent nothing or
           // the snapshot will not load (Avatar falls through on error).

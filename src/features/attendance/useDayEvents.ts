@@ -1,4 +1,3 @@
-import { formatDistance, type EventMobileCheckin } from '@/features/mobileCheckins/useMobileCheckins'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -31,7 +30,6 @@ export interface TurnstileEvent {
     locations?: TurnstileLocation[] | null
   } | null
   /** Telefondan qo'yilgan belgi (xizmat safari) — joy, manzildan masofa. Turniket o'tishida null. */
-  mobile_checkin?: EventMobileCheckin | null
 }
 
 /**
@@ -39,20 +37,6 @@ export interface TurnstileEvent {
  * map has something to centre on; falls back to the first one.
  */
 export function eventLocation(e?: TurnstileEvent | null): TurnstileLocation | null {
-  /* A PHONE MARK has no gate: the «Mobil ilova» device has no location, so the
-     day view said «coordinates not set». The place is the phone's own
-     coordinates, named after the nearest site (or the trip's destination). */
-  const m = e?.mobile_checkin
-  if (m) {
-    const dist = formatDistance(m.distance_m)
-    return {
-      name: m.nearest_location?.name ?? m.destination_branch?.name ?? null,
-      latitude: m.latitude,
-      longitude: m.longitude,
-      address: [`${m.latitude.toFixed(5)}, ${m.longitude.toFixed(5)}`, dist].filter(Boolean).join(' · '),
-      organization_branch: m.nearest_location?.organization_branch ?? m.destination_branch ?? null,
-    }
-  }
   const list = e?.turnstile?.locations ?? []
   return list.find((l) => l?.latitude != null && l?.longitude != null) ?? list[0] ?? null
 }

@@ -1,40 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { Ban, Building2, Calendar, Clock, ExternalLink, MapPin, Navigation, Smartphone } from 'lucide-react'
+import { Building2, Calendar, Clock, MapPin } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
-import { LazyRouteMap } from '@/features/attendance/LazyRouteMap'
 import {
   eventLocation,
   eventDirection,
   turnstileName,
   type TurnstileEvent as DayEvent,
 } from '@/features/attendance/useDayEvents'
-import { formatRoute, useRouteDistance } from '@/features/system/useRouting'
 import { jobTitle } from '@/features/dashboard/attendance'
 import { useBranches } from '@/hooks/useBranches'
 import type { AttendanceRow } from '@/types/dashboard'
-import { Button } from '@/components/ui/Button'
-import { useToast } from '@/components/ui/Toast'
-import { errorMessage } from '@/api/errorMessage'
-import * as roles from '@/auth/roles'
-import { useAuthStore } from '@/store/authStore'
-import { CancelCheckinDialog } from '@/features/mobileCheckins/CancelCheckinDialog'
-import { formatDistance, placeLabel, useCancelCheckin } from '@/features/mobileCheckins/useMobileCheckins'
 
 /**
  * BATAFSIL MA'LUMOT — the pass, opened from the portrait.
  *
  * v1 gives the row two targets: the NAME opens the person's tabel, the PHOTO
- * opens this — where that pass happened, when, at which gate, and how far that
- * gate is from the person's own branch. In v2 the photo did nothing at all.
- *
- * The distance is the reading that makes this more than a repeat of the row:
- * for someone who badged in at another branch it answers "where did they come
- * from", and `available: false` (routing off, or no coordinates) simply drops
- * the line rather than showing a zero.
+ * opens this — where that pass happened, when, at which gate and branch, and
+ * (from a latecomers list) how late it was.
  */
 export function PassDetailModal({
   row,
@@ -62,18 +48,6 @@ export function PassDetailModal({
   // The gate's location carries only `organization_branch_id`; the name comes
   // from the branch list the header already loads (cached).
   const { branches } = useBranches()
-  const toast = useToast()
-  const user = useAuthStore((s) => s.user)
-  // Belgini bekor qilish — kadr ishi (server ham shuni talab qiladi).
-  const canCancel = roles.isHR(user) || roles.isMasterAdmin(user)
-  const cancel = useCancelCheckin()
-  const [cancelling, setCancelling] = useState(false)
-  const [cancelError, setCancelError] = useState('')
-  useEffect(() => {
-    setCancelling(false)
-    setCancelError('')
-  }, [row])
-
   /**
    * The last pass of the day is the one worth showing: "when did they leave".
    *
@@ -85,29 +59,7 @@ export function PassDetailModal({
    * safe. Merging the two declarations is a separate job.
    */
   const event = (row?.exit ?? row?.entry ?? null) as DayEvent | null
-  /* Telefon belgisi: «turniket» virtual (joysiz) — joy, manzil va masofa
-     belgining o'zidan keladi (pastdagi alohida qatorlar), xarita telefon
-     turgan nuqtani ko'rsatadi. Gate location rows are for real gates only. */
-  const mc = event?.mobile_checkin ?? null
-  const loc = mc ? null : eventLocation(event)
-  const homeBranchId =
-    (typeof row?.employee?.department === 'object' && row?.employee?.department
-      ? (row.employee.department as { organization_branch_id?: number }).organization_branch_id
-      : undefined) ?? undefined
-
-  /* `includeGeometry` — v1 draws the ACTUAL ROAD from the person's own branch
-     to the gate they passed, which is the whole point of showing a map here
-     rather than a pin. On a same-site pass there is no line worth drawing
-     (OSRM returns a few metres and the frame zooms to nothing), so it is
-     dropped and only the gate is centred. */
-  const { route } = useRouteDistance({
-    fromBranchId: homeBranchId ?? null,
-    toLocationId: (loc as { id?: number } | null)?.id ?? null,
-    enabled: open,
-    includeGeometry: true,
-  })
-  const distance = formatRoute(route, t('dashboard.board.sameSite'))
-  const sameSite = route?.available === true && (route.distance_km ?? 0) < 1
+  const loc = eventLocation(event)
 
   if (!row) return null
   const isEntry = event ? eventDirection(event) === 'entry' : null
@@ -119,8 +71,8 @@ export function PassDetailModal({
     null
 
   return (
-    <Modal open={open} onClose={onClose} title={t('dashboard.board.passDetail')} size="lg">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+    <Modal open={open} onClose={onClose} title={t('dashboard.board.passDetail')} size="sm">
+      <div>
         <div className="space-y-3">
           <div className="flex flex-col items-center gap-2 rounded-inner border border-line bg-fg/[0.03] p-4">
             {/* The gate's own snapshot when it has one — that is what the pass
@@ -177,99 +129,10 @@ export function PassDetailModal({
                 {loc.address}
               </Row>
             )}
-            {distance && (
-              <Row icon={<Navigation size={13} />} label={t('turnstiles.distanceFromBranch')}>
-                {distance}
-              </Row>
-            )}
-            {mc && (
-              <>
-                <Row icon={<Smartphone size={13} />} label={t('mobileCheckins.source')}>
-                  {t('mobileCheckins.viaPhone')}
-                </Row>
-                <Row icon={<Building2 size={13} />} label={t('mobileCheckins.colNearest')}>
-                  {placeLabel(mc) || t('mobileCheckins.distanceUnknown')}
-                </Row>
-                <Row icon={<Navigation size={13} />} label={t('mobileCheckins.colDistance')}>
-                  {mc.distance_m == null ? (
-                    <span className="font-normal text-fg-subtle">{t('mobileCheckins.distanceUnknown')}</span>
-                  ) : (
-                    <Badge tone={mc.is_far ? 'danger' : 'success'}>
-                      {mc.is_far
-                        ? t('mobileCheckins.far', { distance: formatDistance(mc.distance_m) })
-                        : formatDistance(mc.distance_m)}
-                    </Badge>
-                  )}
-                </Row>
-                <Row icon={<MapPin size={13} />} label={t('mobileCheckins.colLocation')}>
-                  <a href={mc.map_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 tabular-nums text-brand-strong hover:underline">
-                    {mc.latitude.toFixed(5)}, {mc.longitude.toFixed(5)}
-                    <ExternalLink size={11} className="opacity-60" />
-                  </a>
-                  {mc.accuracy_m != null && (
-                    <span className="ml-1 font-normal text-fg-subtle">±{Math.round(mc.accuracy_m)} m</span>
-                  )}
-                </Row>
-              </>
-            )}
           </dl>
 
-          {mc && mc.status === 'active' && canCancel && (
-            <Button variant="danger-ghost" size="sm" className="w-full" leftIcon={<Ban size={14} />} onClick={() => setCancelling(true)}>
-              {t('mobileCheckins.cancel')}
-            </Button>
-          )}
-        </div>
-
-        <div className="flex flex-col overflow-hidden rounded-inner border border-line">
-          <div className="flex items-center gap-2 border-b border-line bg-fg/[0.04] px-3 py-2">
-            <MapPin size={14} className="shrink-0 text-brand" />
-            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-fg">
-              {mc ? t('mobileCheckins.phoneLocation') : loc?.name || turnstileName(event) || t('dashboard.colGate')}
-            </span>
-          </div>
-          <LazyRouteMap
-            origin={route?.origin}
-            // ⚠️ A same-site answer from the router comes back with a destination
-            // WITHOUT coordinates; `??` kept that empty object and the map never
-            // drew (blank panel). Fall back to the gate's own coordinates.
-            destination={
-              mc
-                ? { latitude: mc.latitude, longitude: mc.longitude, name: t('mobileCheckins.phoneLocation') }
-                : route?.destination?.latitude != null && route?.destination?.longitude != null
-                ? route.destination
-                : {
-                    latitude: (loc as { latitude?: number } | null)?.latitude,
-                    longitude: (loc as { longitude?: number } | null)?.longitude,
-                    name: loc?.name,
-                  }
-            }
-            geometry={sameSite ? null : route?.geometry}
-            // Fills the column next to the details (it stopped at 300px and
-            // left a white block below); 300px when stacked on a phone.
-            className="h-[300px] w-full lg:h-auto lg:min-h-[300px] lg:flex-1"
-          />
         </div>
       </div>
-
-      <CancelCheckinDialog
-        open={cancelling}
-        loading={cancel.isPending}
-        error={cancelError}
-        onClose={() => setCancelling(false)}
-        onSubmit={async (reason) => {
-          if (!mc) return
-          setCancelError('')
-          try {
-            await cancel.mutateAsync({ id: mc.id, reason })
-            toast.ok(t('mobileCheckins.cancelled'))
-            setCancelling(false)
-            onClose()
-          } catch (e) {
-            setCancelError(errorMessage(e, t('common.actionFailed')))
-          }
-        }}
-      />
     </Modal>
   )
 }

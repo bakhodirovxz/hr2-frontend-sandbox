@@ -1,4 +1,3 @@
-import type { EventMobileCheckin } from '@/features/mobileCheckins/useMobileCheckins'
 import type { Employee, JobPosition } from './index'
 
 /** A raw turnstile (gate) access event. */
@@ -28,7 +27,6 @@ export interface TurnstileEvent {
   } | null
   invitation?: { invited_by_employee_name?: string } | null
   /** Telefondan qo'yilgan belgi (xizmat safari) — joy, manzildan masofa. Turniket o'tishida null. */
-  mobile_checkin?: EventMobileCheckin | null
 }
 
 /** turnstile-attendance-events/day-board — the day folded on the server.
