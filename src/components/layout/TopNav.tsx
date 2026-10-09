@@ -56,19 +56,30 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
   /* ── Sig'magan bandlar «Yana» ga ─────────────────────────────────────── */
   const rowRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
+  const measureCompactRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLButtonElement>(null)
   const [fit, setFit] = useState(nav.length)
+  // Sig'masa avval ikonkalar tushadi (ixcham), shunda ham sig'masa — «Yana».
+  const [compact, setCompact] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
 
   useLayoutEffect(() => {
     const row = rowRef.current
     const measure = measureRef.current
-    if (!row || !measure) return
+    const measureCompact = measureCompactRef.current
+    if (!row || !measure || !measureCompact) return
+    const widthsOf = (el: HTMLElement) => Array.from(el.children).map((c) => (c as HTMLElement).offsetWidth + 4)
     const compute = () => {
-      const widths = Array.from(measure.children).map((el) => (el as HTMLElement).offsetWidth + 4)
-      const total = widths.reduce((a, b) => a + b, 0)
       const avail = row.clientWidth
-      if (total <= avail) {
+      const full = widthsOf(measure)
+      if (full.reduce((a, b) => a + b, 0) <= avail) {
+        setCompact(false)
+        setFit(full.length)
+        return
+      }
+      const widths = widthsOf(measureCompact)
+      setCompact(true)
+      if (widths.reduce((a, b) => a + b, 0) <= avail) {
         setFit(widths.length)
         return
       }
@@ -124,7 +135,7 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
     subKeys(e)
   }
 
-  const renderNode = (n: NavNode, measuring = false) => {
+  const renderNode = (n: NavNode, measuring = false, noIcon = compact) => {
     if (isGroup(n)) {
       const Icon = n.icon
       const open = n.key === openKey
@@ -144,7 +155,7 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
             active ? 'accent-tile' : open ? 'bg-fg/[0.08] text-fg' : 'text-fg-muted hover:bg-fg/[0.06] hover:text-fg',
           )}
         >
-          <Icon size={16} strokeWidth={1.9} aria-hidden />
+          {!noIcon && <Icon size={16} strokeWidth={1.9} aria-hidden />}
           <span>{t(`nav.${n.labelKey}`)}</span>
           <Badge n={groupBadge(n, badges)} />
           <ChevronDown size={14} aria-hidden className={cn('transition-transform', open && 'rotate-180')} />
@@ -156,7 +167,7 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
     if (measuring) {
       return (
         <span key={n.key} className={ITEM_CLS}>
-          <Icon size={16} aria-hidden />
+          {!noIcon && <Icon size={16} aria-hidden />}
           <span>{t(`nav.${n.labelKey}`)}</span>
           <Badge n={badges[n.path]} />
         </span>
@@ -170,7 +181,7 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
         aria-current={active ? 'page' : undefined}
         className={cn(ITEM_CLS, active ? 'accent-tile' : 'text-fg-muted hover:bg-fg/[0.06] hover:text-fg')}
       >
-        <Icon size={16} strokeWidth={1.9} aria-hidden />
+        {!noIcon && <Icon size={16} strokeWidth={1.9} aria-hidden />}
         <span>{t(`nav.${n.labelKey}`)}</span>
         <Badge n={badges[n.path]} />
       </Link>
@@ -247,7 +258,14 @@ export function TopNav({ badges = {} }: { badges?: Record<string, number> }) {
           aria-hidden
           className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-1 whitespace-nowrap"
         >
-          {nav.map((n) => renderNode(n, true))}
+          {nav.map((n) => renderNode(n, true, false))}
+        </div>
+        <div
+          ref={measureCompactRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-1 whitespace-nowrap"
+        >
+          {nav.map((n) => renderNode(n, true, true))}
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import core from './uz.core'
 import { toCyrillic } from './translit'
+import { joinApiUrl } from '@/api/apiBase'
 
 /**
  * Interfeys tillari — TZ 4.1.7 («Система должна быть двуязычной: узбекский
@@ -162,6 +163,86 @@ export function useRestReady(): boolean {
 /** Languages whose resource bundle has already been built and registered. */
 const loaded = new Set<Lang>(['uz'])
 
+/* ── Tizim lug'ati: administrator tuzatishlari (TZ 4.2.1, ADM-7) ─────────────
+ * `GET /i18n/overrides` (ochiq) → `{ru: {uzMatn: ruMatn}, uz_cyrl: {uzMatn: kirill}}`.
+ * Tuzatish avtomatik tarjimadan (ru jadvali / transliteratsiya) USTUN turadi.
+ * Avval brauzer keshidan darhol qo'llanadi, keyin serverdan yangilanadi —
+ * o'zgargan bo'lsa joriy til qayta quriladi. Kalitlar normallashtirib
+ * solishtiriladi (tutuq belgisi, bo'shliq, katta-kichik harf). */
+type Overrides = { ru: Record<string, string>; uz_cyrl: Record<string, string> }
+const OVERRIDES_KEY = 'i18n_overrides'
+let overrides: Overrides = { ru: {}, uz_cyrl: {} }
+let overridesNorm = { ru: new Map<string, string>(), uz_cyrl: new Map<string, string>() }
+
+function applyOverrides(next: Overrides): void {
+  overrides = { ru: next.ru ?? {}, uz_cyrl: next.uz_cyrl ?? {} }
+  overridesNorm = {
+    ru: new Map(Object.entries(overrides.ru).map(([k, v]) => [normalizeKey(k), v])),
+    uz_cyrl: new Map(Object.entries(overrides.uz_cyrl).map(([k, v]) => [normalizeKey(k), v])),
+  }
+}
+
+try {
+  const cached = localStorage.getItem(OVERRIDES_KEY)
+  if (cached) applyOverrides(JSON.parse(cached) as Overrides)
+} catch {
+  /* bloklangan storage — serverdan keladi */
+}
+
+const overrideFor = (lang: 'ru' | 'uz_cyrl', text: string): string | undefined =>
+  overrides[lang][text] ?? overridesNorm[lang].get(normalizeKey(text))
+
+/** Tuzatishlarni serverdan qayta o'qish (Tizim lug'ati sahifasi saqlagandan keyin ham). */
+export async function reloadOverrides(): Promise<void> {
+  try {
+    const res = await fetch(joinApiUrl('i18n/overrides'), { credentials: 'include' })
+    if (!res.ok) return
+    const next = (await res.json()) as Overrides
+    const before = JSON.stringify(overrides)
+    applyOverrides(next)
+    try {
+      localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides))
+    } catch {
+      /* ignore */
+    }
+    if (JSON.stringify(overrides) !== before) await rebuildDerived()
+  } catch {
+    /* tarmoq xatosi — kesh yoki avtomatik tarjima qoladi */
+  }
+}
+
+/** Hosil qilingan tillarni (ru, kirill) yangi tuzatishlar bilan qayta qurish. */
+async function rebuildDerived(): Promise<void> {
+  const current = i18n.language as Lang
+  for (const l of ['ru', 'uz_cyrl'] as const) loaded.delete(l)
+  if (current !== 'uz') {
+    await ensureLanguage(current)
+    await i18n.changeLanguage(current)
+  }
+}
+
+/** O'zbekcha matn barglarining hammasi — `POST /i18n/keys/sync` uchun. */
+export async function allUzTexts(): Promise<string[]> {
+  await loadRest()
+  const out = new Set<string>()
+  const walk = (n: Tree) => {
+    for (const v of Object.values(n)) {
+      if (typeof v === 'string') out.add(v)
+      else if (Array.isArray(v)) v.forEach((x) => typeof x === 'string' && out.add(x))
+      else walk(v as Tree)
+    }
+  }
+  walk(uzTree)
+  return [...out]
+}
+
+/** Avtomatik tarjima (tuzatishsiz) — lug'at sahifasi «avto» ustunini ko'rsatadi. */
+export async function autoTranslation(lang: 'ru' | 'uz_cyrl', text: string): Promise<string> {
+  if (lang === 'uz_cyrl') return toCyrillic(text)
+  const ru = (await import('./ru')).default
+  return ru[text] ?? Object.entries(ru).find(([k]) => normalizeKey(k) === normalizeKey(text))?.[1] ?? ''
+}
+
 async function ensureLanguage(lang: Lang): Promise<void> {
   if (loaded.has(lang)) return
 
@@ -169,7 +250,8 @@ async function ensureLanguage(lang: Lang): Promise<void> {
   await loadRest()
 
   if (lang === 'uz_cyrl') {
-    i18n.addResourceBundle('uz_cyrl', 'translation', mapTree(uzTree, toCyrillic), true, true)
+    const cyr = (text: string): string => overrideFor('uz_cyrl', text) ?? toCyrillic(text)
+    i18n.addResourceBundle('uz_cyrl', 'translation', mapTree(uzTree, cyr), true, true)
   } else if (lang === 'ru') {
     const ru = (await import('./ru')).default
     // Normalised lookup, built here rather than at module scope so the map is
@@ -179,7 +261,8 @@ async function ensureLanguage(lang: Lang): Promise<void> {
       const n = normalizeKey(k)
       if (!byNorm.has(n)) byNorm.set(n, v)
     }
-    const translate = (text: string): string => ru[text] ?? byNorm.get(normalizeKey(text)) ?? text
+    const translate = (text: string): string =>
+      overrideFor('ru', text) ?? ru[text] ?? byNorm.get(normalizeKey(text)) ?? text
     i18n.addResourceBundle('ru', 'translation', mapTree(uzTree, translate), true, true)
   }
 
@@ -230,5 +313,8 @@ export function setLanguage(lang: Lang): void {
 }
 
 document.documentElement.lang = readSavedLang() === 'ru' ? 'ru' : 'uz'
+
+// Tuzatishlar fonda yangilanadi — UI kesh (yoki avtomatik tarjima) bilan darhol chiziladi.
+void reloadOverrides()
 
 export default i18n

@@ -1,12 +1,12 @@
 import { apiGet } from './http'
 import { toItems, type ListResponse } from '@/types'
 
-/** The server's own ceiling (`core/pagination.MAX_SIZE`). Asking for more is
- *  answered with 422, so a reference list has to be walked page by page. */
-const MAX_PAGE_SIZE = 500
+/** hr-backend-sandbox `fastapi-pagination` `Page` chegarasi — `size` ≤ 100
+ *  (ko'prog'iga 422). Ma'lumotnoma ro'yxati sahifama-sahifa yuriladi. */
+const MAX_PAGE_SIZE = 100
 
-/** Never walk further than this — a runaway list must not turn into 40 requests. */
-const MAX_PAGES = 12
+/** Bundan ortig'i yurilmaydi — nazoratsiz ro'yxat 50 dan ortiq so'rovga aylanmasin. */
+const MAX_PAGES = 50
 
 /**
  * Every row of a reference list, however many pages that takes.

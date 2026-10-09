@@ -2,15 +2,14 @@ import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/ui/Spinner'
-import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, QrCode, RefreshCw, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, MailCheck, QrCode, User as UserIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { LogoMark } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
-import { useLogin } from '@/hooks/useAuth'
+import { isTwoFactor, useFinishLogin, useLogin, useLogin2fa, type TwoFactorChallenge } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
-import type { AxiosError } from 'axios'
 import { LABEL_CLS, control, CONTROL_PAD } from '@/components/ui/control'
 import { cn } from '@/lib/cn'
 import type { QrTokens } from '@/features/auth/QrLoginPanel'
@@ -26,21 +25,21 @@ const QrLoginPanel = lazy(() =>
 )
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
-import { joinApiUrl, publicClient, resetAuthSession } from '@/api/client'
-import { errorMessage } from '@/api/errorMessage'
+import { publicClient } from '@/api/client'
+import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
 import { Modal } from '@/components/ui/Modal'
 import { Field } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
-import { queryClient } from '@/api/queryClient'
-import { AUTH_CAPTCHA } from '@/api/endpoints'
+import { Footer } from '@/components/layout/Footer'
 
 export function LoginPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const setSession = useAuthStore((s) => s.setSession)
+  const finishLogin = useFinishLogin()
   const login = useLogin()
+  const login2fa = useLogin2fa()
   /** TZ 4.2.3 — parol va QR ikkala yo'l ham beriladi. */
   const [mode, setMode] = useState<'password' | 'qr'>('password')
 
@@ -49,50 +48,9 @@ export function LoginPage() {
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [forgotOpen, setForgotOpen] = useState(false)
-  /**
-   * Adaptive CAPTCHA (self-hosted, `core/captcha.py`). Nobody sees it on a
-   * clean login; after a few wrong passwords the server answers 401 with
-   * `params.captcha_required` (or the code `captcha_required`), and from then
-   * on every attempt carries a solved image. Each image is single-use, so a
-   * failed attempt always fetches a fresh one.
-   */
-  const [captcha, setCaptcha] = useState<{ id: string; image: string } | null>(null)
-  const [captchaAnswer, setCaptchaAnswer] = useState('')
-  const [captchaBusy, setCaptchaBusy] = useState(false)
-  /** Honeypot — a field the form never shows. Bots that fill every input fill it. */
-  const [website, setWebsite] = useState('')
-
-  const loadCaptcha = async () => {
-    setCaptchaBusy(true)
-    setCaptchaAnswer('')
-    try {
-      const { data } = await publicClient.get<{ captcha_id: string; image: string }>(`/${AUTH_CAPTCHA}`)
-      setCaptcha({ id: data.captcha_id, image: data.image })
-    } catch {
-      setCaptcha(null)
-    } finally {
-      setCaptchaBusy(false)
-    }
-  }
-
-  // The SSO callback cannot show its own error (it redirects here), so it hands
-  // one over in the navigation state. Cleared immediately so a back/refresh
-  // does not resurrect a stale message.
-  const ssoError = (location.state as { ssoError?: string } | null)?.ssoError
-  useEffect(() => {
-    if (!ssoError) return
-    setError(ssoError)
-    navigate(location.pathname, { replace: true, state: {} })
-  }, [ssoError, navigate, location.pathname])
-
-  /**
-   * OneID (YaIT single sign-on). A FULL-PAGE navigation, not fetch: the
-   * backend answers with a 302 to the national identity provider, and an XHR
-   * cannot follow that across origins.
-   */
-  const oneIdLogin = () => {
-    window.location.href = joinApiUrl('sso/login')
-  }
+  /** 2FA yoqilgan hisob: parol to'g'ri bo'lsa server kod yuboradi. */
+  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null)
+  const [code, setCode] = useState('')
 
   const from = (location.state as { from?: Location } | null)?.from
   const redirectTo = from ? `${from.pathname}${from.search || ''}` : '/'
@@ -100,10 +58,8 @@ export function LoginPage() {
   if (isAuthenticated) return <Navigate to={redirectTo} replace />
 
   const onQrSuccess = (tokens: QrTokens) => {
-    resetAuthSession()
     // QR javobida foydalanuvchi obyekti yo'q — `auth/me` uni o'zi tortadi.
-    setSession({ access_token: tokens.access_token, expires_in: tokens.expires_in })
-    queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+    finishLogin({ access_token: tokens.access_token, expires_in: tokens.expires_in })
     navigate(redirectTo, { replace: true })
   }
 
@@ -114,29 +70,40 @@ export function LoginPage() {
       setError(t('login.fillAllFields'))
       return
     }
-    if (captcha && !captchaAnswer.trim()) {
-      setError(t('login.captchaRequired'))
+    try {
+      const res = await login.mutateAsync({ username, password })
+      if (isTwoFactor(res)) {
+        setChallenge(res)
+        setCode('')
+        return
+      }
+      navigate(redirectTo, { replace: true })
+    } catch (err) {
+      setError(errorMessage(err, t('login.wrongCredentials')))
+    }
+  }
+
+  const onSubmitCode = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!challenge) return
+    const clean = code.replace(/\D/g, '')
+    setError('')
+    if (clean.length !== 6) {
+      setError(t('login.codeHint'))
       return
     }
     try {
-      await login.mutateAsync({
-        username,
-        password,
-        website,
-        captchaId: captcha?.id,
-        captchaAnswer: captcha ? captchaAnswer : undefined,
-      })
+      await login2fa.mutateAsync({ challengeId: challenge.challenge_id, code: clean })
       navigate(redirectTo, { replace: true })
     } catch (err) {
-      const data = (err as AxiosError<{ detail?: string; code?: string; params?: { captcha_required?: boolean } }>)?.response?.data
-      const code = data?.code
-      if (code === 'captcha_required' || code === 'captcha_invalid' || data?.params?.captcha_required) {
-        // A fresh image either way: the previous one was consumed by this attempt.
-        void loadCaptcha()
+      const c = errorCode(err)
+      // Muddati o'tgan yoki bloklangan chaqiriq — parol bosqichidan qaytadan.
+      if (c === 'two_factor_expired' || c === 'two_factor_locked') {
+        setChallenge(null)
+        setCode('')
       }
-      if (code === 'captcha_required') setError(t('login.captchaRequired'))
-      else if (code === 'captcha_invalid') setError(t('login.captchaInvalid'))
-      else setError(errorMessage(err, t('login.wrongCredentials')))
+      const left = errorParams(err).attempts_left
+      setError(left != null ? t('login.codeWrongLeft', { n: Number(left) }) : errorMessage(err, t('login.codeWrong')))
     }
   }
 
@@ -194,7 +161,7 @@ export function LoginPage() {
       </div>
 
       {/* Form panel */}
-      <div className="app-bg relative flex items-center justify-center px-5 py-10">
+      <div className="app-bg relative flex flex-col items-center justify-center px-5 pb-16 pt-10">
         <BackgroundDecor variant="panel" />
         {/* TZ 4.1.7: til va kam ko'ruvchilar rejimi KIRISHDAN OLDIN ham
             kerak — foydalanuvchi o'qiy olmasa formani to'ldira olmaydi. */}
@@ -217,28 +184,79 @@ export function LoginPage() {
 
           {/* Kirish yo'lini tanlash — TZ 4.2.3 QR ni TALAB qiladi, parol esa
               zaxira yo'l bo'lib qoladi (telefoni yo'q foydalanuvchi uchun). */}
-          <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-2 p-1">
-            {([
-              { id: 'password' as const, icon: <KeyRound size={15} />, label: t('login.byPassword') },
-              { id: 'qr' as const, icon: <QrCode size={15} />, label: t('login.byQr') },
-            ]).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMode(m.id)}
-                aria-pressed={mode === m.id}
-                className={cn(
-                  'flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
-                  mode === m.id ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg',
-                )}
-              >
-                {m.icon}
-                {m.label}
-              </button>
-            ))}
-          </div>
+          {!challenge && (
+            <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-2 p-1">
+              {([
+                { id: 'password' as const, icon: <KeyRound size={15} />, label: t('login.byPassword') },
+                { id: 'qr' as const, icon: <QrCode size={15} />, label: t('login.byQr') },
+              ]).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMode(m.id)}
+                  aria-pressed={mode === m.id}
+                  className={cn(
+                    'flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
+                    mode === m.id ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg',
+                  )}
+                >
+                  {m.icon}
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {mode === 'qr' ? (
+          {challenge ? (
+            <form onSubmit={onSubmitCode} className="mt-6 space-y-4">
+              <div className="flex items-start gap-2.5 rounded-inner border border-brand/25 bg-brand-soft px-3 py-3 text-[13px] text-fg">
+                <MailCheck size={17} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+                <p>
+                  {challenge.sent_to
+                    ? t('login.codeSentTo', { email: challenge.sent_to })
+                    : t('login.codeSentAccount')}
+                </p>
+              </div>
+              <div>
+                <label htmlFor="login-2fa-code" className={LABEL_CLS}>
+                  {t('login.codeTitle')}
+                </label>
+                <div className={cn(control({ size: 'lg', focusWithin: true }), CONTROL_PAD.plain, 'flex items-center')}>
+                  <input
+                    id="login-2fa-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    placeholder="••••••"
+                    className="tabnum min-w-0 flex-1 bg-transparent text-center text-[20px] tracking-[0.5em] text-fg outline-none placeholder:text-fg-subtle"
+                  />
+                </div>
+              </div>
+              {error && (
+                <div role="alert" className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" size="lg" className="w-full" loading={login2fa.isPending}>
+                {t('login.codeConfirm')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                leftIcon={<ArrowLeft size={16} />}
+                onClick={() => {
+                  setChallenge(null)
+                  setCode('')
+                  setError('')
+                }}
+              >
+                {t('login.codeBack')}
+              </Button>
+            </form>
+          ) : mode === 'qr' ? (
             <div className="mt-6">
               <Suspense fallback={<div className="grid h-72 place-items-center"><Spinner /></div>}>
                 <QrLoginPanel onSuccess={onQrSuccess} />
@@ -283,62 +301,8 @@ export function LoginPage() {
               </div>
             </div>
 
-            {/* Honeypot. Off-screen rather than display:none — the cruder
-                form-fillers skip hidden inputs but not invisible ones. Never
-                focusable, never autofilled, never announced. */}
-            <div aria-hidden="true" className="absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden">
-              <label htmlFor="login-website">Website</label>
-              <input
-                id="login-website"
-                name="website"
-                type="text"
-                tabIndex={-1}
-                autoComplete="off"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-              />
-            </div>
-
-            {captcha && (
-              <div>
-                <label className={LABEL_CLS}>{t('login.captchaLabel')}</label>
-                <div className="flex items-center gap-2">
-                  <img
-                    src={captcha.image}
-                    alt={t('login.captchaAlt')}
-                    width={168}
-                    height={56}
-                    className="h-14 shrink-0 rounded-lg border border-line bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={loadCaptcha}
-                    disabled={captchaBusy}
-                    aria-label={t('login.captchaRefresh')}
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-50"
-                  >
-                    <RefreshCw size={15} className={cn(captchaBusy && 'animate-spin')} />
-                  </button>
-                  <div className={cn(control({ size: 'lg', focusWithin: true }), CONTROL_PAD.plain, 'flex min-w-0 flex-1 items-center')}>
-                    <input
-                      value={captchaAnswer}
-                      onChange={(e) => setCaptchaAnswer(e.target.value)}
-                      placeholder={t('login.captchaPlaceholder')}
-                      autoComplete="off"
-                      autoCapitalize="characters"
-                      spellCheck={false}
-                      maxLength={8}
-                      inputMode="text"
-                      className="min-w-0 flex-1 bg-transparent text-sm uppercase tracking-[0.2em] text-fg outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-fg-subtle"
-                    />
-                  </div>
-                </div>
-                <p className="mt-1 text-[11px] text-fg-subtle">{t('login.captchaHint')}</p>
-              </div>
-            )}
-
             {error && (
-              <div className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+              <div role="alert" className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -361,27 +325,19 @@ export function LoginPage() {
             </button>
           </div>
 
-          <div className="mt-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-line" />
-            <span className="text-[11.5px] text-fg-subtle">{t('login.or')}</span>
-            <span className="h-px flex-1 bg-line" />
-          </div>
-
-          <Button variant="outline" size="lg" className="mt-4 w-full" onClick={oneIdLogin} leftIcon={<ShieldCheck size={17} />}>
-            {t('login.oneId')}
-          </Button>
-
           {/* TZ 4.2.2 — «Система должна позволять пользователям
               самостоятельно пройти регистрацию». */}
           <p className="mt-3 text-center text-sm text-fg-muted">
             {t('login.noAccount')}{' '}
-            <Link to="/royxatdan-otish" className="font-semibold text-brand-strong hover:underline">
+            <Link to="/register" className="font-semibold text-brand-strong hover:underline">
               {t('login.registerLink')}
             </Link>
           </p>
         </div>
       </div>
       <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
+      {/* TZ 442: pastki panel login sahifasida ham — egasi, pochta, yordam telefoni. */}
+      <Footer publicMode className="fixed inset-x-0 bottom-0 z-10 lg:left-1/2" />
     </div>
   )
 }

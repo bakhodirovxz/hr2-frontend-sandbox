@@ -10,6 +10,7 @@ import { getSelectedBranchId } from '@/store/branchStore'
 
 import { domain, joinApiUrl } from './apiBase'
 import { trackClientError, trackSearch } from '@/lib/pageTracker'
+import { errorCode } from './errorMessage'
 
 export { domain, joinApiUrl }
 
@@ -165,14 +166,10 @@ apiClient.interceptors.response.use(
       /* telemetry never hides the error */
     }
 
-    // Password rotation (2026-09-15): once the password is past its window the
-    // server answers EVERY route but the change-password ones with this code.
-    // Re-read `auth/me` so the shell's PasswordGate opens now, rather than
-    // every panel failing quietly until the 5-minute stale window passes.
-    if (
-      error.response?.status === 403 &&
-      (error.response.data as { code?: string } | undefined)?.code === 'password_expired'
-    ) {
+    // TZ U1: vaqtinchalik parol bilan kirgan hisobga server parolni
+    // almashtirish yo'llaridan boshqa hamma joyda 403 `password_change_required`
+    // qaytaradi. `auth/me` qayta o'qiladi — qobiqdagi PasswordGate darhol ochiladi.
+    if (error.response?.status === 403 && errorCode(error) === 'password_change_required') {
       const { queryClient } = await import('@/api/queryClient')
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
       return Promise.reject(error)
