@@ -11,7 +11,8 @@ import {
 } from '@/api/endpoints'
 import type { Page } from '@/features/employees/useEmployees'
 import type { User } from '@/types'
-import * as roles from '@/auth/roles'
+import { canWriteGlobal } from '@/auth/permissions'
+import { toCyrillic } from '@/i18n/translit'
 
 /**
  * MA'LUMOTNOMALAR — TZ 4.2.5.
@@ -58,6 +59,7 @@ export interface DictionaryEntry {
 
 export interface DictionaryUsageRef {
   label: string
+  label_ru?: string | null
   count: number
   sample: string[]
 }
@@ -75,6 +77,7 @@ export interface DictionaryImportRow {
   parent_code?: string
   description?: string
   sort_order?: number
+  is_active?: boolean
 }
 
 export interface DictionaryImportResult {
@@ -85,12 +88,27 @@ export interface DictionaryImportResult {
 }
 
 /**
- * Who may write here — the same set the backend's `require_structure_manager`
- * accepts. A button that always answers 403 is worse than no button.
+ * TZ D1 «Управление справочниками» — system-wide reference data, written only
+ * at the whole-system level (`require_global_writer`); everyone else reads (D2).
  */
 export function canManageDictionaries(user: User | null | undefined): boolean {
-  // Server `require_structure_manager` DENIES a ministr (measured 403).
-  return roles.isSiteMasterAdmin(user) || roles.isHR(user)
+  return canWriteGlobal(user, 'dictionaries')
+}
+
+/** A name in the current language: `name_ru` for Russian, transliterated for Cyrillic. */
+export function localizedName(
+  obj: { name?: string | null; name_ru?: string | null } | null | undefined,
+  lang: string,
+): string {
+  const name = obj?.name ?? ''
+  if (lang === 'ru') return obj?.name_ru || name
+  if (lang === 'uz_cyrl') return toCyrillic(name)
+  return name
+}
+
+/** Rows owned by another module (branches, KPI bases) — read-only here. */
+export function isExternalType(type: DictionaryType | null | undefined): boolean {
+  return !!(type?.external_source || (type as { is_external?: boolean } | null)?.is_external)
 }
 
 export function useDictionaryTypes() {
@@ -152,11 +170,13 @@ export function useDictionaryMutations() {
   return {
     invalidate,
     create: useMutation({
+      meta: { silent: true },
       mutationFn: ({ code, body }: { code: string; body: Record<string, unknown> }) =>
         apiPost<DictionaryEntry>(DICTIONARY_ENTRIES(code), body),
       onSuccess: invalidate,
     }),
     update: useMutation({
+      meta: { silent: true },
       mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
         apiPut<DictionaryEntry>(DICTIONARY_ENTRY(id), body),
       onSuccess: invalidate,
@@ -165,20 +185,31 @@ export function useDictionaryMutations() {
       mutationFn: (id: number) => apiDelete(DICTIONARY_ENTRY(id)),
       onSuccess: invalidate,
     }),
+    /** TZ D1 «Импорт»: pasted rows (JSON) or an .xlsx file (multipart). */
     importRows: useMutation({
+      meta: { silent: true },
       mutationFn: ({
         code,
         rows,
+        file,
         updateExisting,
       }: {
         code: string
-        rows: DictionaryImportRow[]
+        rows?: DictionaryImportRow[]
+        file?: File
         updateExisting: boolean
-      }) =>
-        apiPost<DictionaryImportResult>(DICTIONARY_IMPORT(code), {
-          rows,
+      }) => {
+        if (file) {
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('update_existing', updateExisting ? 'true' : 'false')
+          return apiPost<DictionaryImportResult>(DICTIONARY_IMPORT(code), fd, { timeout: 120_000 })
+        }
+        return apiPost<DictionaryImportResult>(DICTIONARY_IMPORT(code), {
+          rows: rows ?? [],
           update_existing: updateExisting,
-        }),
+        })
+      },
       onSuccess: invalidate,
     }),
     /** Re-creates any of the TZ's mandatory dictionaries that are missing. */
@@ -190,7 +221,12 @@ export function useDictionaryMutations() {
   }
 }
 
-/** What still points at this entry — asked before offering to delete it. */
-export async function fetchEntryUsage(id: number): Promise<DictionaryUsage> {
-  return apiGet<DictionaryUsage>(DICTIONARY_ENTRY_USAGE(id))
+/** TZ D2 1583 «Просмотр связанных объектов» — what still points at this entry. */
+export function useEntryUsage(id: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ['dictionary-usage', id],
+    queryFn: () => apiGet<DictionaryUsage>(DICTIONARY_ENTRY_USAGE(id as number)),
+    enabled: enabled && id != null,
+    meta: { silent: true },
+  })
 }

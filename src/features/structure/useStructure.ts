@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
+import { useQuery } from '@tanstack/react-query'
+import { apiGet } from '@/api/http'
 import { fetchAllPages } from '@/api/fetchAll'
 import { DEPARTMENTS_LIST, JOB_POSITIONS_LIST } from '@/api/endpoints'
 import { type ListResponse } from '@/types'
@@ -160,64 +160,5 @@ export function useStructure(
     positions: positions.data ?? [],
     positionsLoading: positionsPage.isLoading,
     positionsError: positionsPage.error,
-  }
-}
-
-/**
- * «Сокращение подразделений» (TZ 4.2.6) — closing a department, NOT deleting it.
- *
- * Deleting is only possible while nothing references the department. A closed
- * one stays in history — employees, decrees and letters point at it — and
- * simply stops being offered for new assignments. That is why this is a
- * separate pair of actions rather than the delete button: pressing delete on a
- * department that has ever been used would fail, and the user would have no way
- * to retire it at all.
- *
- * `include_closed` is what brings the retired rows back into the list; without
- * it a closed department disappears and cannot be reopened from the UI.
- */
-export function useDepartmentClosure() {
-  const qc = useQueryClient()
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['structure-departments'] })
-    // A closed department must leave the pickers too (see useStructureMutations).
-    void qc.invalidateQueries({ queryKey: ['departments'] })
-  }
-  return {
-    close: useMutation({
-      // `reason` is `Body(embed=True)` server-side, so it must be wrapped in an
-      // object even though it is the only field.
-      mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-        apiPost(`${DEPARTMENTS_LIST}/${id}/close`, { reason: reason || null }),
-      onSuccess: invalidate,
-    }),
-    reopen: useMutation({
-      mutationFn: (id: number) => apiPost(`${DEPARTMENTS_LIST}/${id}/reopen`, {}),
-      onSuccess: invalidate,
-    }),
-  }
-}
-
-export function useStructureMutations(kind: 'department' | 'position') {
-  const qc = useQueryClient()
-  const url = kind === 'department' ? DEPARTMENTS_LIST : JOB_POSITIONS_LIST
-  const key = kind === 'department' ? 'structure-departments' : 'structure-positions'
-  // The reference pickers (`useReferenceData`: `['departments', branch]`,
-  // `['job-positions', branch]`) read the same rows under a different key
-  // with a 30-minute staleTime. Nothing invalidated them, so a department
-  // created here was missing from the employee form for half an hour
-  // (measured 2026-09-11, R4). Both keys go together.
-  const refKey = kind === 'department' ? 'departments' : 'job-positions'
-  return {
-    invalidate: () => {
-      void qc.invalidateQueries({ queryKey: [key] })
-      void qc.invalidateQueries({ queryKey: [refKey] })
-    },
-    create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost(url, body) }),
-    update: useMutation({
-      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-        apiPatch(`${url}/${id}`, body),
-    }),
-    remove: useMutation({ mutationFn: (id: number) => apiDelete(`${url}/${id}`) }),
   }
 }

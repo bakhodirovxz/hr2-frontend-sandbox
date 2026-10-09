@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
+import { useServerText } from '@/features/statistics/serverText'
 import { useStaffExportColumns } from './useStaffPositions'
 
 /**
@@ -27,6 +28,7 @@ export function ExportColumnsModal({
   onApply: (keys: string[]) => void
 }) {
   const { t } = useTranslation()
+  const st = useServerText()
   const { data: columns = [], isLoading } = useStaffExportColumns(open)
   const [draft, setDraft] = useState<string[]>(selected)
 
@@ -53,9 +55,9 @@ export function ExportColumnsModal({
         </div>
       }
     >
-      <p className="mb-3 text-xs text-muted">{t('staff.exportColumnsHint')}</p>
+      <p className="mb-3 text-xs text-fg-muted">{t('staff.exportColumnsHint')}</p>
       {isLoading ? (
-        <p className="text-sm text-muted">{t('common.loading')}</p>
+        <p className="text-sm text-fg-muted">{t('common.loading')}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {columns.map((c) => (
@@ -63,7 +65,7 @@ export function ExportColumnsModal({
               key={c.key}
               checked={draft.includes(c.key)}
               onChange={() => toggle(c.key)}
-              label={c.label}
+              label={st(c.label)}
             />
           ))}
         </div>
