@@ -1,0 +1,40 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+# design-sync (regenerated build output + machine state)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+.orphaned-vite-cache/
+types-probe/
+
+# Local tooling state (machine-specific, not app source)
+.claude/
+.impeccable/
+.design-sync/
+# Accidental output dir from a tool run with an unset path variable.
+undefined/
+
+# e2e build output (see playwright.config.js)
+dist-e2e/
+e2e-report.json
+test-results/

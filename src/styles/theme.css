@@ -1,0 +1,477 @@
+/* =============================================================================
+ * DESIGN TOKENS — the single source of truth for the whole app.
+ *
+ * Every color, font, radius and shadow lives here. Tailwind (tailwind.config.js)
+ * maps semantic utilities (bg-surface, text-fg-muted, text-brand, shadow-md …)
+ * onto these variables, so changing a value here re-themes the entire product in
+ * both light and dark. Components must NEVER hardcode a hex value.
+ *
+ * Colors are SPACE-SEPARATED RGB CHANNELS ("14 116 144") so Tailwind opacity
+ * modifiers work: bg-brand/10, text-danger/70, border-line/60 …
+ * Raw CSS must therefore write `rgb(var(--x))`.
+ *
+ * ⚠️ DO NOT switch these to bare OKLCH components. It was tried (2026-07-28)
+ * and broke the app on real browsers: with `oklch(var(--x))` the near-zero
+ * chroma of the neutrals was lost during substitution and every grey rendered
+ * as a fully saturated hue — the whole UI came out blue. The palette below is
+ * expressed in a format that renders identically everywhere.
+ *
+ * ── WORLD: "PROPUSK", RICH RENDITION (2026-08-20, second pass) ────────────
+ * ⚠️ The first rendition of this world was rejected on sight: "juda oddiy va
+ * zerikarli … ranglar ham, shakllar ham yoqimsiz". It was drawn as dry paper
+ * and hairlines — the austere reflex, and the THIRD time this project has been
+ * handed minimalism it did not ask for. The world stayed (the user picked it);
+ * what changed is the material: colour that fills surfaces instead of ruling
+ * them, lenses that actually glow, generous corners, and real depth.
+ * The brief for the palette, in the user's words: "yangicha, yoqimli, jiddiy".
+ *
+ * Direction contract: see the HTML comment at the top of index.html body
+ * (seed 87da9dc2). The previous world ("UGE HYDRO" azure + glass + aurora) was
+ * replaced wholesale by the user's decision; only the logo survives from it.
+ *
+ * The product is a GATE and a PASS. Everything the company records starts as a
+ * person walking through a turnstile with a card, or a document getting a
+ * number and a stamp. So the interface is built from what that world is made
+ * of, and from nothing else:
+ *
+ *  1. TWO GROUNDS, NOT ONE. Light is CONCRETE (#EDEBE5) with PAPER (#FBFAF6)
+ *     laid on it. Dark is GRAPHITE (#101315) with a STEEL plate (#171A1D) on
+ *     it. Depth is a hairline and a step of value — never a blur.
+ *  2. COLOUR IS A LAMP, NOT A DECORATION. The reader above a turnstile shows
+ *     three states and nothing else: green passed, amber late, red not passed.
+ *     Those three hues are RESERVED for exactly that meaning across the app.
+ *     Any other colourful fill is a bug, not a style.
+ *  3. AUTHORITY IS INK. --brand is STAMP INK (#363C8F): the violet-blue of the
+ *     round stamp on every Uzbek office document. It marks actions, links and
+ *     anything backed by a document — which is why an *excused* absence
+ *     (ta'til, safar, kasallik) is ink, not a lamp: it has paperwork behind it.
+ *  4. THE ONE METAL IS BRASS. --accent is the contact metal of the reader.
+ *     It marks the ACTIVE, SELECTED, CURRENT thing in the chrome. Never text.
+ *  5. NEUTRALS ARE WARM. Paper and concrete are warm greys; graphite is a
+ *     neutral-warm near-black. There is no blue in the neutrals — the old
+ *     palette's cyan cast is exactly what made every screen read "tech demo".
+ *  6. CORNERS ARE CUT, NOT PILLOWED. An ID card corner is ~8px at screen
+ *     scale; an engraved plate is square. The radius ladder tops out at 10px.
+ *  7. SIX DATA HUES, the SAME hexes in both themes, every one measured ≥3:1
+ *     against ALL FOUR grounds (light paper, light concrete, steel, graphite).
+ *
+ * All text-on-surface pairs measured ≥ 4.5:1 (WCAG AA) against BOTH grounds of
+ * their theme; --fg-muted ≥ 7:1; --fg-subtle (4.7–4.9:1) is tertiary text only.
+ * Marks (arcs, bars, dots, rules that are not text) are ≥ 3:1.
+ * ========================================================================== */
+
+:root {
+  /* Typography.
+   *
+   * INTER is the face the NOCTURNE dashboards were drawn in (see the dark
+   * block at the bottom of this file). It replaced Golos Text as the product
+   * voice on 2026-08-25 when that world was adopted. It carries Cyrillic and
+   * the Uzbek Latin extras (oʻ, gʻ) in one family, which matters here because
+   * employee names arrive in both scripts and must not fall back mid-list.
+   *
+   * ⚠️ GOLOS TEXT WAS REMOVED FROM THE STACK on 2026-09-10. It had sat SECOND,
+   * behind Inter, since the NOCTURNE change — i.e. it could only render if Inter
+   * failed to load, which it never did. It was still being downloaded: four
+   * subsets, 97 KB, painted zero times. Do not re-add a second webfont to this
+   * stack unless the first one is genuinely optional.
+   *
+   * AZERET MONO is the engraved-plate voice: rigid, mechanical, true tabular
+   * figures. It is used for MEASUREMENT ONLY — times, counts, registration
+   * numbers, table numbers — never as a costume for "technical". */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Azeret Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* ── SHAPE SCALE ───────────────────────────────────────────────────────
+   * Radius is assigned by ROLE, not by taste:
+   *
+   *   none  0    data tables — cells stay crisp or the grid melts
+   *   xs   10px  small square buttons, tags, swatches inside dense rows
+   *   sm   12px  form controls (a field must still read as a field)
+   *   md   14px  anything nested INSIDE a card
+   *   lg   18px  cards
+   *   xl   22px  page panels, modals, hero surfaces
+   *   pill 999   chips, filters, buttons, avatars
+   *
+   * The 2026-08-25 NOCTURNE pass retuned the ladder to the radii the dashboard
+   * designs are drawn with (18px card, 14px inner row, 12px control, 10px
+   * icon button). The ROLES did not change — only the numbers on them.
+   *
+   * ⚠️ The 2/4/8px die-cut ladder tried in the first PROPUSK rendition was
+   * rejected as "yoqimsiz" — sharp corners read as cheap here, not precise.
+   * This is the ladder this product has approved twice; do not shrink it again.
+   *
+   * NESTING RULE (harmonic corners): inner = outer − gap. A 20px card with a
+   * 4px inset gap wants a 16px child; a 28px panel with an 8px gap wants 20px. */
+  --r-none: 0px;
+  --r-xs: 10px;
+  --r-sm: 12px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* Tailwind aliases (rounded-sm/…/2xl) mapped onto the roles above. */
+  --radius-sm: var(--r-xs);
+  --radius: var(--r-sm);
+  --radius-lg: var(--r-sm);
+  --radius-xl: var(--r-lg);
+  --radius-2xl: var(--r-xl);
+  --radius-pill: var(--r-pill);
+
+  /* ── GLOBAL SIZING ────────────────────────────────────────────────────────
+   * O'LCHAMLARNING YAGONA MANBASI — ranglar, radius va soyalar kabi.
+   *
+   * Elementor'dagi «Global Settings» mantiqi: balandlik, ichki bo'shliq,
+   * oraliq va sahifa hoshiyasi SHU YERDA turadi; komponent faqat ROL nomini
+   * so'raydi (`h-control`, `px-page`, `gap-ui`, `size-icon`). Komponent
+   * ichida `h-[38px]`, `px-3 sm:px-5`, `max-w-[34vw]` kabi QATTIQ sonlar
+   * YOZILMAYDI — bittasini o'zgartirsa, ikkinchisi ortda qolardi.
+   *
+   * ⚠️ HAMMASI `clamp()` — BOSQICHSIZ. Breakpoint'da sakraydigan o'lcham
+   * (`h-9 sm:h-10 lg:h-11`) har bir ekranda qayta sozlashni talab qiladi va
+   * 390px bilan 430px orasida bir xil turadi. `clamp(min, o'sish, max)` esa
+   * kenglikka qarab UZLUKSIZ o'sadi: bitta qoida barcha ekranga yetadi.
+   * O'sish qismi `vw` da — shuning uchun zumlash ham to'g'ri ishlaydi.
+   *
+   * Pastki chegaralar barmoq uchun: eng kichik bosiladigan element 36px.  */
+
+  /* Qobiq */
+  --sidebar-w: clamp(240px, 20vw, 264px);
+  --sidebar-w-collapsed: 72px;
+  --header-h: clamp(56px, 3.2vw + 44px, 66px);
+
+  /* Sahifa maydoni: hoshiya, bloklar orasi, kartochka ichi */
+  --page-px: clamp(12px, 2.2vw, 24px);
+  --page-py: clamp(12px, 1.4vw, 20px);
+  --gap-ui: clamp(10px, 1.2vw, 16px);
+  --gap-ui-sm: clamp(6px, 0.7vw, 10px);
+  --card-p: clamp(14px, 1.5vw, 20px);
+
+  /* Boshqaruvlar: maydon, tugma, ikonka-tugma */
+  --ctl-h-sm: 36px;
+  --ctl-h: clamp(38px, 0.5vw + 36px, 40px);
+  --ctl-h-lg: clamp(42px, 0.8vw + 39px, 44px);
+  --icon-btn: clamp(36px, 0.8vw + 33px, 40px);
+  /* Jadval qatoridagi zich amal tugmasi (tahrir/o'chirish). */
+  --icon-btn-xs: 28px;
+
+  /* ── FORM CONTROLS: THE ONE PLACE ──────────────────────────────────────────
+   * Every input, select, combobox trigger, date/time field, textarea and
+   * search box is drawn by `components/ui/control.ts`, which reads ONLY these
+   * tokens (plus the colour tokens below). Change a value here and every
+   * control on every page follows — there is no per-page control styling.
+   * The defaults reproduce the design as it shipped on 2026-09-25. */
+  --ctl-radius: var(--r-sm);
+  --ctl-px: 12px;
+  --ctl-font: 0.875rem;
+  --ctl-border-w: 1px;
+  --ctl-ring-w: 2px;
+  /* Colours are RGB channels, like every colour token (see the palette). */
+  --ctl-bg: var(--surface);
+  --ctl-border: var(--border);
+  --ctl-focus: var(--brand);
+  /* Popovers that belong to a control: dropdown list, calendar, picker. */
+  --pop-radius: var(--r-lg);
+
+  /* Buttons (components/ui/Button.tsx). Pill-shaped by design. */
+  --btn-h-sm: 32px;
+  --btn-h: 40px;
+  --btn-h-lg: 44px;
+  /* Square icon-only Button (not IconButton, which follows --icon-btn). */
+  --btn-icon: 36px;
+  --btn-radius: var(--r-pill);
+  --btn-font-sm: 0.8125rem;
+  --btn-font: 0.875rem;
+  --btn-font-lg: 0.9375rem;
+
+  /* Segmented switchers / tab strips (components/ui/Segmented.tsx). */
+  --seg-radius: var(--r-sm);
+  --seg-h-sm: 28px;
+  --seg-h: 32px;
+
+  /* ── DOIM-OQ YUZA ─────────────────────────────────────────────────────────
+   * QR kodi skaner uchun MAJBURAN oq fonda chiziladi (tungi rejimda ham), shu
+   * bois undagi matn mavzu bilan AG'DARILMASLIGI kerak — aks holda to'q fon
+   * uchun mo'ljallangan och matn oq ustida yo'qolardi. Bu ranglar ataylab
+   * mavzuga bog'lanmagan, lekin baribir SHU YERDA — komponentda `#0b1f3f`
+   * kabi qattiq qiymat yozilmaydi. */
+  --on-white-fg: 11 31 63;        /* #0B1F3F — oq ustida 14.7:1 */
+  --on-white-success: 22 163 74;  /* #16A34A */
+  --on-white-danger: 220 38 38;   /* #DC2626 */
+
+  /* Xarita chetidagi boshqaruv paneli — MAVZUGA BOG'LANMAGAN, xuddi QR kabi.
+   * Plita serverimizda faqat BITTA uslub bilan chiqadi (`uzgidro-dark`), ya'ni
+   * xarita to'shagi kunduzi ham to'q. Yorug' mavzuda oq panel qo'ysak, u to'q
+   * xarita ustida ko'zni qamashtirardi. Shu bois ranglar shu yerda, bir marta. */
+  --map-scrim: 4 15 44;      /* #040F2C — panel foni */
+  --map-ink: 255 255 255;    /* panel matni (tiniqlik bilan ishlatiladi) */
+  --map-live: 16 245 175;    /* #10F5AF — yangi signal, harakatdagi mashina */
+  --map-track: 130 247 255;  /* #82F7FF — marshrut chizig'i */
+  --map-glow: 2 117 255;     /* #0275FF — marshrut ostidagi yorug'lik */
+
+  /* Sarlavha qatoridagi filial tanlagichi — faqat YUQORI chegara. Torayishni
+   * `flex-1 min-w-0` hal qiladi: tanlagich qolgan bo'shliqni oladi va qatorga
+   * sig'maganda o'zi siqiladi, ya'ni hech qanday `vw` ulushini taxmin qilish
+   * kerak emas. */
+  --branch-max: 280px;
+}
+
+/* ── SENSORLI QURILMA ─────────────────────────────────────────────────────────
+ * Barmoq sichqoncha emas: 28px li tugmani aniq bosib bo'lmaydi. Bularni har
+ * bir komponentda `sm:`/`lg:` bilan qayta yozish o'rniga — o'lchamlar YAGONA
+ * manbada bo'lgani uchun — shu bitta blok butun ilovani kattalashtiradi.
+ *
+ * Shart `pointer: coarse` (asosiy ko'rsatkich barmoq), EKRAN KENGLIGI emas:
+ * planshet ham, sensorli monitor ham shu qoidaga tushadi, sichqonchali tor
+ * oyna esa zich holicha qoladi. */
+@media (pointer: coarse) {
+  :root {
+    --icon-btn-xs: 36px;
+    --ctl-h-sm: 40px;
+    --icon-btn: 42px;
+  }
+
+  /* Row actions that reveal on hover have NO trigger on a finger: the card's
+   * edit/delete buttons were simply invisible on every tablet and phone. One
+   * rule here beats remembering the exception at each call site — mark the
+   * group with `reveal-on-hover` and it is always visible where hover is not. */
+  .reveal-on-hover {
+    opacity: 1 !important;
+  }
+}
+
+/* ---------------------------------------------------------------- LIGHT ----
+ * WORLD: "NOCTURNE, DAYLIGHT" (2026-08-28) — the light rendition of the same
+ * world, ported from the Claude Design project afd32a12, screen
+ * "HR Dashboard v2 Light". The user had held light back ("hozircha faqat
+ * dark") until this screen existed; it does now, so the PROPUSK petrol
+ * rendition is retired and BOTH themes speak the same language.
+ *
+ * The ground is DAYLIGHT ON WATER: a cool near-white (#F2F3FA) with the same
+ * violet, teal and green light pooling in from the edges as the night ground,
+ * and white cards lifted off it by a long soft shadow — never by a border
+ * alone. The meanings are unchanged from dark:
+ *
+ *   · VIOLET is the product's voice. #7958FF FILLS (buttons, active pills),
+ *     #6247D9 SPEAKS (links, eyebrows, active labels).
+ *   · GREEN passed / AMBER late / RED not passed stay reserved for exactly
+ *     those states.
+ *   · Neutrals are INDIGO-TINTED greys (#23244A ink), not warm greys — the
+ *     ground is the night sky with the lights on, not paper.
+ *
+ * ⚠️ TEXT vs MARK. The design's own hues (#18A15E, #E09420, #D64545, #1B87C9)
+ * are drawn at 19–26px bold, where 3:1 is enough. As TEXT tokens they measure
+ * 2.9–4.0:1 and fail AA. So each one is split: `--x` is the AA-safe TEXT tone
+ * (same hue, lower lightness) and `--x-mark` is the design's hue for big
+ * numbers, dots, arcs and bars. Every text pair below was measured ≥4.5:1
+ * against ALL FIVE grounds (ground, card, surface-2, brand-soft, nav-active)
+ * AND against its own 13% tint — that last one is what status chips sit on.
+ */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: 242 243 250; /* #F2F3FA — daylight ground */
+  --surface: 255 255 255; /* #FFFFFF — the card */
+  --surface-2: 243 243 245; /* #F3F3F5 — hover / subtle fill (ink 5% on white) */
+  --elevated: 255 255 255; /* #FFFFFF — drawer, popovers */
+  --border: 231 232 234; /* #E7E8EA (ink 10%) */
+  --border-strong: 217 217 222; /* #D9D9DE (ink 16%) */
+
+  --fg: 35 36 74; /* #23244A — indigo ink, never black */
+  --fg-muted: 74 76 110; /* #4A4C6E (7.4:1) */
+  --fg-subtle: 93 95 132; /* #5D5F84 (5.5:1) — tertiary / placeholder.
+                             ⚠️ the design's #6E7191 is 4.28:1 on the ground —
+                             below AA. #5D5F84 is the design's own nav tone. */
+  --fg-on-brand: 255 255 255;
+
+  /* ⚠️ #7C5CFF (design) carries WHITE at 4.35:1 — under AA for the active tab
+   * and page-number pills. Two points of lightness gets 4.52:1 and is
+   * indistinguishable side by side. */
+  --brand: 121 88 255; /* #7958FF — THE FILL: buttons, active pills, dots */
+  --brand-strong: 98 71 217; /* #6247D9 — THE VOICE: links, eyebrows, labels */
+  --brand-soft: 242 239 255; /* #F2EFFF (violet 10% on white) */
+  --brand-deep: 82 58 186; /* #523ABA — pressed */
+  --accent: 137 91 19; /* #895B13 — GOLD as TEXT (mark below) */
+
+  --success: 17 114 67; /* #117243 */
+  --success-soft: 227 244 236; /* #E3F4EC */
+  --warning: 137 84 10; /* #89540A — o'z 13% tinitida 4.6:1 (4.50 chegara ustida) */
+  --warning-soft: 251 241 226; /* #FBF1E2 */
+  --danger: 187 41 41; /* #BB2929 */
+  --danger-soft: 251 233 233; /* #FBE9E9 */
+  --info: 21 105 156; /* #15699C */
+  --info-soft: 228 241 249; /* #E4F1F9 */
+
+  /* MARKS — the design's own hues. Big numbers, dots, arcs, bars (≥3:1). */
+  --success-mark: 24 161 94; /* #18A15E */
+  --warning-mark: 224 148 32; /* #E09420 */
+  --danger-mark: 224 82 82; /* #E05252 */
+
+  /* DATA — the six series hues, the light-ground counterparts of the night
+   * palette, in the SAME legend order: passed / late / absent / leave /
+   * trip / illness. */
+  --chart-1: 24 161 94; /* green  #18A15E */
+  --chart-2: 224 148 32; /* amber  #E09420 */
+  --chart-3: 224 82 82; /* red    #E05252 */
+  --chart-4: 124 92 255; /* violet #7C5CFF */
+  --chart-5: 27 135 201; /* cyan   #1B87C9 */
+  --chart-6: 110 113 145; /* grey   #6E7191 */
+
+  /* CHROME — ⚠️ the navigation is a WHITE DRAWER in light, not a petrol
+   * field. The light design puts the menu on the same white as the cards and
+   * marks the active row with a faint ink wash plus the violet voice; the
+   * dark rendition keeps its own field. */
+  --sidebar: 255 255 255; /* #FFFFFF */
+  --sidebar-fg: 93 95 132; /* #5D5F84 */
+  --sidebar-muted: 110 113 145; /* #6E7191 — secondary rows only */
+  --sidebar-active: 236 236 238; /* #ECECEE (ink 8%) */
+  --sidebar-active-fg: 98 71 217; /* #6247D9 — the voice, NOT white.
+                                     ⚠️ the source design has white here,
+                                     carried over from the dark screen; on a
+                                     light wash it renders invisible. */
+  --sidebar-accent: 121 88 255; /* #7958FF */
+  --sidebar-border: 231 232 234; /* #E7E8EA */
+
+  --ring: 124 92 255;
+
+  /* ── MATERIAL LAYER ────────────────────────────────────────────────────
+   * Gradients are LIGHT, not decoration: the pool of colour a lamp throws on
+   * a surface. The card sheen is nearly invisible on purpose. */
+  --grad-hero: linear-gradient(120deg, #6247d9 0%, #7c5cff 55%, #1b87c9 100%);
+  --grad-accent: linear-gradient(135deg, #8d70ff 0%, #7958ff 55%, #6247d9 100%);
+  --grad-soft: linear-gradient(160deg, rgba(124, 92, 255, 0.08) 0%, rgba(27, 135, 201, 0.05) 60%, transparent 100%);
+  --grad-card: linear-gradient(176deg, #ffffff 0%, #fbfbfe 100%);
+  --grad-chrome: linear-gradient(180deg, #ffffff 0%, #fafafd 100%);
+  --grad-panel: linear-gradient(150deg, #ffffff 0%, #f7f7fc 55%, #f2f3fa 100%);
+
+  /* Shadows are the ONLY thing lifting a card off this ground — the design
+   * uses no card border at all. Tinted with the ink, not black. */
+  --shadow-xs: 0 1px 2px rgba(35, 36, 74, 0.05);
+  --shadow-sm: 0 2px 8px rgba(35, 36, 74, 0.06);
+  --shadow: 0 6px 18px rgba(35, 36, 74, 0.08);
+  --shadow-md: 0 12px 32px rgba(35, 36, 74, 0.10);
+  --shadow-lg: 0 20px 50px rgba(35, 36, 74, 0.16);
+  --shadow-pop: 0 24px 60px rgba(35, 36, 74, 0.22);
+  --shadow-brand: 0 12px 32px -8px rgba(124, 92, 255, 0.45), 0 2px 8px rgba(124, 92, 255, 0.18);
+  --glow-brand: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 28px -6px rgba(124, 92, 255, 0.35);
+
+  /* THE HOUSING — the sign-in screen's left half. In this world it is the
+   * NIGHT ground, so the two themes meet at the door. */
+  --housing: 19 20 48;
+  --housing-fg: 234 234 244;
+  --housing-muted: 138 140 176;
+  --housing-rule: 42 44 82;
+}
+
+/* ----------------------------------------------------------------- DARK ----
+ * WORLD: "NOCTURNE" (2026-08-25) — the world the dashboard designs arrived in
+ * (claude.ai/design project afd32a12, screens "HR Dashboard v2" and
+ * "Xodim Dashboard"). The user chose it over the PROPUSK dark rendition and
+ * asked for it to reach the shell as well as the board.
+ *
+ * The ground is a NIGHT SKY OVER WATER: a deep indigo (#131430) with violet,
+ * teal and green light pooling in from the edges, and cards cut out of it one
+ * clear step lighter (#1B1D3E). Nothing here is glass and nothing is blurred —
+ * the depth comes from a real value step plus a long, soft drop shadow.
+ *
+ * Colour still carries meaning, and the meanings did not change:
+ *   · VIOLET (#7C5CFF fill / #A99BFF text) is the product's voice — actions,
+ *     the active thing, section eyebrows, anything backed by a document.
+ *   · GREEN #5FE39C passed · AMBER #FFC876 late · RED #FF9B9B not passed.
+ *     Those three stay reserved for the reader lamp above the turnstile.
+ *   · CYAN #57C8FF is movement (xizmat safari, guests), GREY #6E7191 is
+ *     "accounted for but not here".
+ *
+ * ⚠️ LIGHT IS STILL PROPUSK. The user is preparing a light rendition of this
+ * world separately ("hozircha faqat dark"); until it lands, `:root` above is
+ * untouched on purpose. Do NOT "harmonise" the two by hand.
+ *
+ * Violet text: use `text-brand-strong` (#A99BFF, 7.5:1 on the ground), not
+ * `text-brand` (#7C5CFF, 4.1:1) — --brand is the FILL colour, and it carries
+ * white (--fg-on-brand) on top.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: 19 20 48; /* #131430 — indigo night, never #000 */
+  --surface: 27 29 62; /* #1B1D3E — the card, one clear step above the ground */
+  --surface-2: 34 36 70; /* #222446 — hover / subtle fill (≈ white 5% on card) */
+  --elevated: 25 26 56; /* #191A38 — drawer, popovers */
+  --border: 42 44 82; /* #2A2C52 (≈ white 8% on the card) */
+  --border-strong: 58 60 104; /* #3A3C68 */
+
+  --fg: 234 234 244; /* #EAEAF4 — never pure white */
+  --fg-muted: 166 168 198; /* #A6A8C6 (8.4:1) */
+  /* ⚠️ #8A8CB0 yer fonida 5.5:1, ammo `brand-soft` (binafsha chip) ustida
+   * 4.16 ga tushardi. Yetti punkt yorishish to'rt fonning hammasida AA. */
+  --fg-subtle: 145 147 183; /* #9193B7 — tertiary / placeholder (≥4.5:1 har fonda) */
+  --fg-on-brand: 255 255 255; /* white label on the violet fill */
+
+  /* ⚠️ #7C5CFF ustidagi OQ yorliq 4.35:1 edi (faol tab, sahifa raqami) —
+   * uch punkt qorayish 4.52:1 beradi, ko'zga bilinmaydi. */
+  --brand: 121 89 252; /* #7959FC — THE FILL: buttons, active pills, dots */
+  --brand-strong: 169 155 255; /* #A99BFF — THE VOICE: links, eyebrows, icons */
+  --brand-soft: 43 39 93; /* #2B275D (≈ violet 16% on the card) */
+  --brand-deep: 91 65 204; /* #5B41CC — pressed */
+  --accent: 255 182 72; /* #FFB648 — the one warm metal */
+
+  --success: 95 227 156; /* #5FE39C — passed */
+  --success-soft: 35 53 73; /* #233549 */
+  --warning: 255 200 118; /* #FFC876 — late */
+  --warning-soft: 57 49 63; /* #39313F */
+  --danger: 255 155 155; /* #FF9B9B — not passed */
+  --danger-soft: 57 41 70; /* #392946 */
+
+  --success-mark: 95 227 156;
+  --warning-mark: 255 182 72;
+  --danger-mark: 255 122 122; /* #FF7A7A — the donut/arc red, one step deeper */
+  --info: 87 200 255; /* #57C8FF — movement */
+  --info-soft: 34 50 85; /* #223255 */
+
+  /* DATA — ordered to match the status donut's legend so the ring, the legend
+   * and the badges cannot drift apart:
+   * 1 kelgan · 2 kech qolgan · 3 kelmagan · 4 ta'til · 5 safar · 6 kasallik. */
+  --chart-1: 95 227 156; /* green  #5FE39C */
+  --chart-2: 255 182 72; /* amber  #FFB648 */
+  --chart-3: 255 122 122; /* red    #FF7A7A */
+  --chart-4: 124 92 255; /* violet #7C5CFF */
+  --chart-5: 87 200 255; /* cyan   #57C8FF */
+  --chart-6: 110 113 145; /* grey   #6E7191 */
+
+  /* CHROME — the drawer is the ground's own material, one step darker than a
+   * card so it reads as the panel sliding out from behind the page. */
+  --sidebar: 25 26 56; /* #191A38 */
+  --sidebar-fg: 154 156 190; /* #9A9CBE */
+  --sidebar-muted: 154 156 190; /* #9A9CBE (6.9:1 on the drawer) */
+  --sidebar-active: 36 38 75; /* #24264B (≈ white 7%) */
+  --sidebar-active-fg: 255 255 255;
+  --sidebar-accent: 169 155 255; /* #A99BFF */
+  --sidebar-border: 42 44 82; /* #2A2C52 */
+
+  --ring: 124 92 255;
+
+  /* ── MATERIAL LAYER (dark) ─────────────────────────────────────────────── */
+  --grad-hero: linear-gradient(120deg, #7c5cff 0%, #57c8ff 55%, #5fe39c 100%);
+  --grad-accent: linear-gradient(135deg, #8d70ff 0%, #7c5cff 55%, #5b41cc 100%);
+  --grad-soft: linear-gradient(160deg, rgba(124, 92, 255, 0.12) 0%, rgba(87, 200, 255, 0.06) 60%, transparent 100%);
+  /* The card's own wash: violet light falling across the top-left corner. */
+  --grad-card: linear-gradient(165deg, rgba(124, 92, 255, 0.09) 0%, rgba(124, 92, 255, 0) 50%), linear-gradient(180deg, #1b1d3e 0%, #1b1d3e 100%);
+  --grad-chrome: linear-gradient(180deg, #1d1f42 0%, #191a38 100%);
+  --grad-panel: linear-gradient(150deg, #24264b 0%, #1b1d3e 55%, #15173a 100%);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 32px 64px -20px rgba(0, 0, 0, 0.75), 0 6px 16px rgba(0, 0, 0, 0.45);
+  --shadow-brand: 0 10px 28px rgba(124, 92, 255, 0.45), 0 2px 8px rgba(124, 92, 255, 0.2);
+  --glow-brand: 0 0 0 1px rgba(124, 92, 255, 0.24), 0 0 32px -6px rgba(124, 92, 255, 0.45);
+
+  --housing: 25 26 56;
+  --housing-fg: 234 234 244;
+  --housing-muted: 154 156 190;
+  --housing-rule: 42 44 82;
+}

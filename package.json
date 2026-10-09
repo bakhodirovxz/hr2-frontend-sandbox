@@ -1,0 +1,46 @@
+{
+  "name": "uzgidro-hr-frontend-v2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "types": ".design-sync/.cache/types/.design-sync/entry.d.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test:e2e": "VITE_BASE_URL=/api vite build --outDir dist-e2e --emptyOutDir && E2E_DIST=dist-e2e /srv/hrm/hrm-frontend/node_modules/.bin/playwright test -c playwright.config.js"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-virtual": "^3.14.8",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.13",
+    "driver.js": "^1.8.0",
+    "i18next": "^26.3.6",
+    "lucide-react": "^0.468.0",
+    "maplibre-gl": "^6.7.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.10",
+    "react-markdown": "^9.1.0",
+    "react-router-dom": "^7.18.2",
+    "recharts": "^2.15.0",
+    "tailwind-merge": "^2.6.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}

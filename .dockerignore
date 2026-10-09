@@ -1,0 +1,16 @@
+# Build kontekstidan chiqariladigan fayllar (audit 2026-09-03).
+#
+# DIQQAT: `.env.production` ATAYLAB QOLDIRILGAN — vite build undan `VITE_*`
+# o'zgaruvchilarini o'qiydi.
+/node_modules
+/dist
+/.git
+
+# Design-tooling caches. None of these reach the image, but they were uploaded
+# into the build context on every `docker compose build` (~59 MB).
+/ds-bundle
+/.design-sync
+/.ds-sync
+/.impeccable
+/undefined
+/e2e-results

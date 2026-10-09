@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Must match --bg in src/styles/theme.css for each theme. -->
+    <meta name="theme-color" content="#EDEBE5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131430" media="(prefers-color-scheme: dark)" />
+    <title>Uzgidro HR</title>
+    <!-- Favicon = OFFICIAL logo (public/logo.svg nusxasi). Brend belgisi
+         brauzer tabida ham bir xil bo‘lishi kerak. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ⚠️ NO GOOGLE FONTS LINK. It was a render-blocking CROSS-ORIGIN
+         stylesheet plus two handshakes, and it cost 20 requests / 380 KB of
+         third-party traffic on a cold load. The faces are self-hosted now and
+         declared in src/styles/fonts.css, which Vite emits as hashed
+         assets/*.woff2 alongside the app CSS. -->
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!--
+      DIRECTION CONTRACT — seed 87da9dc2 (impeccable, direction scope, mode operate)
+      THESIS: This product is a gate and a pass. The board speaks that language and
+        refuses the SaaS card-grid with a donut and four pastel KPI tiles.
+      OWN-WORLD: PROPUSK. Brushed-steel and paper grounds, engraved placards, die-cut
+        pass cards, hairline rules; NO shadows-as-depth, NO glass, NO gradients as decor.
+        Colour comes only from the reader lamp — green passed, amber late, red not passed,
+        stamp-ink for excused. Golos Text + Azeret Mono. Card corner 8px, plates square.
+      STORY: The user asks "who is missing today, and why" and gets the answer plus the
+        names in one glance, then walks into the roster through the number itself.
+      FIRST VIEWPORT: Engraved branch plate; three monumental lamp counters + who-is-inside,
+        each with a 7-day trend; directly under them the named people needing attention;
+        live pass log latching in at the right rail.
+      FORM: candidate 5 of the grounded list (turnstile/propusk), assigned by seed 87da9dc2.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
+        review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

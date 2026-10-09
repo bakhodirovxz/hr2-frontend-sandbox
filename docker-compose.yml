@@ -1,0 +1,27 @@
+services:
+  hr-frontend-v2:
+    # F-01: siyosat YO'Q edi — host qayta yuklansa yoki konteyner qulasa
+    # sayt qo'lda ko'tarilgunicha o'lik qolardi. Qolgan barcha
+    # konteynerlarda siyosat allaqachon bor.
+    restart: unless-stopped
+    healthcheck:
+      # 127.0.0.1 ATAYLAB: bu tasvirda `localhost` ::1 (IPv6) ga ketadi,
+      # nginx esa faqat IPv4 0.0.0.0:80 ni tinglaydi — "connection refused".
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_URL: "https://hr-api.uzgidro.uz/"
+    networks:
+      hr_network:
+        aliases:
+          - hr-frontend-v2
+
+networks:
+  hr_network:
+    external: true

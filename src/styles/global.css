@@ -1,0 +1,720 @@
+@import './fonts.css';
+@import './theme.css';
+@import '../a11y/lowVision.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Chrome/Safari draw their OWN clear «✕» inside every `type="search"`
+   * (Firefox draws none). Our search boxes carry their own clear button, so
+   * Chrome showed two side by side on hover (phone book, 2026-10-05). One
+   * clear button, the same in every browser. */
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* A `grid` without a base column count (`grid gap-3 sm:grid-cols-2`) gets an
+   * IMPLICIT `auto` column on a phone, and an auto column never shrinks below
+   * its content's min-content — one long word pushed report cards and the LMS
+   * form 16–75px past a 390px screen (overflow crawl, 2026-09-24). A single
+   * shrinkable column is what such a grid means; `:where()` keeps it at zero
+   * specificity so every `grid-cols-*` / `sm:grid-cols-*` still wins. */
+  :where(.grid:not([class^='grid-cols-']):not([class*=' grid-cols-'])) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  * {
+    border-color: rgb(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: rgb(var(--bg));
+    color: rgb(var(--fg));
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Touch: kill the 300ms tap delay and the grey flash on mobile. */
+  a,
+  button,
+  [role='button'],
+  [role='option'],
+  [role='menuitem'],
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Headings read better when the last line isn't a lonely word. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  /* ── The parts we did not draw ─────────────────────────────────────────
+   * Selection, caret, scrollbars and figures ship with browser defaults that
+   * belong to no design system. In a product read all day, they are half the
+   * surface. */
+
+  /* Every number in this product is a measurement — a count of people, a time
+   * at a gate, a registration number — so figures are tabular by default and
+   * columns of them line up without anyone asking. */
+  body {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.2);
+    color: rgb(var(--fg));
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    caret-color: rgb(var(--brand));
+  }
+
+  /* Smooth theme transitions on the properties that actually change. */
+  body,
+  [data-theme] * {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+    transition-duration: 140ms;
+    transition-timing-function: ease;
+  }
+  /* Never transition transforms/opacity animations. */
+  [data-no-theme-transition],
+  [data-no-theme-transition] * {
+    transition: none !important;
+  }
+
+  /* The focus ring is a machined edge: square-ish, offset, and it never
+   * disappears against either ground. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--r-xs);
+  }
+
+  /* Respect the OS "reduce motion" setting: keep state changes instant instead
+   * of animating them. Nothing in the UI depends on an animation completing. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── SCROLLBARS (B board round, 2026-09-24) ─────────────────────────────
+   * Thin, arrowless, in the brand's violet, and only visible while the pointer
+   * is over the scroller — for EVERY scroller, not just `.scroll-thin`.
+   *
+   * ⚠️ THE STANDARD PROPERTIES ARE FIREFOX-ONLY ON PURPOSE. In Chrome 121+
+   * `scrollbar-width` / `scrollbar-color` take precedence over
+   * `::-webkit-scrollbar`, and Chrome's "thin" scrollbar on Windows is the grey
+   * system one WITH arrow buttons — which is exactly what the user saw and
+   * asked to fix. So Blink/WebKit get only the pseudo-elements; Firefox (which
+   * has no pseudo-elements) gets the standard pair inside `@supports`. */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    background-color: transparent;
+  }
+  *:hover::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--brand) / 0.3);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--brand) / 0.55);
+  }
+  *::-webkit-scrollbar-thumb:active {
+    background-color: rgb(var(--brand));
+  }
+  @supports (-moz-appearance: none) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+    }
+    *:hover {
+      scrollbar-color: rgb(var(--brand) / 0.3) transparent;
+    }
+  }
+  /* `.scroll-thin` stays in markup as a hook; the global rules above style it. */
+
+  /* ── BOARD AURORA ───────────────────────────────────────────────────────
+   * Three static radial glows behind the home board. No animation and no
+   * backdrop-filter: blur panels over animated layers cost 90% GPU on this
+   * page (2026-09-17). */
+  .board-aurora {
+    background-image:
+      radial-gradient(40% 50% at 8% 0%, rgb(124 58 237 / 0.14), transparent 70%),
+      radial-gradient(35% 45% at 100% 18%, rgb(217 70 239 / 0.09), transparent 70%),
+      radial-gradient(45% 50% at 60% 110%, rgb(56 189 248 / 0.12), transparent 70%);
+  }
+  [data-theme='dark'] .board-aurora {
+    background-image:
+      radial-gradient(40% 50% at 8% 0%, rgb(124 58 237 / 0.3), transparent 70%),
+      radial-gradient(35% 45% at 100% 18%, rgb(192 38 211 / 0.16), transparent 70%),
+      radial-gradient(45% 50% at 60% 110%, rgb(14 165 233 / 0.14), transparent 70%);
+  }
+
+  /* ── GROUND ────────────────────────────────────────────────────────────
+   * The desk. Concrete in light, graphite in dark, with the material's own
+   * tooth at a very low alpha. There is no aurora, no colour wash and no
+   * pattern here: the ground's job is to be the thing the paper lies on. */
+  .app-bg {
+    position: relative;
+    isolation: isolate;
+    background-color: rgb(var(--bg));
+  }
+  /* NOCTURNE, DAYLIGHT (light): the SAME five washes as the night ground, at a
+   * third of the alpha — teal and green breaking over the top, a violet dome
+   * top-right, a blue pool bottom-left. Ported from the design's own light
+   * screen, so the two themes are one world seen at two hours of the day.
+   * They sit far below the content's contrast; cards are opaque, so this only
+   * shows through the gaps. */
+  .app-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background-image:
+      radial-gradient(900px 320px at 28% -10%, rgba(0, 153, 181, 0.1), transparent 62%),
+      radial-gradient(760px 300px at 58% -12%, rgba(30, 181, 58, 0.07), transparent 60%),
+      radial-gradient(1100px 620px at 82% -14%, rgba(124, 92, 255, 0.12), transparent 62%),
+      radial-gradient(900px 560px at -10% 115%, rgba(27, 135, 201, 0.1), transparent 60%),
+      radial-gradient(640px 400px at 55% 120%, rgba(124, 92, 255, 0.16), transparent 65%);
+  }
+  /* NOCTURNE (dark): the ground is a night sky over water. Five wide washes —
+   * teal and green breaking over the top, a deep violet dome top-right, an
+   * indigo pool bottom-left — exactly the light the dashboards were drawn in.
+   * They sit far below the content's contrast, so a table never reads over a
+   * colour; cards are opaque, so this only shows through the gaps. */
+  :root[data-theme='dark'] .app-bg::before {
+    background-image:
+      radial-gradient(900px 320px at 28% -10%, rgba(0, 153, 181, 0.22), transparent 62%),
+      radial-gradient(760px 300px at 58% -12%, rgba(30, 181, 58, 0.13), transparent 60%),
+      radial-gradient(1100px 620px at 82% -14%, rgba(72, 48, 150, 0.5), transparent 62%),
+      radial-gradient(900px 560px at -10% 115%, rgba(34, 52, 120, 0.55), transparent 60%),
+      radial-gradient(640px 400px at 55% 120%, rgba(124, 92, 255, 0.16), transparent 65%);
+  }
+
+  /* ⚠️ «TOOTH» QATLAMI OLIB TASHLANDI. Bu yerda `.app-bg::after` 3px nuqta
+   * to'rini chizishi kerak edi, ammo u `--tooth` va `--tooth-alpha`
+   * o'zgaruvchilariga tayanardi va ular HECH QAYERDA e'lon qilinmagan edi:
+   * `rgb(var(--tooth) / …)` yaroqsiz rang bo'lgani uchun butun
+   * `background-image` bekor bo'lardi. Ya'ni qatlam hech qachon ko'rinmagan.
+   * NOCTURNE ning ikkala renditsiyasi ham silliq yuvindi — nuqta to'ri
+   * ularning tilida yo'q, shuning uchun qoida tiklanmadi, o'chirildi. */
+
+  /* ── PLATE ─────────────────────────────────────────────────────────────
+   * A machined metal face. The only "effect" in this system: a 1px lit edge
+   * along the top where a light source would actually catch the bevel, and a
+   * groove line at the bottom. Used by the chrome and by section placards. */
+  /* THE PANEL — the deep petrol instrument face the gate readings sit on. It
+   * is the loudest surface in the product and it is meant to be: this is the
+   * block that answers the day's question, and it should look like it. */
+  .panel-deep {
+    position: relative;
+    background: var(--grad-panel);
+    border: 1px solid rgb(255 255 255 / 0.07);
+    box-shadow: var(--shadow-lg);
+  }
+  .panel-deep::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.22), transparent);
+    pointer-events: none;
+  }
+
+  /* A machined plate for the chrome strip (the header). */
+  .plate {
+    position: relative;
+    background: var(--grad-card);
+    border: 1px solid rgb(var(--border));
+    box-shadow: var(--shadow-sm);
+  }
+  .plate::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: rgb(255 255 255 / 0.6);
+    pointer-events: none;
+  }
+  :root[data-theme='dark'] .plate::before {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  /* ENGRAVED LABEL — the placard screwed to a housing: small, letterspaced,
+   * cut into the metal. This is how a section names itself in this world, and
+   * it replaces the icon-tile-plus-heading pattern entirely. */
+  /* Card / section headings. Was 11px · UPPERCASE · 0.14em — the most dated
+     type on the page, and Uzbek Latin (oʻ gʻ ʼ) reads worst at that size in
+     capitals (B round, 2026-09-24). Sentence case, readable size. */
+  .engrave {
+    font-size: 13.5px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    color: rgb(var(--fg));
+  }
+
+  /* Navigation surface — the housing the whole product is bolted to. */
+  .sidebar-surface {
+    position: relative;
+    background: var(--grad-chrome);
+    border-right: 1px solid rgb(var(--sidebar-border));
+  }
+  .sidebar-surface::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--grad-soft);
+  }
+  .sidebar-surface > * {
+    position: relative;
+  }
+  .sidebar-divider {
+    border-color: rgb(var(--sidebar-border));
+  }
+
+  /* ── SURFACES ──────────────────────────────────────────────────────────
+   * Paper on the desk (light) / a steel plate in the rack (dark). Flat, with
+   * one lit hairline along the top edge. No gradient fill, no glass: the old
+   * world's frosted panes are gone with it. */
+  .surface-gradient {
+    background-image: var(--grad-card);
+  }
+  .surface-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75), transparent);
+    pointer-events: none;
+  }
+  :root[data-theme='dark'] .surface-gradient::before {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.1), transparent);
+  }
+
+  /* Legacy names kept so every page that opted into them follows the new
+   * world without being rewritten. `.glass` is no longer glass: floating
+   * chrome is an opaque plate, because a blurred pane over a data table is a
+   * decoration that costs legibility. */
+  .glass {
+    background: rgb(var(--surface));
+    border-color: rgb(var(--border));
+  }
+  .glass-sections .surface-gradient,
+  .glass-hero {
+    background: rgb(var(--surface));
+    border-color: rgb(var(--border));
+  }
+
+  /* Was a gradient-filled tile with a coloured glow. Now: a brass-edged plate
+   * that marks the ACTIVE thing. Brass is the only metal that lights up. */
+  /* Accent-filled tile with its coloured glow — the marker for the ACTIVE
+   * thing, and the one place a saturated fill is always right. */
+  .accent-tile {
+    background-image: var(--grad-accent);
+    color: #fff;
+    box-shadow: var(--shadow-brand);
+  }
+
+  /* Display type is ink and weight — never a gradient fill. The class name
+   * survives so old markup keeps working; what it does has changed. */
+  /* Display type painted with the hero gradient — reserved for the one number
+   * or title that owns its region. */
+  .text-gradient {
+    background-image: var(--grad-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.03em;
+    /* Safari drops the descenders of clipped text without this. */
+    padding-bottom: 0.06em;
+  }
+
+  /* ── MEASUREMENT ───────────────────────────────────────────────────────
+   * Times, counts, table numbers, registration numbers. Mono here is not a
+   * "technical" costume: these are quantities that must align in a column. */
+  .tabnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: -0.02em;
+  }
+
+  /* ── THE LAMP ──────────────────────────────────────────────────────────
+   * The reader above a turnstile. One dot, one meaning, and a soft pool of
+   * its own colour so a lit lamp reads as lit rather than as a coloured dot.
+   * `--lamp` is set per instance from a mark token. */
+  .lamp {
+    position: relative;
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--r-pill);
+    background: radial-gradient(
+      circle at 35% 32%,
+      rgb(255 255 255 / 0.75),
+      rgb(var(--lamp, var(--fg-subtle))) 62%
+    );
+    box-shadow:
+      0 0 0 3px rgb(var(--lamp, var(--fg-subtle)) / 0.18),
+      0 0 12px 0 rgb(var(--lamp, var(--fg-subtle)) / 0.55);
+  }
+  .lamp-lg {
+    width: 14px;
+    height: 14px;
+    box-shadow:
+      0 0 0 5px rgb(var(--lamp, var(--fg-subtle)) / 0.16),
+      0 0 20px 0 rgb(var(--lamp, var(--fg-subtle)) / 0.6);
+  }
+  /* A lamp that is OFF: the glass is still there, nothing is behind it. */
+  .lamp-off {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px rgb(var(--border-strong));
+  }
+
+  /* ── THE LOG ───────────────────────────────────────────────────────────
+   * The guard's ruled register: rows separated by a hairline, no card, no
+   * rounding, the newest entry latching in at the top. */
+  .log-row {
+    border-bottom: 1px solid rgb(var(--rule));
+  }
+  .log-row:last-child {
+    border-bottom: 0;
+  }
+
+  /* ── SHAPE VOCABULARY ──────────────────────────────────────────────────
+   * Silhouettes that mean something in THIS world: a stub that was torn from
+   * a book, a chevron that points the way through a gate, a plate with a
+   * machined corner, a document with its corner folded. */
+
+  /* DOCUMENT ROW — a pass stub torn from the book. Square where it meets the
+   * status rail, cut outward, with the perforation on the right. */
+  .shape-ticket {
+    border-radius: var(--r-none) var(--r-md) var(--r-md) var(--r-none);
+    position: relative;
+  }
+  .shape-ticket::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: rgb(var(--bg));
+    box-shadow: inset 0 0 0 1px rgb(var(--border));
+  }
+
+  /* FLOW STEP — a chevron. Direction is the point: an approval chain reads
+   * left-to-right at a glance instead of as a row of identical pills. */
+  .shape-step {
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+    padding-left: 26px;
+    padding-right: 26px;
+  }
+  .shape-step-first {
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+    padding-left: 18px;
+  }
+  .shape-step-last {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
+    padding-right: 18px;
+  }
+
+  /* Was an organic blob. Nothing in a machined world is organic — it is now a
+   * plain die-cut corner, so the name keeps working and the shape belongs. */
+  .shape-blob,
+  .shape-blob-alt {
+    border-radius: var(--r-md);
+  }
+
+  /* FEATURE PLATE — one corner machined square so a lead surface is not just
+   * a bigger version of its neighbours. */
+  .shape-feature {
+    border-radius: var(--r-xl) var(--r-xl) var(--r-xl) var(--r-none);
+  }
+  .shape-feature-alt {
+    border-radius: var(--r-none) var(--r-xl) var(--r-xl) var(--r-xl);
+  }
+  .shape-feature-b {
+    border-radius: var(--r-xl) var(--r-none) var(--r-xl) var(--r-xl);
+  }
+
+  /* CUT CORNER — the folded corner of a registered document. */
+  .shape-cut {
+    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+  }
+
+  /* CHAMFER — a machined bezel: two corners cut on the diagonal. Takes TWO
+   * elements (clip-path removes the corner a border would be drawn on), so the
+   * outer paints the frame colour and the inset inner paints the surface. */
+  .chamfer-frame {
+    clip-path: polygon(
+      12px 0,
+      100% 0,
+      100% calc(100% - 12px),
+      calc(100% - 12px) 100%,
+      0 100%,
+      0 12px
+    );
+  }
+  .chamfer-inner {
+    clip-path: polygon(
+      11px 0,
+      100% 0,
+      100% calc(100% - 11px),
+      calc(100% - 11px) 100%,
+      0 100%,
+      0 11px
+    );
+  }
+
+  /* ── MOTION: THE LATCH ─────────────────────────────────────────────────
+   * A turnstile does not float or fade — it releases and latches. So the one
+   * authored motion in this product is a short, damped settle from an
+   * already-visible state, and the live log's new row latches in from the top
+   * and pushes the register down. Nothing else animates on arrival. */
+  @keyframes latch-in {
+    from {
+      transform: translateY(-6px);
+      opacity: 0.4;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  .latch-in {
+    animation: latch-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* Kept for existing markup: the old 640ms float-up is now the same latch. */
+  .rise-in {
+    animation: latch-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Skeleton: the plate before the data lands. */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgb(var(--surface-2));
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(var(--fg) / 0.05), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+/* Recharts focus outlines off (they add default SVG outlines). */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
+}
+
+/* ── BOSISH MAYDONINI KENGAYTIRISH ───────────────────────────────────────────
+ * `tap-expand` elementning KO'RINISHINI o'zgartirmaydi — faqat sensorli
+ * qurilmada atrofiga ko'rinmas maydon qo'shadi. Zich jadvaldagi 20px li
+ * belgilash katakchasi barmoq uchun kichik, lekin uni kattalashtirish butun
+ * qatorni yoyib yuborardi; bu yerda esa faqat NISHON o'sadi.
+ *
+ * `pointer: coarse` — asosiy ko'rsatkich barmoq bo'lganda; sichqonchada
+ * hech narsa o'zgarmaydi. Boshqa o'lchamlar bilan bir qatorda theme.css dagi
+ * shu shartli blokdan boshqariladi. */
+@media (pointer: coarse) {
+  .tap-expand::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Xarita: mashina markeri (GPS jonli kuzatuv)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Marker MapLibre'ning o'z qatlamida (React daraxtidan tashqarida) yaratiladi,
+   shu bois uslubi Tailwind sinfi bilan emas, shu yerda beriladi. */
+.hrm-veh-marker {
+  position: relative;
+  display: flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.6));
+}
+.hrm-veh-pulse {
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: rgb(var(--map-live) / 0.28);
+  animation: hrm-veh-pulse 2s ease-out infinite;
+}
+/* Signal eskirgan bo'lsa puls o'chadi — "jonli" degan yolg'on taassurot
+   bermasligi uchun (marker rangi ham kulrangga o'tadi). */
+.hrm-veh-pulse.is-stale {
+  animation: none;
+  background: rgb(var(--map-ink) / 0.12);
+}
+
+/* To'xtash nuqtasi — rang yonidagi joy turiga qarab (`--stop`), doimiy joy
+   (haydovchining o'z to'xtash joyi) xira va chiziqli chegara bilan. */
+.hrm-stop-marker {
+  display: block;
+  height: 14px;
+  width: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgb(4 15 44 / 0.9);
+  background: var(--stop, #9ca3af);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35), 0 2px 6px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+.hrm-stop-marker:hover { transform: scale(1.25); }
+.hrm-stop-marker.is-habitual { opacity: 0.55; border-style: dashed; }
+.hrm-stop-popup .maplibregl-popup-content {
+  background: rgb(var(--map-scrim) / 0.95);
+  color: rgb(var(--map-ink) / 0.9);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.hrm-stop-popup .maplibregl-popup-tip { border-top-color: rgb(var(--map-scrim) / 0.95); }
+
+@keyframes hrm-veh-pulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hrm-veh-pulse { animation: none !important; }
+}
+
+
+/*
+ * PRINT — one region at a time.
+ *
+ * The trip register lives inside a Modal, so a bare `window.print()` would put
+ * the dimmed application behind it on paper. Marking the region with
+ * `data-print-area` hides everything else for the duration of the print, and the
+ * table is rendered on white so it does not consume a page of dark ink.
+ */
+@media print {
+  body:has([data-print-area]) > * {
+    display: none !important;
+  }
+  body:has([data-print-area]) [data-print-root] {
+    display: block !important;
+  }
+  [data-print-area] {
+    position: static !important;
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  [data-print-area] table {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  [data-print-hide] {
+    display: none !important;
+  }
+}
+
+/*
+ * Report view («Hisobotlar» → Ko'rish): print only the report card. The table
+ * scroller is unbounded on paper and frozen columns fall back to normal flow.
+ */
+@media print {
+  body:has(.report-print) * {
+    visibility: hidden;
+  }
+  body:has(.report-print) .report-print,
+  body:has(.report-print) .report-print * {
+    visibility: visible;
+  }
+  body:has(.report-print) .report-print {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .report-print .report-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+  .report-print [style*='position: sticky'],
+  .report-print .sticky {
+    position: static !important;
+  }
+  .report-print thead,
+  .report-print tfoot {
+    position: static !important;
+  }
+  .report-print table {
+    font-size: 10px !important;
+  }
+}
