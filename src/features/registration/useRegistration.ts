@@ -28,6 +28,8 @@ export interface RegistrationOption {
 }
 
 interface RegistrationOptions {
+  /** TZ 4.2.2: o'z-o'zini ro'yxatdan o'tkazish faqat jismoniy shaxs uchun. */
+  user_type?: string
   countries: RegistrationOption[]
   nationalities: RegistrationOption[]
   citizenships: RegistrationOption[]
@@ -39,6 +41,8 @@ interface RegistrationOptions {
 export interface RegistrationRow {
   id: number
   status: string
+  user_type?: string | null
+  created_at?: string | null
   full_name?: string | null
   last_name?: string | null
   first_name?: string | null
@@ -180,11 +184,14 @@ export function useRegistrationOps() {
       organization_branch_id: number
       department_id: number | null
       job_position_id: number | null
+      /** Tayinlanadigan rol; berilmasa tashkilot turiga mos tizim roli. */
+      role_id: number | null
     }) =>
       apiPost<RegistrationRow>(REGISTRATION_APPROVE(args.id), {
         organization_branch_id: args.organization_branch_id,
         department_id: args.department_id,
         job_position_id: args.job_position_id,
+        ...(args.role_id ? { role_id: args.role_id } : {}),
       }),
     onSuccess: invalidate,
   })

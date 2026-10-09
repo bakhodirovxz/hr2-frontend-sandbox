@@ -1,12 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { Avatar } from '@/components/ui/Avatar'
-import { CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, LogOut, XCircle } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { LoadError } from '@/components/data/LoadError'
+import { useLogout } from '@/hooks/useAuth'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { CenteredSpinner } from '@/components/ui/Spinner'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
-import { formatAppDate } from '@/lib/format'
+import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { useMyRegistration, type RegistrationRow } from '@/features/registration/useRegistration'
 
 /**
@@ -32,11 +36,25 @@ const ICON: Record<string, React.ReactNode> = {
 export function RegistrationStatusPage() {
   const { t } = useTranslation()
   const query = useMyRegistration()
+  const logout = useLogout()
+  const status = (query.error as { response?: { status?: number } } | null)?.response?.status
 
   if (query.isLoading) {
     return (
       <PageContainer>
         <CenteredSpinner />
+      </PageContainer>
+    )
+  }
+
+  // 404 — ariza yo'q (masalan administrator yaratgan hisob); boshqa xato — qayta urinish.
+  if (query.isError && status !== 404) {
+    return (
+      <PageContainer>
+        <PageHeader title={t('regStatus.title')} subtitle={t('regStatus.subtitle')} />
+        <Card className="p-6">
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
+        </Card>
       </PageContainer>
     )
   }
@@ -54,30 +72,48 @@ export function RegistrationStatusPage() {
     )
   }
 
+  /* TZ 4.2.2 · 1893: «UGE xodimiman» belgilanmagan foydalanuvchi — oddiy
+     mehmon, tasdiq kerak emas; «ko'rib chiqilmoqda» matni faqat xodim
+     sifatida ro'yxatdan o'tganlarga. */
+  const plainGuest = !row.is_uge_employee && (row.status === 'pending' || !row.status)
+  const tone = plainGuest || row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'
+  const title = plainGuest ? t('account.regGuestTitle') : t(`registrations.status_${row.status}` as 'registrations.status_pending')
+  const hint = plainGuest
+    ? t('account.regGuestText')
+    : row.status === 'approved'
+      ? t('account.regApprovedText')
+      : t(`regStatus.hint_${row.status}` as 'regStatus.hint_pending')
+
   return (
     <PageContainer>
-      <PageHeader title={t('regStatus.title')} subtitle={t('regStatus.subtitle')} />
+      <PageHeader
+        title={t('regStatus.title')}
+        subtitle={t('regStatus.subtitle')}
+        actions={
+          <Button variant="outline" size="sm" leftIcon={<LogOut size={14} />} onClick={logout}>
+            {t('header.logout')}
+          </Button>
+        }
+      />
 
       <Card className="mb-4 flex items-start gap-4 p-5">
         <span
           className="grid h-12 w-12 shrink-0 place-items-center rounded-xl"
           style={{
-            backgroundColor: `rgb(var(--${row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}) / 0.14)`,
-            color: `rgb(var(--${row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}))`,
+            backgroundColor: `rgb(var(--${tone}) / 0.14)`,
+            color: `rgb(var(--${tone}))`,
           }}
         >
-          {ICON[row.status] ?? <Clock size={26} />}
+          {plainGuest ? ICON.approved : (ICON[row.status] ?? <Clock size={26} />)}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {row.photo_url && <Avatar src={row.photo_url} name={row.full_name ?? '?'} size={32} />}
             <h2 className="text-lg font-semibold text-fg">{row.full_name || '—'}</h2>
-            <Badge tone={TONE[row.status] ?? 'neutral'}>
-              {t(`registrations.status_${row.status}` as 'registrations.status_pending')}
-            </Badge>
+            <Badge tone={plainGuest ? 'success' : (TONE[row.status] ?? 'neutral')}>{title}</Badge>
           </div>
           <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
-            {t(`regStatus.hint_${row.status}` as 'regStatus.hint_pending')}
+            {hint}
           </p>
           {row.status === 'rejected' && row.reject_reason && (
             <div className="mt-3 rounded-inner border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-fg">
@@ -87,7 +123,7 @@ export function RegistrationStatusPage() {
           )}
           {row.reviewed_at && (
             <p className="mt-2 text-xs text-fg-subtle">
-              {t('registrations.colReviewed')}: {formatAppDate(row.reviewed_at)}
+              {t('registrations.colReviewed')}: {inTashkent(row.reviewed_at).format('DD.MM.YYYY HH:mm')}
               {row.reviewed_by_name ? ` · ${row.reviewed_by_name}` : ''}
             </p>
           )}
@@ -100,7 +136,7 @@ export function RegistrationStatusPage() {
           <Row label={t('register.username')} value={row.username} />
           <Row label={t('register.email')} value={row.email} />
           <Row label={t('register.phone')} value={row.phone_number} />
-          <Row label={t('register.birthDate')} value={row.birth_date ? formatAppDate(row.birth_date) : null} />
+          <Row label={t('register.birthDate')} value={row.birth_date ? dayjs(row.birth_date).format('DD.MM.YYYY') : null} />
           <Row label={t('register.pinfl')} value={row.pinfl} />
           <Row label={t('register.passport')} value={row.passport_number} />
           <Row label={t('register.nationality')} value={row.nationality_name} />
