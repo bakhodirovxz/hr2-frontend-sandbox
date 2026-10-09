@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Building2, CheckCircle2, GitBranch, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column } from '@/components/data/DataTable'
@@ -160,7 +160,7 @@ export function BranchesPage() {
       key: 'created',
       header: t('branchAdmin.colDate'),
       sortValue: (r) => r.created_at ?? '',
-      cell: (r) => <span className="tabnum text-fg-muted">{r.created_at ? dayjs(r.created_at).format('DD.MM.YYYY') : '—'}</span>,
+      cell: (r) => <span className="tabnum text-fg-muted">{r.created_at ? inTashkent(r.created_at).format('DD.MM.YYYY') : '—'}</span>,
     },
     {
       key: 'actions',

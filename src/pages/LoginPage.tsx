@@ -5,6 +5,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, MailCheck, QrCode, User as UserIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { LogoMark } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -89,7 +90,7 @@ export function LoginPage() {
       // qachongacha ekanini foydalanuvchining O'Z vaqtida ko'rsatamiz.
       if (errorCode(err) === 'account_locked') {
         const until = errorParams(err).until
-        const when = typeof until === 'string' && dayjs(until).isValid() ? dayjs(until).format('DD.MM.YYYY HH:mm') : null
+        const when = typeof until === 'string' && dayjs(until).isValid() ? inTashkent(until).format('DD.MM.YYYY HH:mm') : null
         setError(when ? t('authx.lockedUntil', { time: when }) : t('authx.locked'))
         return
       }

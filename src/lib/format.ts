@@ -16,21 +16,35 @@ const TASHKENT_OFFSET_MIN = 5 * 60
 /**
  * Read a moment as Tashkent wall-clock time.
  *
- * The API is not uniform, and the difference matters:
- *  · WITH an offset ("…+05:00" / "…Z") the value is a real instant — convert it,
- *    or a UTC browser shows a 14:30 meeting as 09:30.
- *  · WITHOUT one (most `created_at` columns) the value is ALREADY Tashkent
- *    wall-clock. Pinning it would add five hours to a timestamp that was
- *    correct — so those are rendered exactly as stored.
- * Measured on the live API: 5 aware fields against 58 naive ones, which is why
- * a blanket conversion is the wrong tool.
+ * Sandbox backend (o'lchangan, 10-09): PostgreSQL `TimeZone = Etc/UTC`,
+ * konteynerlar UTC'da; 78 ta `created_at/updated_at` va sessiya vaqtlari
+ * ZONASIZ, lekin UTC'da yozilgan. Shuning uchun:
+ *  · ofsetli qiymat ("…+05:00" / "…Z") — o'z ofseti bilan o'giriladi;
+ *  · ZONASIZ sana+vaqt — UTC deb o'qiladi va Toshkentga o'giriladi
+ *    (asosiy mahsulotda bu Toshkent vaqti edi — bu yerda 5 soat orqada
+ *    ko'rinardi);
+ *  · faqat sana ("YYYY-MM-DD") — o'zgarishsiz.
+ * Turniket `happen_time` kabi MAHALLIY zonasiz vaqtlar uchun — `inWallClock`.
  */
 const HAS_OFFSET = /(?:[+-]\d{2}:?\d{2}|Z)$/
+const HAS_TIME = /\d[T ]\d{2}/
 
 export function inTashkent(input?: Dayjs | string | null) {
-  if (!input) return dayjs()
-  if (typeof input === 'string' && !HAS_OFFSET.test(input)) return dayjs(input)
+  if (!input) return dayjs().utcOffset(TASHKENT_OFFSET_MIN)
+  if (typeof input === 'string' && !HAS_OFFSET.test(input)) {
+    if (!HAS_TIME.test(input)) return dayjs(input)
+    return dayjs(`${input.replace(' ', 'T')}Z`).utcOffset(TASHKENT_OFFSET_MIN)
+  }
   return dayjs(input).utcOffset(TASHKENT_OFFSET_MIN)
+}
+
+/**
+ * Zonasiz qiymat ALLAQACHON Toshkent soati bo'lsa (turniket `happen_time`,
+ * vakansiya xabarnomasi `last_sent_at`) — yozilganicha o'qiladi.
+ */
+export function inWallClock(input?: string | null) {
+  if (!input) return dayjs()
+  return HAS_OFFSET.test(input) ? dayjs(input).utcOffset(TASHKENT_OFFSET_MIN) : dayjs(input)
 }
 
 /**
