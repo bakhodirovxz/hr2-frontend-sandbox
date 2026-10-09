@@ -1,52 +1,19 @@
-import { fetchAllPages } from '@/api/fetchAll'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { apiGet } from '@/api/http'
-import { DASHBOARD_AGE_STATS, DASHBOARD_EMPLOYEE_KPI, DASHBOARD_KPI_MONTHLY_AVERAGE, DASHBOARD_NATIONALITY_STATS } from '@/api/endpoints'
 import { useBranchStore } from '@/store/branchStore'
 import type { Page } from './useEmployees'
+import type { EmployeeKpiRow, EmployeeRow } from './types'
 
-/** One employee row in the KPI overview. */
-export interface EmployeeKpiRow {
-  id: number
-  legal_name: string
-  photo_path?: string | null
-  /**
-   * ⚠️ USE THIS FOR THE ROW AVATAR, not `photo_path`. Measured 2026-09-10: the
-   * roster drew 34px avatars from the full-size originals and pulled ~690 KB of
-   * photos from MinIO on one page (one of them 254 KB on its own).
-   */
-  photo_thumb_path?: string | null
-  department_id?: number | null
-  department_name?: string | null
-  job_position_name?: string | null
-  /**
-   * Filial bo'yicha so'ralgan ro'yxatda shu filialdagi ish o'rnining turi.
-   * `internal_concurrent` = o'rindosh: yuqoridagi bo'lim/lavozim ham SHU
-   * filialniki (backend almashtiradi), asosiy ish joyi esa boshqa filialda.
-   */
-  employment_type?: 'main' | 'internal_concurrent' | 'external_concurrent' | null
-  /** May the viewer PATCH this card (server: `stamp_can_edit`). */
-  can_edit?: boolean | null
-  completed_tasks_count: number
-  overuded_tasks_counnt: number // (backend spelling)
-  late_tasks_count: number
-  attendance_percentage: number
-  kpi_percentage: number
-  kpi_status: { month: string; kpi_percentage: number }[]
-}
+export type { EmployeeKpiRow } from './types'
 
-/** Default KPI window: last month → today (matches v1). */
-function defaultKpiRange() {
+/** Default KPI window: last month → today (v1 `getDefaultEmployeeKpiDateRange`). */
+export function defaultKpiRange() {
   return {
     date_from: dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
     date_to: dayjs().format('YYYY-MM-DD'),
   }
 }
-
-/** `sort` values `/dashboard/employee-kpi` accepts. */
-export const KPI_SORTS = ['best_kpi', 'worst_kpi'] as const
-export type KpiSort = (typeof KPI_SORTS)[number]
 
 interface KpiListArgs {
   page: number
@@ -54,97 +21,123 @@ interface KpiListArgs {
   search?: string
   departmentId?: string
   jobPositionId?: string
+  contractType?: string
   kpiMin?: number
   kpiMax?: number
-  /**
-   * Server ordering. NOTE: a sorted roster hides `hidden_from_regular`
-   * employees (the API's rule for the ranked views); the unsorted one shows
-   * them. There is no supervisor / head-of-department filter on this endpoint
-   * — those live on the `/employees`-backed lists (`useEmployees`,
-   * `useEmployeeOptions`).
-   */
-  sort?: KpiSort
-  /** Column sorting (server-side, across all pages). */
-  orderBy?: EmployeeOrder
-  orderDir?: 'asc' | 'desc'
 }
 
-export const EMPLOYEE_ORDER = ['name', 'department', 'job', 'kpi', 'done', 'late', 'missed', 'attendance'] as const
-export type EmployeeOrder = (typeof EMPLOYEE_ORDER)[number]
-
-export function useEmployeeKpiList(args: KpiListArgs) {
+/** `GET /dashboard/employee-kpi` — the roster of the HR / management view (C2). */
+export function useEmployeeKpiList(args: KpiListArgs, enabled = true) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const range = defaultKpiRange()
-
-  const filterParams = {
-    ...range,
-    organization_branch_id: branchId || undefined,
-    search: args.search || undefined,
-    department_id: args.departmentId || undefined,
-    job_position_id: args.jobPositionId || undefined,
-    kpi_min: args.kpiMin,
-    kpi_max: args.kpiMax,
-    sort: args.sort || undefined,
-  }
-  const query = useQuery({
-    queryKey: ['employee-kpi', { ...args, branchId }],
-    // `signal`: the roster re-keys on every debounced keystroke and on every
-    // filter change. Without it react-query discards the superseded RESULT but
-    // the request still runs — and this one is a KPI aggregate, the most
-    // expensive read on the screen.
+  return useQuery({
+    queryKey: ['employee-kpi', { ...args, branchId, range }],
     queryFn: ({ signal }) =>
       apiGet<Page<EmployeeKpiRow>>(
-        DASHBOARD_EMPLOYEE_KPI,
+        'dashboard/employee-kpi',
         {
           ...range,
-          organization_branch_id: branchId || undefined,
           page: args.page,
           size: args.size,
           search: args.search || undefined,
           department_id: args.departmentId || undefined,
           job_position_id: args.jobPositionId || undefined,
+          contract_type: args.contractType || undefined,
           kpi_min: args.kpiMin,
           kpi_max: args.kpiMax,
-          sort: args.sort || undefined,
-          order_by: args.orderBy || undefined,
-          order_dir: args.orderBy ? args.orderDir ?? 'asc' : undefined,
         },
         { signal },
       ),
     placeholderData: (prev) => prev,
+    enabled,
   })
-
-  return {
-    rows: query.data?.items ?? [],
-    total: query.data?.total ?? 0,
-    pages: query.data?.pages ?? 1,
-    /** Every id matching the current filter, all pages — «select all N». */
-    loadAllIds: () =>
-      // ⚠️ size 100: the endpoint answers 422 above that (measured 2026-09-24).
-      fetchAllPages<EmployeeKpiRow>(DASHBOARD_EMPLOYEE_KPI, filterParams, 100, 60).then((r) => r.map((x) => x.id)),
-    loading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
-    fetching: query.isFetching,
-  }
 }
 
-/** Top / bottom 5 by KPI (sorted server-side, hidden employees excluded). */
-export function useEmployeeKpiRanked(sort: 'best_kpi' | 'worst_kpi') {
+/** Best / worst employees by KPI (insights row). */
+export function useEmployeeKpiRanked(sort: 'best_kpi' | 'worst_kpi', size: number, enabled = true) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const range = defaultKpiRange()
-  const query = useQuery({
-    queryKey: ['employee-kpi-ranked', { sort, branchId }],
-    queryFn: () =>
-      apiGet<Page<EmployeeKpiRow>>(DASHBOARD_EMPLOYEE_KPI, {
-        ...range,
-        organization_branch_id: branchId || undefined,
-        sort,
-        page: 1,
-        size: 5,
-      }),
+  const q = useQuery({
+    queryKey: ['employee-kpi-ranked', { sort, size, branchId, range }],
+    queryFn: () => apiGet<Page<EmployeeKpiRow>>('dashboard/employee-kpi', { ...range, sort, page: 1, size }),
+    enabled,
   })
-  return { rows: query.data?.items ?? [], loading: query.isLoading }
+  return { rows: q.data?.items ?? [], loading: q.isLoading }
+}
+
+export interface KpiSummary {
+  employee_total_count?: number
+  average_attendance_percentage?: number
+}
+
+interface CategorizedEmployees {
+  present_employees?: EmployeeRow[]
+  late_employees?: EmployeeRow[]
+  on_leave_employees?: EmployeeRow[]
+  on_vacation_employees?: EmployeeRow[]
+  on_sick_leave_employees?: EmployeeRow[]
+  on_business_trip_employees?: EmployeeRow[]
+  absent_employees?: EmployeeRow[]
+}
+
+export interface MainStats {
+  total_employees_count?: number
+  present_employees_count?: number
+  absent_employees_count?: number
+  late_employees_count?: number
+  vacation_count?: number
+  business_trip_count?: number
+  sick_leave_count?: number
+}
+
+/**
+ * The KPI row of the roster: head-count (KPI summary), today's attendance
+ * categories and the average age (v1 `EmployeesAdminKpiRow`).
+ */
+export function useRosterHeadline(adminView: boolean) {
+  const branchId = useBranchStore((s) => s.selectedBranchId)
+  const range = defaultKpiRange()
+  const summary = useQuery({
+    queryKey: ['employee-kpi', 'summary', { branchId, range }],
+    queryFn: () => apiGet<KpiSummary>('dashboard/kpi-summary', range),
+    enabled: adminView,
+  })
+  const categories = useQuery({
+    queryKey: ['employees-by-category', branchId],
+    queryFn: () => apiGet<CategorizedEmployees>('dashboard/employees-by-category'),
+    enabled: adminView,
+  })
+  const main = useQuery({
+    queryKey: ['dashboard-main', branchId],
+    queryFn: () => apiGet<MainStats>('dashboard/main'),
+    enabled: !adminView,
+  })
+  const c = categories.data
+  const other =
+    (c?.on_leave_employees?.length ?? 0) +
+    (c?.on_vacation_employees?.length ?? 0) +
+    (c?.on_sick_leave_employees?.length ?? 0) +
+    (c?.on_business_trip_employees?.length ?? 0)
+  const m = main.data
+  return adminView
+    ? {
+        total: summary.data?.employee_total_count ?? 0,
+        present: c?.present_employees?.length ?? 0,
+        late: c?.late_employees?.length ?? 0,
+        other,
+        absent: c?.absent_employees?.length ?? 0,
+        totalLoading: summary.isLoading,
+        attendanceLoading: categories.isLoading,
+      }
+    : {
+        total: m?.total_employees_count ?? 0,
+        present: m?.present_employees_count ?? 0,
+        late: m?.late_employees_count ?? 0,
+        other: (m?.vacation_count ?? 0) + (m?.business_trip_count ?? 0) + (m?.sick_leave_count ?? 0),
+        absent: m?.absent_employees_count ?? 0,
+        totalLoading: main.isLoading,
+        attendanceLoading: main.isLoading,
+      }
 }
 
 export interface AgeStats {
@@ -153,81 +146,50 @@ export interface AgeStats {
 }
 export interface NationalityStat {
   nationality: string
+  nationality_ru?: string | null
   count: number
 }
 export interface MonthlyKpi {
   month: string
   kpi_percentage: number
 }
-export interface CardsSummary {
-  completed_tasks_count: number
-  overuded_tasks_counnt: number
-  late_tasks_count: number
-}
-export interface TaskExecutionStats {
-  late_tasks_count: number
-  absent_employee_count: number
-  late_employee_count: number
-  kpi_below_50_employee_count: number
-  absent_employee_strike_5_days_count: number
-}
-
-/** All the aggregate stats behind the charts + warnings, in one hook. */
 export interface HeadcountStats {
   total_count?: number
   gender_stats?: { male?: number; female?: number; unknown?: number } | null
 }
 /** One hire year and how many people joined in it. */
-export interface ExperienceYear { year: number; count: number }
+export interface ExperienceYear {
+  year: number
+  count: number
+}
 
-/**
- * The statistics strip's eight dashboard queries.
- *
- * ⚠️ `enabled` IS NOT OPTIONAL PEDANTRY. On `/employees` this strip renders
- * BELOW the table and most readers never scroll to it, yet all eight requests
- * fired on every visit. The caller gates them on the strip actually coming into
- * view (`useInViewOnce`).
- *
- * ⚠️ `range` IS PART OF EVERY AFFECTED queryKey. `defaultKpiRange()` is derived
- * from today's date, so a cache entry keyed on `branchId` alone keeps serving
- * last month's window after midnight — or after the month rolls over.
- */
+/** The demographic charts (age, nationality, KPI trend, head-count, hire years). */
 export function useEmployeeStats(enabled = true) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const branchParam = { organization_branch_id: branchId || undefined }
 
   const age = useQuery({
     queryKey: ['age-stats', branchId],
-    queryFn: () => apiGet<AgeStats>(DASHBOARD_AGE_STATS, branchParam),
+    queryFn: () => apiGet<AgeStats>('dashboard/age-stats'),
     enabled,
   })
   const nationality = useQuery({
     queryKey: ['nationality-stats', branchId],
-    queryFn: () => apiGet<NationalityStat[]>(DASHBOARD_NATIONALITY_STATS, branchParam),
+    queryFn: () => apiGet<NationalityStat[]>('dashboard/nationality-stats'),
     enabled,
   })
   const kpiTrend = useQuery({
     queryKey: ['kpi-monthly', branchId],
-    queryFn: () => apiGet<MonthlyKpi[]>(DASHBOARD_KPI_MONTHLY_AVERAGE, branchParam),
+    queryFn: () => apiGet<MonthlyKpi[]>('dashboard/kpi-monthly-average'),
     enabled,
   })
-  /**
-   * Headcount with its gender split, and the year-of-hire distribution.
-   *
-   * v1 drew both on this screen and v2 drew neither, which left the roster
-   * without the two readings personnel actually quote: how many people there
-   * are (and of whom), and how the seniority is spread — a wall of recent
-   * years means the branch has just been staffed up, a flat one means it has
-   * not hired in a decade.
-   */
   const headcount = useQuery({
     queryKey: ['employee-count', branchId],
-    queryFn: () => apiGet<HeadcountStats>('dashboard/employee-count', branchParam),
+    queryFn: () => apiGet<HeadcountStats>('dashboard/employee-count'),
     enabled,
   })
   const experience = useQuery({
     queryKey: ['experience-stats', branchId],
-    queryFn: () => apiGet<ExperienceYear[]>('dashboard/experience-stats', branchParam),
+    queryFn: () => apiGet<ExperienceYear[]>('dashboard/experience-stats'),
     enabled,
   })
 
@@ -242,9 +204,6 @@ export function useEmployeeStats(enabled = true) {
     nationalityLoading: nationality.isLoading,
     kpiTrend: kpiTrend.data ?? [],
     kpiTrendLoading: kpiTrend.isLoading,
-    /* The demographics panel drew "no staff data" whenever these failed. It is
-     * a dashboard block, so it stays quiet rather than shouting — but it must
-     * not assert an empty organisation either. */
     failed: age.isError || nationality.isError || headcount.isError,
   }
 }

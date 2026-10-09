@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, Download, Pencil, ShieldCheck, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, ListChecks, Pencil, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/cn'
 import { pathVerdict } from '@/components/layout/navConfig'
@@ -15,7 +15,7 @@ import { LoadError } from '@/components/data/LoadError'
 import { useToast } from '@/components/ui/Toast'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { RequireRole } from '@/components/layout/RequireRole'
-import * as roles from '@/auth/roles'
+import { readsOrg } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { useListParams } from '@/hooks/useListParams'
 import { FilterReset } from '@/components/data/FilterReset'
@@ -65,20 +65,19 @@ function HrQualityPageInner() {
   const [exporting, setExporting] = useState(false)
 
   const q = useQuery({
-    queryKey: ['employee-quality', { branchId, ...filters }],
+    queryKey: ['employee-quality', { branchId, dept: filters.dept, severity: filters.severity }],
     queryFn: () =>
       apiGet<Protocol>('employees/quality', {
         organization_branch_id: branchId || undefined,
         department_id: filters.dept || undefined,
         severity: filters.severity || undefined,
-        // The rule narrows on the server (the list is capped at 2 000 rows).
-        rule: filters.rule || undefined,
       }),
     placeholderData: (prev) => prev,
   })
 
   const data = q.data
-  const rows = data?.items ?? []
+  // The rule chip narrows the protocol on screen (the export keeps all rules).
+  const rows = useMemo(() => (data?.items ?? []).filter((r) => !filters.rule || r.rule === filters.rule), [data, filters.rule])
   const navigate = useNavigate()
   const me = useAuthStore((st) => st.user)
   const canOpenCard = pathVerdict('/employees/1', me) === 'ok'
@@ -122,15 +121,21 @@ function HrQualityPageInner() {
         title={t('hrQuality.title')}
         subtitle={t('hrQuality.subtitle')}
         actions={
-          <Button size="sm" variant="outline" leftIcon={<Download size={14} />} loading={exporting} onClick={exportProtocol}>
-            Excel
-          </Button>
+          <>
+            <Button size="sm" variant="ghost" leftIcon={<RefreshCw size={14} className={q.isFetching ? 'animate-spin' : ''} />} onClick={() => void q.refetch()}>
+              {t('personnel.quality.refresh')}
+            </Button>
+            <Button size="sm" variant="outline" leftIcon={<Download size={14} />} loading={exporting} onClick={exportProtocol}>
+              {t('personnel.quality.download')}
+            </Button>
+          </>
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat icon={ShieldCheck} tone="brand" label={t('hrQuality.checked')} value={data?.checked ?? 0} />
         <Stat icon={CheckCircle2} tone="success" label={t('hrQuality.clean')} value={data?.clean ?? 0} />
+        <Stat icon={ListChecks} tone="brand" label={t('personnel.quality.issues')} value={data?.issues ?? 0} />
         <Stat icon={XCircle} tone="danger" label={t('hrQuality.errors')} value={data?.errors ?? 0} />
         <Stat icon={AlertTriangle} tone="warning" label={t('hrQuality.warnings')} value={data?.warnings ?? 0} />
       </div>
@@ -294,7 +299,7 @@ export function HrQualityPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   return (
-    <RequireRole allowed={roles.isHR(user) || roles.isSiteMasterAdmin(user)} title={t('hrQuality.title')}>
+    <RequireRole allowed={readsOrg(user, 'employees')} title={t('hrQuality.title')}>
       <HrQualityPageInner />
     </RequireRole>
   )

@@ -33,8 +33,6 @@ export const EMPLOYEES_MY_TEAM = 'employees/my-team'
 // filialiga qamalib qolgan edi (2026-08-22).
 export const EMPLOYEE_PICKER_OPTIONS = 'employees/options'
 export const EMPLOYEE_BIRTHDAYS = 'employees/birthdays'
-/** Dry-run face check against a turnstile — saves nothing. */
-export const EMPLOYEE_VALIDATE_PHOTO = 'employees/me/validate-photo'
 
 // Reference data
 export const DEPARTMENTS_LIST = 'departments'
@@ -198,29 +196,6 @@ export const SERVICE_REQUEST_DOCUMENT = (pk: number | string) => `service-reques
 // ── TZ 4.2.7 — Kadrlar hisobi: to'liq CRUD va yordamchi amallar ───────────
 export const EMPLOYEE_DETAIL = (pk: number | string) => `employees/${pk}`
 export const EMPLOYEE_SET_PASSWORD = (pk: number | string) => `employees/${pk}/set-password`
-export const EMPLOYEE_SYNC_TURNSTILE = (pk: number | string) => `employees/${pk}/sync-turnstile`
-/**
- * Ish o'rinlari (o'rindoshlik) — bitta shaxs, bir nechta lavozim.
- *
- * `EMPLOYEE_LOOKUP` — JSHSHIR bo'yicha «bu odam tizimda bormi». Xodim
- * qo'shishda takror JSHSHIR endi boshi berk ko'cha emas: forma odamni tanib,
- * uni o'rindosh sifatida biriktirishni taklif qiladi.
- */
-export const EMPLOYEE_LOOKUP = 'employees/lookup'
-export const EMPLOYEE_ASSIGNMENTS = (pk: number | string) => `employees/${pk}/assignments`
-export const EMPLOYEE_ASSIGNMENT = (pk: number | string) => `employees/assignments/${pk}`
-export const EMPLOYEE_ASSIGNMENT_CLOSE = (pk: number | string) =>
-  `employees/assignments/${pk}/close`
-/**
- * Filialdan filialga O'TKAZISH — o'rindoshlikdan farqli: xodimning ASOSIY ish
- * joyi almashadi. Darhol kuchga kiradi, eski filial arxividan qabul qiladi
- * yoki rad etadi (rad etilsa hammasi qaytariladi).
- */
-export const EMPLOYEE_TRANSFER = (pk: number | string) => `employees/${pk}/transfer`
-export const EMPLOYEE_TRANSFER_ACCEPT = (pk: number | string) =>
-  `employees/transfers/${pk}/accept`
-export const EMPLOYEE_TRANSFER_REJECT = (pk: number | string) =>
-  `employees/transfers/${pk}/reject`
 export const EMPLOYEES_EXPORT_EXCEL = 'employees/export-excel'
 export const EMPLOYEE_SELF_UPDATE = 'employees/me/self-update'
 /**
@@ -232,8 +207,6 @@ export const EMPLOYEE_SELF_UPDATE = 'employees/me/self-update'
  * the current password just the same.
  */
 export const AUTH_ME_PASSWORD = 'auth/me/password'
-export const ORGANIZATION_BRANCH_SYNC_EMPLOYEES = (pk: number | string) =>
-  `organization-branches/${pk}/sync-employees-to-hik`
 
 // ── Sessiyalar (shaxsiy kabinet, TZ 4.2.4) ────────────────────────────────
 export const SESSIONS = 'sessions'

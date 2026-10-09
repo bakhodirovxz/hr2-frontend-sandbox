@@ -1,1238 +1,1096 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Avatar } from '@/components/ui/Avatar'
-import { FormError } from '@/components/ui/FormError'
-import {
-  WeeklyScheduleEditor,
-  cycleWeekOf,
-  mondayOf,
-  type WeeklySchedule,
-} from '@/features/employees/WeeklyScheduleEditor'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
-import { Briefcase, IdCard, KeyRound, Mail, Phone, Settings2, UserPlus, User as UserIcon, X } from 'lucide-react'
-import {
-  Button,
-  Checkbox,
-  Combobox,
-  DateInput,
-  Field,
-  Input,
-  Modal,
-  Select,
-  TimeInput,
-  useToast,
-} from '@/components/ui'
-import { errorMessage } from '@/api/errorMessage'
-import { useCredentialEmail, useCredentialEmailStatus } from './useEmployees'
-import { apiPost } from '@/api/http'
-import { EMPLOYEES_LIST, EMPLOYEE_SET_PASSWORD } from '@/api/endpoints'
-import { cn } from '@/lib/cn'
-import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
-import { useEmployeeOptions } from '@/features/employees/useEmployeeOptions'
-import { useDictionaryOptions } from '@/features/dictionaries/useDictionaries'
-import { PhotoPicker } from './PhotoPicker'
+import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, Briefcase, GraduationCap, KeyRound, Paperclip, Plus, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { Combobox } from '@/components/ui/Combobox'
+import { DateInput } from '@/components/ui/DateInput'
+import { Field } from '@/components/ui/Field'
+import { FormError } from '@/components/ui/FormError'
+import { IconButton } from '@/components/ui/IconButton'
+import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { Spinner } from '@/components/ui/Spinner'
+import { Textarea } from '@/components/ui/Textarea'
+import { TimeInput } from '@/components/ui/TimeInput'
+import { useToast } from '@/components/ui/Toast'
 import { useConfirm } from '@/components/data/useConfirm'
-import { apiDelete } from '@/api/http'
-import { EMPLOYEE_DETAIL } from '@/api/endpoints'
-import { useBranchStore } from '@/store/branchStore'
-import type { Employee, User } from '@/types'
-import * as roles from '@/auth/roles'
-import { useBranches } from '@/hooks/useBranches'
-import { maskValue } from '@/lib/fieldMask'
+import { cn } from '@/lib/cn'
+import { maskValue, type MaskKind } from '@/lib/fieldMask'
+import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
 import { useAuthStore } from '@/store/authStore'
-import { canManageEmployees } from '@/auth/canManage'
-import { useEmployeeMutations } from './useEmployees'
-import { queryClient } from '@/api/queryClient'
-import { ConcurrentPostModal } from './ConcurrentPostModal'
-import { lookupByPinfl, type EmployeeLookupResult } from './useEmployeeAssignments'
-import { tabPill } from '@/components/ui/control'
+import { useBranchStore } from '@/store/branchStore'
+import { useBranches } from '@/hooks/useBranches'
+import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
+import { canManageEmployees, canSwitchBranchScope, isBranchAdmin, isSiteMasterAdmin, ownBranchIds } from '@/auth/permissions'
+import type { User } from '@/types'
+import { EmployeeBasisFields } from './EmployeeBasisFields'
+import { EmployeePasswordModal } from './EmployeePasswordModal'
+import { PhotoPicker } from './PhotoPicker'
+import { RecordModal, recordBody, type EducationDraft, type ExperienceDraft } from './RecordModal'
+import { SCAN_ACCEPT, scanProblem } from './t2/DocumentsSlot'
+import { useCodeOptions } from './t2/useT2'
+import { MARITAL, fmtDate, hhmm } from './format'
+import { WeeklyScheduleEditor, type WeeklySchedule } from './WeeklyScheduleEditor'
+import { useEmployeeOptions } from './useEmployeeOptions'
+import {
+  addEmployeeRecord,
+  fetchEmployee,
+  invalidateEmployees,
+  sendCredentialEmail,
+  uploadEmployeeDocument,
+  useEmployeeMutations,
+} from './useEmployees'
+import { CONTRACT_TYPES, EMPTY_BASIS, cleanBasis, isBasisComplete, type EditBasis, type EmployeeFull } from './types'
 
-type Section = 'identity' | 'documents' | 'contact' | 'work' | 'flags'
+type Step = 1 | 2 | 3
+type Form = Record<string, string>
 
-const SECTIONS: { key: Section; icon: typeof UserIcon }[] = [
-  { key: 'identity', icon: UserIcon },
-  { key: 'documents', icon: IdCard },
-  { key: 'contact', icon: Phone },
-  { key: 'work', icon: Briefcase },
-  { key: 'flags', icon: Settings2 },
-]
+const TEXT_FIELDS = [
+  'legal_name',
+  'tabel_number',
+  'birth_date',
+  'pasport_series',
+  'pasport_number',
+  'pasport_issue_by',
+  'taxpayer_identification_number',
+  'individual_accumulative_pension_account_number',
+  'personal_identification_number',
+  'maritial_status',
+  'address',
+  'residence_country_code',
+  'residence_address',
+  'contract_type',
+  'email',
+  'phone_number',
+  'internal_phone_number',
+  'job_acceptance_date',
+  'job_position_id',
+  'department_id',
+  'supervisor_id',
+  'gender',
+  'nationality',
+  'working_hours_start',
+  'working_hours_end',
+  'lunch_start_time',
+  'lunch_end_time',
+  'organization_branch_id',
+  'multi_org_employee_role',
+  'primary_organization_branch_id',
+] as const
 
-const BLANK: Record<string, string> = {
-  legal_name: '',
-  birth_date: '',
-  gender: '',
-  nationality: '',
-  maritial_status: '',
-  multi_org_employee_role: '',
-  primary_organization_branch_id: '',
-  tabel_number: '',
-  change_reason: '',
-  pasport_series: '',
-  pasport_number: '',
-  pasport_individual_number: '',
-  pasport_issue_by: '',
-  personal_identification_number: '',
-  taxpayer_identification_number: '',
-  individual_accumulative_pension_account_number: '',
-  address: '',
-  email: '',
-  phone_number: '',
-  internal_phone_number: '',
-  department_id: '',
-  job_position_id: '',
-  supervisor_id: '',
-  job_acceptance_date: '',
-  working_hours_start: '',
-  working_hours_end: '',
-  lunch_start_time: '',
-  lunch_end_time: '',
-  stavka: '',
+const MASKS: Record<string, MaskKind> = {
+  pasport_series: 'passportSeries',
+  pasport_number: 'passportNumber',
+  personal_identification_number: 'pinfl',
+  taxpayer_identification_number: 'inn',
+  individual_accumulative_pension_account_number: 'inps',
+  phone_number: 'phone',
+  internal_phone_number: 'internalPhone',
 }
 
-/** Multi-org roles, matching the v1 drawer and `roles.MULTI_ORG_ROLE_KEYS`. */
-const MULTI_ORG_ROLES = [
-  'ministr',
-  'deputy',
-  'hr',
-  'chancellery',
-  'accounting',
-  'dashboard',
-  'monitoring',
-  'kpp',
-  'nazoratchi',
-] as const
-
-const BOOL_KEYS = [
-  'ignore_lateness',
-  'is_remote_worker',
-  'is_gpx_worker',
-  'hidden_from_regular',
-  'simple_trip_enabled',
-] as const
-
-/**
- * ⚠️ HAR BIR BAYROQNI HAR KIM QO'YOLMAYDI — backend buni MAJBURIY tekshiradi
- * (`EmployeeService._guard_privileged_fields` va `_ADMIN_ONLY_EMPLOYEE_FIELDS`).
- *
- * NEGA MUHIM: yaratishda forma bu bayroqlarni SHARTSIZ yuborardi, ya'ni KADR
- * xodim qo'sha olmasdi — server butun so'rovni 403 bilan rad etardi
- * ("Only the master account can change 'hidden_from_regular'"), foydalanuvchi
- * esa faqat "ruxsat yo'q" degan tushunarsiz xabar ko'rardi. Endi ruxsati
- * yo'q bayroq NA ko'rsatiladi, NA yuboriladi.
- */
-/** Mirror of the server's `_LINE_MANAGER_ALLOWED_FIELDS`. */
+/** Fields a line manager (unit-scope department head) may change (backend allow-list). */
 const LINE_MANAGER_FIELDS = new Set([
-  'working_hours_start', 'working_hours_end', 'lunch_start_time', 'lunch_end_time',
-  'working_days', 'weekly_schedule', 'stavka', 'phone_number', 'internal_phone_number', 'job_position_id',
+  'working_hours_start',
+  'working_hours_end',
+  'lunch_start_time',
+  'lunch_end_time',
+  'working_days',
+  'weekly_schedule',
+  'stavka',
+  'phone_number',
+  'internal_phone_number',
+  'job_position_id',
 ])
 
-export function allowedFlags(user: User | null | undefined): readonly (typeof BOOL_KEYS)[number][] {
-  const master = roles.isSiteMasterAdmin(user)
-  // `ignore_lateness` — `_ADMIN_ONLY_EMPLOYEE_FIELDS` ro'yxatida: admin
-  // hisobi yoki ministr; kadr KIRMAYDI.
-  // `UserType` da 'admin' YO'Q, lekin backendda bunday hisoblar bor
-  // (`users.type = 'admin'`) — shuning uchun satr sifatida solishtiramiz.
-  const adminLevel =
-    String(user?.type) === 'admin' || roles.isSiteMasterAdmin(user) || roles.isMinister(user)
-  return BOOL_KEYS.filter((k) => {
-    if (k === 'hidden_from_regular') return master
-    // The short trip form skips the chancellery and the report entirely, so who
-    // may use it is a master-admin decision and nobody else's.
-    if (k === 'simple_trip_enabled') return master
-    if (k === 'ignore_lateness') return adminLevel
-    return true
-  })
+const ID_FIELDS = new Set(['department_id', 'job_position_id', 'supervisor_id', 'primary_organization_branch_id'])
+const TIME_FIELDS = new Set(['working_hours_start', 'working_hours_end', 'lunch_start_time', 'lunch_end_time'])
+const DUP_FIELD: Record<string, string> = {
+  duplicate_inn: 'taxpayer_identification_number',
+  duplicate_pinfl: 'personal_identification_number',
+  personal_identification_number_exists: 'personal_identification_number',
+}
+const SCAN_KINDS = ['passport', 'diploma', 'labor_book'] as const
+const MULTI_ORG_ROLES = ['ministr', 'deputy', 'hr'] as const
+const STAVKAS = ['1', '0.75', '0.5', '0.25'] as const
+
+/** Admin-level account (backend `_is_admin_level`): admin / master-admin / ministr. */
+function isAdminLevel(user: User | null | undefined): boolean {
+  if (isSiteMasterAdmin(user) || isBranchAdmin(user)) return true
+  const emp = user?.employee
+  const role = emp?.multi_org_employee_role
+  return !!emp?.is_multi_org_user && (Array.isArray(role) ? role.includes('ministr') : role === 'ministr')
 }
 
-/** Weekday indices the API uses: 0 = Monday … 6 = Sunday. */
-const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]
+const BLANK: Form = Object.fromEntries(TEXT_FIELDS.map((k) => [k, ''])) as Form
+
+function fromEmployee(e: EmployeeFull): Form {
+  const s = (v: unknown) => (v === null || v === undefined ? '' : String(v))
+  return {
+    ...BLANK,
+    legal_name: s(e.legal_name),
+    tabel_number: s(e.tabel_number),
+    birth_date: s(e.birth_date),
+    pasport_series: s(e.pasport_series),
+    pasport_number: s(e.pasport_number),
+    pasport_issue_by: s(e.pasport_issue_by),
+    taxpayer_identification_number: s(e.taxpayer_identification_number),
+    individual_accumulative_pension_account_number: s(e.individual_accumulative_pension_account_number),
+    personal_identification_number: s(e.personal_identification_number),
+    maritial_status: s(e.maritial_status),
+    address: s(e.address),
+    residence_country_code: s(e.residence_country_code),
+    residence_address: s(e.residence_address),
+    contract_type: s(e.contract_type),
+    email: s(e.email),
+    phone_number: s(e.phone_number),
+    internal_phone_number: s(e.internal_phone_number),
+    job_acceptance_date: s(e.job_acceptance_date),
+    job_position_id: s(e.job_position_id),
+    department_id: s(e.department_id),
+    supervisor_id: s(e.supervisor_id),
+    gender: s(e.gender),
+    nationality: s(e.nationality),
+    working_hours_start: hhmm(e.working_hours_start),
+    working_hours_end: hhmm(e.working_hours_end),
+    lunch_start_time: hhmm(e.lunch_start_time),
+    lunch_end_time: hhmm(e.lunch_end_time),
+    organization_branch_id: s(
+      e.department?.organization_branch_id ?? e.job_position?.organization_branch_id ?? e.organization_branches?.[0]?.id,
+    ),
+    multi_org_employee_role: s(e.multi_org_employee_role),
+    primary_organization_branch_id: s(e.primary_organization_branch_id),
+  }
+}
+
+interface Extra {
+  stavka: number
+  working_days: number[]
+  weekly_schedule: WeeklySchedule
+  is_multi_org_user: boolean
+  organization_branch_ids: number[]
+}
+
+const sameArr = (a: number[], b: number[]) => a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i])
 
 /**
- * XODIM KARTOCHKASI — create and full edit (TZ 4.2.7, «Ввод и хранение данных»).
- *
- * v2 shipped with a ten-field identity modal and NO way to add a person at all,
- * so every new hire had to be entered in the old product. This is the whole
- * card: who they are, their documents, how to reach them, where they sit on the
- * establishment, and the handful of switches that change how attendance treats
- * them.
- *
- * Two rules the old form learned the hard way and this one keeps:
- *   · only CHANGED fields are sent on edit, so an untouched value is never
- *     rewritten (and a masked PII field is never written back as its mask);
- *   · the classified lists (millat, oilaviy holat) come from Ma'lumotnomalar,
- *     not from a hardcoded array.
+ * «Xodim qo'shish / tahrirlash» (TZ C1, C3) — three steps like v1:
+ * 1) personal data (photo, F.I.Sh., tabel raqami, pasport, JSHSHIR/STIR,
+ *    addresses, contacts); 2) work experience and education records;
+ * 3) job data (hire date, contract type, organisation, department, position,
+ *    supervisor, rate and schedule) + document scans (create) or the basis
+ *    document of the change (edit).
+ * A new employee's card opens after saving; 409 duplicate PINFL / INN shows
+ * a link to the existing record; an e-mail (= login) change re-sends the
+ * credentials letter and waits for its real outcome.
  */
 export function EmployeeFormDrawer({
   open,
+  editId,
   onClose,
-  employee,
   onSaved,
 }: {
   open: boolean
+  editId: number | null
   onClose: () => void
-  /** null = create. */
-  employee: Employee | null
-  onSaved: () => void
+  onSaved?: (res: { id: number; created: boolean }) => void
 }) {
   const { t } = useTranslation()
   const toast = useToast()
   const confirm = useConfirm()
-  const branchId = useBranchStore((s) => s.selectedBranchId)
-  const isEdit = !!employee?.id
-  // Goes through the shared mutation so the roster row is patched in place —
-  // a direct apiPatch here would save correctly and leave a stale row on screen.
-  const { update, invalidate } = useEmployeeMutations()
-
-  const departments = useDepartmentOptions()
-  const positions = useJobPositionOptions()
-  const { options: supervisors, loading: supLoading } = useEmployeeOptions(branchId, open)
-  const { options: nationalities } = useDictionaryOptions(open ? 'nationalities' : null)
-
-  const [section, setSection] = useState<Section>('identity')
-  const [form, setForm] = useState<Record<string, string>>(BLANK)
-  const [flags, setFlags] = useState<Record<string, boolean>>({})
-  const currentUser = useAuthStore((st) => st.user)
-  const visibleFlags = useMemo(() => allowedFlags(currentUser), [currentUser])
-  /* A LINE MANAGER (department head / supervisor, not HR) reaches this drawer
-     through the row's `can_edit`; the server then accepts work details only
-     (`_LINE_MANAGER_ALLOWED_FIELDS`: hours, lunch, days, schedule, stavka,
-     phones, position) and answers 403 to anything else. Lock the rest here
-     so the 403 is never reachable from the form. */
-  const restricted = isEdit && !canManageEmployees(currentUser)
-  const lock = (k: string) => restricted && !LINE_MANAGER_FIELDS.has(k)
-  useEffect(() => {
-    if (open && restricted) setSection('work')
-  }, [open, restricted])
-  // Admin darajasi — backenddagi `_ADMIN_ONLY_EMPLOYEE_FIELDS` ko'zgusi.
-  const canSetMultiOrg =
-    String(currentUser?.type) === 'admin' ||
-    roles.isSiteMasterAdmin(currentUser) ||
-    roles.isMinister(currentUser)
-  const [multiOrg, setMultiOrg] = useState(false)
-  const [branchIds, setBranchIds] = useState<number[]>([])
+  const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const selectedBranchId = useBranchStore((s) => s.selectedBranchId)
   const { branches } = useBranches()
-  const branchOptions = useMemo(
-    () => branches.map((b) => ({ value: String(b.id), label: b.name ?? `#${b.id}` })),
-    [branches],
-  )
-  const [kpiAdmin, setKpiAdmin] = useState(false)
-  const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4])
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [photo, setPhoto] = useState<string | null>(null)
-  const [photoCleared, setPhotoCleared] = useState(false)
-  /**
-   * TAKROR JSHSHIR — XATO EMAS, TANISH.
-   *
-   * Xodim asosiy filialiga qo'shilgan, ikkinchi filial uni ichki o'rindosh
-   * sifatida qabul qilmoqchi — kadr shu formada "JSHSHIR allaqachon mavjud"
-   * xatosiga urilardi va oqim tugardi. JSHSHIR tizimda shaxs kaliti (turniket
-   * hodisasi, HikCentral personCode, OneID login) bo'lgani uchun ikkinchi
-   * kartochka OCHILMAYDI — buning o'rniga forma odamni tanib, unga IKKINCHI
-   * ISH O'RNI ochishni taklif qiladi.
-   */
-  const [lookup, setLookup] = useState<EmployeeLookupResult | null>(null)
-  const [lookupBusy, setLookupBusy] = useState(false)
-  const [attachOpen, setAttachOpen] = useState(false)
+  const { create, update, deletePhoto } = useEmployeeMutations()
 
+  const adminLevel = isAdminLevel(user)
+  const hr = canManageEmployees(user)
+  const isEdit = editId != null
+  const lineManagerMode = isEdit && !hr
+  const unitDepartments = user?.actor?.unit_department_ids ?? []
+
+  const [step, setStep] = useState<Step>(1)
+  const [loading, setLoading] = useState(false)
+  const [original, setOriginal] = useState<{ form: Form; extra: Extra; employee: EmployeeFull } | null>(null)
+  const [form, setForm] = useState<Form>(BLANK)
+  const [extra, setExtra] = useState<Extra>({ stavka: 1, working_days: [0, 1, 2, 3, 4], weekly_schedule: {}, is_multi_org_user: false, organization_branch_ids: [] })
+  const [photo, setPhoto] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState('')
+  const [experiences, setExperiences] = useState<ExperienceDraft[]>([])
+  const [educations, setEducations] = useState<EducationDraft[]>([])
+  const [recordModal, setRecordModal] = useState<'education' | 'experience' | null>(null)
+  const [scans, setScans] = useState<Record<string, File | null>>({})
+  const [basis, setBasis] = useState<EditBasis>(EMPTY_BASIS)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [dup, setDup] = useState<{ message: string; employeeId: number | null } | null>(null)
+  const [cred, setCred] = useState<{ state: 'sending' | 'failed' | 'timeout'; email: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [pwdOpen, setPwdOpen] = useState(false)
+
+  // ── load ──
   useEffect(() => {
     if (!open) return
-    setError(null)
-    setSection('identity')
+    setStep(1)
     setPhoto(null)
-    setPhotoCleared(false)
-    setLookup(null)
-    setAttachOpen(false)
-    if (!employee) {
-      setForm(BLANK)
-      setFlags({})
-      setBranchIds([])
-      setDays([0, 1, 2, 3, 4])
-      setWeekly({})
+    setPhotoError('')
+    setExperiences([])
+    setEducations([])
+    setScans({})
+    setBasis(EMPTY_BASIS)
+    setErrors({})
+    setDup(null)
+    setCred(null)
+    if (!isEdit) {
+      const own = ownBranchIds(user)
+      const def = selectedBranchId ?? (own && own.length ? own[0] : null)
+      setOriginal(null)
+      setForm({
+        ...BLANK,
+        organization_branch_id: def ? String(def) : '',
+        working_hours_start: '09:00',
+        working_hours_end: '18:00',
+        lunch_start_time: '13:00',
+        lunch_end_time: '14:00',
+      })
+      setExtra({ stavka: 1, working_days: [0, 1, 2, 3, 4], weekly_schedule: {}, is_multi_org_user: false, organization_branch_ids: [] })
       return
     }
-    const e = employee as unknown as Record<string, unknown>
-    const next: Record<string, string> = {}
-    for (const k of Object.keys(BLANK)) {
-      const v = e[k]
-      next[k] = v == null ? '' : String(v)
+    let alive = true
+    setLoading(true)
+    fetchEmployee(editId!)
+      .then((e) => {
+        if (!alive) return
+        const f = fromEmployee(e)
+        const x: Extra = {
+          stavka: e.stavka != null ? Number(e.stavka) : 1,
+          working_days: e.working_days ?? [0, 1, 2, 3, 4],
+          weekly_schedule: (e.weekly_schedule ?? {}) as WeeklySchedule,
+          is_multi_org_user: !!e.is_multi_org_user,
+          organization_branch_ids: (e.organization_branches ?? []).map((b) => b.id),
+        }
+        setForm(f)
+        setExtra(x)
+        setOriginal({ form: f, extra: x, employee: e })
+      })
+      .catch((err) => {
+        toast.error(errorMessage(err, t('personnel.form.loadFailed')))
+        onClose()
+      })
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
     }
-    // Times arrive as HH:MM:SS; the control speaks HH:MM.
-    for (const k of ['working_hours_start', 'working_hours_end', 'lunch_start_time', 'lunch_end_time']) {
-      if (next[k]) next[k] = next[k].slice(0, 5)
-    }
-    setForm(next)
-    setFlags(Object.fromEntries(BOOL_KEYS.map((k) => [k, !!e[k]])))
-    setMultiOrg(!!e.is_multi_org_user)
-    setBranchIds(
-      Array.isArray(e.organization_branches)
-        ? (e.organization_branches as { id: number }[]).map((b) => b.id)
-        : [],
-    )
-    setKpiAdmin(!!e.is_kpi_admin)
-    setDays(Array.isArray(e.working_days) ? (e.working_days as number[]) : [0, 1, 2, 3, 4])
-    setWeekly(
-      e.weekly_schedule && typeof e.weekly_schedule === 'object'
-        ? (e.weekly_schedule as WeeklySchedule)
-        : {},
-    )
-    const alt =
-      e.weekly_schedule_alt && typeof e.weekly_schedule_alt === 'object'
-        ? (e.weekly_schedule_alt as WeeklySchedule)
-        : {}
-    const anchor = typeof e.schedule_cycle_anchor === 'string' ? e.schedule_cycle_anchor : ''
-    setWeeklyAlt(alt)
-    setCycleAnchor(anchor || mondayOf(new Date()))
-    setCycle(Object.keys(alt).length > 0 && !!anchor)
-  }, [open, employee])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editId])
 
-  const [weekly, setWeekly] = useState<WeeklySchedule>({})
-  /* TWO-WEEK CYCLE (2026-09-30): some half-rate staff work 3 days one week
-     and 2 the next. `weekly` is week 1, `weeklyAlt` week 2, and the anchor is
-     a date inside a week 1 (the server snaps it to that Monday). */
-  const [cycle, setCycle] = useState(false)
-  const [weeklyAlt, setWeeklyAlt] = useState<WeeklySchedule>({})
-  const [cycleAnchor, setCycleAnchor] = useState<string>(() => mondayOf(new Date()))
-  // A rate below 1.0 is what makes the per-weekday map meaningful — the server
-  // stores it only then and clears it at full rate.
-  const isPartTime =
-    form.stavka.trim() !== '' && Number(form.stavka) > 0 && Number(form.stavka) < 1
+  // ── reference data ──
+  const branchOptions = useMemo(() => {
+    const own = ownBranchIds(user)
+    return branches
+      .filter((b) => canSwitchBranchScope(user) || own === null || own.includes(Number(b.id)))
+      .map((b) => ({ value: String(b.id), label: b.name ?? `#${b.id}` }))
+  }, [branches, user])
+  const activeBranch = Number(form.organization_branch_id) || (extra.is_multi_org_user ? extra.organization_branch_ids[0] : null) || selectedBranchId || null
+  const allDepartments = useDepartmentOptions(activeBranch)
+  const departmentOptions = useMemo(
+    () => (hr || !unitDepartments.length ? allDepartments : allDepartments.filter((d) => unitDepartments.includes(Number(d.value)))),
+    [allDepartments, hr, unitDepartments],
+  )
+  const positionOptions = useJobPositionOptions(activeBranch)
+  const { options: supervisorRaw } = useEmployeeOptions(activeBranch, open && step === 3)
+  const supervisorOptions = useMemo(() => supervisorRaw.filter((o) => Number(o.value) !== editId), [supervisorRaw, editId])
+  const countries = useCodeOptions('countries', open)
+  const nationalities = useCodeOptions('nationalities', open)
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
-
-  /**
-   * Passport as ONE field, stored as TWO columns.
-   *
-   * The document reads "AA1234567"; splitting it across two inputs made the
-   * card slower to fill and left half-filled records behind. Two leading
-   * letters are the series, the rest is the number — everything else in the
-   * system keeps reading the two columns it always did.
-   */
-  const passportText = `${form.pasport_series ?? ''}${form.pasport_number ?? ''}`
-  const setPassport = (raw: string) => {
-    const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    // ⚠️ `(\d*)` was unbounded — the number accepted any length. A passport
-    // number is exactly seven digits, so it is capped here rather than left to
-    // a `maxLength` on a field that also holds the two series letters.
-    const m = /^([A-Z]{0,2})(\d{0,7})/.exec(clean)
-    setForm((f) => ({
-      ...f,
-      pasport_series: m ? m[1] : clean.slice(0, 2),
-      pasport_number: m ? m[2] : clean.slice(2, 9),
-    }))
+  const locked = (k: string) => lineManagerMode && !LINE_MANAGER_FIELDS.has(k)
+  const set = (k: string, raw: string) => {
+    const v = MASKS[k] ? maskValue(MASKS[k], raw) : raw
+    setForm((f) => {
+      const next = { ...f, [k]: v }
+      if (k === 'organization_branch_id') {
+        next.department_id = ''
+        next.job_position_id = ''
+        next.supervisor_id = ''
+      }
+      return next
+    })
+    if (errors[k]) setErrors((e) => ({ ...e, [k]: '' }))
   }
 
-  const nationalityOptions = useMemo(
-    () => nationalities.map((n) => ({ value: n.name, label: n.name })),
-    [nationalities],
-  )
-  // Family status has no dictionary on this API; v1 carries the same four.
-  const maritalOptions = useMemo(
-    () =>
-      (['married', 'single', 'divorced', 'unmarried'] as const).map((k) => ({
-        value: t(`employees.marital_${k}` as never),
-        label: t(`employees.marital_${k}` as never),
-      })),
-    [t],
-  )
+  // ── validation ──
+  const validateStep1 = (): boolean => {
+    const e: Record<string, string> = {}
+    if (!form.legal_name.trim()) e.legal_name = t('personnel.form.errName')
+    if (!form.personal_identification_number) e.personal_identification_number = t('personnel.form.errPinflRequired')
+    else if (form.personal_identification_number.length !== 14) e.personal_identification_number = t('personnel.form.errPinfl')
+    if (!form.email.trim()) e.email = t('personnel.form.errEmailRequired')
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = t('personnel.form.errEmail')
+    if (form.pasport_series && form.pasport_series.length !== 2) e.pasport_series = t('personnel.form.errSeries')
+    if (form.pasport_number && form.pasport_number.length !== 7) e.pasport_number = t('personnel.form.errPassportNo')
+    if (form.taxpayer_identification_number && form.taxpayer_identification_number.length !== 9) e.taxpayer_identification_number = t('personnel.form.errInn')
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
-  /**
-   * JSHSHIR bo'yicha «bu odam tizimda bormi». Tahrirda chaqirilmaydi (o'z
-   * JSHSHIRi doim topiladi) va faqat to'liq 14 raqamda ishlaydi — har bosilgan
-   * raqamda so'rov yuborish serverni bekorga charchatardi.
-   */
-  const runLookup = async (raw: string) => {
-    const pinfl = raw.replace(/\D/g, '')
-    if (isEdit || pinfl.length !== 14) {
-      setLookup(null)
+  const validateStep3 = (): boolean => {
+    const e: Record<string, string> = {}
+    if (!isEdit) {
+      if (!form.job_acceptance_date) e.job_acceptance_date = t('personnel.form.errHireDate')
+      if (adminLevel && extra.is_multi_org_user) {
+        if (!form.multi_org_employee_role) e.multi_org_employee_role = t('personnel.form.errRole')
+        if (!extra.organization_branch_ids.length) e.organization_branch_ids = t('personnel.form.errBranches')
+      } else if (!extra.is_multi_org_user) {
+        if (!form.department_id) e.department_id = t('personnel.form.errDepartment')
+        if (!form.job_position_id) e.job_position_id = t('personnel.form.errPosition')
+      }
+    }
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSaveError = (err: unknown) => {
+    const code = errorCode(err)
+    const msg = errorMessage(err, t('common.actionFailed'))
+    const field = code ? DUP_FIELD[code] : undefined
+    if (field) {
+      const existing = Number(errorParams(err).employee_id) || null
+      setErrors((e) => ({ ...e, [field]: msg }))
+      setDup({ message: msg, employeeId: existing && existing !== editId ? existing : null })
+      setStep(1)
       return
     }
-    setLookupBusy(true)
-    try {
-      const res = await lookupByPinfl(pinfl)
-      setLookup(res.found ? res : null)
-    } catch {
-      // Qidiruv qo'shimcha qulaylik — u yiqilsa forma odatdagidek ishlayveradi
-      // (server takror JSHSHIRni baribir rad etadi).
-      setLookup(null)
-    } finally {
-      setLookupBusy(false)
+    if (code === 'basis_required' || code === 'basis_date_before_hire') {
+      setErrors((e) => ({ ...e, basis: msg }))
+      setStep(3)
+      return
     }
+    toast.error(msg)
   }
 
-  const submit = async () => {
-    setError(null)
-    if (!form.legal_name.trim()) {
-      setSection('identity')
-      return setError(t('employees.nameRequired'))
-    }
-    if (!isEdit && !form.personal_identification_number.trim()) {
-      setSection('documents')
-      return setError(t('employees.pinflRequired'))
-    }
-    if (!isEdit && !form.email.trim()) {
-      setSection('contact')
-      return setError(t('employees.emailRequired'))
-    }
-    if (!isEdit && (!form.department_id || !form.job_position_id)) {
-      setSection('work')
-      return setError(t('employees.departmentRequired'))
-    }
-    // v1 required this on create and v2 dropped it; the API asks for it again.
-    if (!isEdit && !form.job_acceptance_date) {
-      setSection('work')
-      return setError(t('employees.hireDateRequired'))
-    }
-    if (multiOrg && !form.multi_org_employee_role) {
-      setSection('work')
-      return setError(t('employees.multiOrgRoleRequired'))
-    }
+  // ── payloads ──
+  const scheduleFields = () => ({
+    stavka: extra.stavka || 1,
+    working_days: extra.working_days,
+    weekly_schedule: extra.stavka < 1 ? extra.weekly_schedule : null,
+  })
+  const time = (v: string) => (v ? `${v}:00` : undefined)
 
-    /*
-     * FORMAT RULES — the same ones the API now enforces.
-     *
-     * ⚠️ v1 CHECKED THESE AND v2 DID NOT. The masks below cap the length while
-     * typing but never complain about a value left half-finished, so a 13-digit
-     * PINFL or a six-digit passport number saved silently — a live sample of
-     * 200 employees found exactly that. The server rejects them now; repeating
-     * the rule here is only so the person sees WHICH field is wrong before the
-     * round trip, not as the security boundary.
-     *
-     * Only a filled value is judged, matching the server: these columns are
-     * optional and most of the directory leaves them empty.
-     */
-    const pinfl = form.personal_identification_number.trim()
-    if (pinfl && !/^\d{14}$/.test(pinfl)) {
-      setSection('documents')
-      return setError(t('employees.pinflLength'))
-    }
-    const mail = form.email.trim()
-    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-      setSection('contact')
-      return setError(t('employees.emailInvalid'))
-    }
-    if (form.pasport_series.trim() && !/^[A-Za-z]{2}$/.test(form.pasport_series.trim())) {
-      setSection('documents')
-      return setError(t('employees.passportSeriesLength'))
-    }
-    if (form.pasport_number.trim() && !/^\d{7}$/.test(form.pasport_number.trim())) {
-      setSection('documents')
-      return setError(t('employees.passportNumberLength'))
-    }
-    const inn = (form.taxpayer_identification_number ?? '').trim()
-    if (inn && !/^\d{9}$/.test(inn)) {
-      setSection('documents')
-      return setError(t('employees.innLength'))
-    }
-
-    const text = (v: string) => (v.trim() ? v.trim() : null)
-    const num = (v: string) => (v.trim() === '' ? null : Number(v))
-    const time = (v: string) => (v.trim() ? `${v}:00`.slice(0, 8) : null)
-
-    const body: Record<string, unknown> = {
-      legal_name: text(form.legal_name),
-      birth_date: text(form.birth_date),
-      gender: num(form.gender),
-      nationality: text(form.nationality),
-      maritial_status: text(form.maritial_status),
-      pasport_series: text(form.pasport_series),
-      pasport_number: text(form.pasport_number),
-      pasport_issue_by: text(form.pasport_issue_by),
-      pasport_individual_number: text(form.pasport_individual_number),
-      individual_accumulative_pension_account_number: text(
-        form.individual_accumulative_pension_account_number,
-      ),
-      personal_identification_number: text(form.personal_identification_number),
-      taxpayer_identification_number: text(form.taxpayer_identification_number),
-      address: text(form.address),
-      email: text(form.email),
-      phone_number: text(form.phone_number),
-      internal_phone_number: text(form.internal_phone_number),
-      department_id: num(form.department_id),
-      job_position_id: num(form.job_position_id),
-      supervisor_id: num(form.supervisor_id),
-      job_acceptance_date: text(form.job_acceptance_date),
-      tabel_number: text(form.tabel_number),
-      ...(isEdit ? { change_reason: text(form.change_reason) } : {}),
+  const createPayload = (): Record<string, unknown> => {
+    const opt = (v: string) => (v ? v : undefined)
+    const id = (v: string) => (v ? Number(v) : undefined)
+    return {
+      legal_name: form.legal_name.trim(),
+      tabel_number: opt(form.tabel_number.trim()),
+      birth_date: opt(form.birth_date),
+      pasport_series: opt(form.pasport_series),
+      pasport_number: opt(form.pasport_number),
+      pasport_individual_number: opt(form.personal_identification_number),
+      pasport_issue_by: opt(form.pasport_issue_by.trim()),
+      taxpayer_identification_number: opt(form.taxpayer_identification_number),
+      individual_accumulative_pension_account_number: opt(form.individual_accumulative_pension_account_number),
+      personal_identification_number: form.personal_identification_number,
+      maritial_status: opt(form.maritial_status),
+      address: opt(form.address.trim()),
+      residence_country_code: opt(form.residence_country_code),
+      residence_address: opt(form.residence_address.trim()),
+      contract_type: opt(form.contract_type),
+      email: form.email.trim(),
+      phone_number: opt(form.phone_number),
+      internal_phone_number: opt(form.internal_phone_number),
+      job_acceptance_date: opt(form.job_acceptance_date),
+      job_position_id: id(form.job_position_id),
+      department_id: id(form.department_id),
+      supervisor_id: id(form.supervisor_id),
+      organization_branch_ids: extra.is_multi_org_user
+        ? extra.organization_branch_ids
+        : form.organization_branch_id
+          ? [Number(form.organization_branch_id)]
+          : [],
+      photo_base64: photo ?? undefined,
+      ...scheduleFields(),
       working_hours_start: time(form.working_hours_start),
       working_hours_end: time(form.working_hours_end),
       lunch_start_time: time(form.lunch_start_time),
       lunch_end_time: time(form.lunch_end_time),
-      stavka: num(form.stavka),
-      // The server reads this map to decide a part-timer's daily window and
-      // working days; sending `stavka` without it left attendance measured
-      // against a full day. Null at full rate mirrors `EmployeeService`.
-      weekly_schedule: isPartTime ? weekly : null,
-      weekly_schedule_alt: isPartTime && cycle ? weeklyAlt : null,
-      schedule_cycle_anchor: isPartTime && cycle ? cycleAnchor || null : null,
-      working_days: days,
-      ...Object.fromEntries(visibleFlags.map((k) => [k, !!flags[k]])),
-      // Rol biriktirmasi FAQAT admin darajasida yuboriladi — kadr uchun bu
-      // maydonlar serverda 403 beradi (`_ADMIN_ONLY_EMPLOYEE_FIELDS`).
-      ...(canSetMultiOrg
+      nationality: opt(form.nationality),
+      gender: form.gender ? Number(form.gender) : undefined,
+      ...(adminLevel
         ? {
-            is_multi_org_user: multiOrg,
-            multi_org_employee_role: multiOrg ? form.multi_org_employee_role || null : null,
-            is_kpi_admin: multiOrg ? kpiAdmin : false,
-            organization_branch_ids: branchIds,
-            primary_organization_branch_id: num(form.primary_organization_branch_id),
+            is_multi_org_user: extra.is_multi_org_user,
+            multi_org_employee_role: extra.is_multi_org_user ? form.multi_org_employee_role || undefined : undefined,
+            primary_organization_branch_id: extra.is_multi_org_user && form.primary_organization_branch_id ? Number(form.primary_organization_branch_id) : undefined,
           }
         : {}),
     }
+  }
 
-    if (photo) body.photo_base64 = photo
-
-    let payload = body
-    if (isEdit) {
-      // Send only what actually changed — writing a masked PII value back is
-      // how a passport number turns into "•••• 4821" in the database.
-      const e = employee as unknown as Record<string, unknown>
-      payload = {}
-      for (const [k, v] of Object.entries(body)) {
-        // A freshly picked portrait has nothing to compare against — it is
-        // always a change when present.
-        if (k === 'photo_base64') {
-          if (v) payload[k] = v
-          continue
-        }
-        const before = e[k]
-        const same =
-          Array.isArray(v) && Array.isArray(before)
-            ? JSON.stringify(v) === JSON.stringify(before)
-            : String(before ?? '') === String(v ?? '')
-        if (!same) payload[k] = v
-      }
-      if (!Object.keys(payload).length) {
-        onClose()
-        return
-      }
-    } else {
-      // ⚠️ `organization_branch_ids` (a LIST), not the singular
-      // `organization_branch_id` that was sent here before. `EmployeeCreate`
-      // declares only the list; Pydantic ignored the singular key, so a
-      // non-admin creator (who never sees the multi-branch picker) produced an
-      // employee with NO branch rows and only the department's branch to fall
-      // back on (2026-09-11 audit). The list is not an admin-only field.
-      payload = {
-        ...body,
-        ...(canSetMultiOrg || !branchId ? {} : { organization_branch_ids: [Number(branchId)] }),
-      }
+  const changedFields = (): Record<string, unknown> => {
+    if (!original) return {}
+    const out: Record<string, unknown> = {}
+    for (const k of TEXT_FIELDS) {
+      if (form[k] === original.form[k]) continue
+      const v = form[k] === '' ? null : form[k]
+      if (k === 'organization_branch_id') {
+        if (!extra.is_multi_org_user) out.organization_branch_ids = v ? [Number(v)] : []
+      } else if (ID_FIELDS.has(k)) out[k] = v === null ? null : Number(v)
+      else if (k === 'gender') out[k] = v === null ? null : Number(v)
+      else if (TIME_FIELDS.has(k)) out[k] = v ? `${v}:00` : null
+      else if (k === 'personal_identification_number') {
+        out[k] = v
+        out.pasport_individual_number = v
+      } else out[k] = typeof v === 'string' ? v.trim() : v
     }
+    const ox = original.extra
+    if (extra.stavka !== ox.stavka) out.stavka = extra.stavka
+    if (!sameArr(extra.working_days, ox.working_days)) out.working_days = extra.working_days
+    if (JSON.stringify(extra.weekly_schedule) !== JSON.stringify(ox.weekly_schedule) || extra.stavka !== ox.stavka)
+      out.weekly_schedule = extra.stavka < 1 ? extra.weekly_schedule : null
+    if (extra.is_multi_org_user !== ox.is_multi_org_user) out.is_multi_org_user = extra.is_multi_org_user
+    if (extra.is_multi_org_user && !sameArr(extra.organization_branch_ids, ox.organization_branch_ids))
+      out.organization_branch_ids = extra.organization_branch_ids
+    if (photo) out.photo_base64 = photo
+    if (!adminLevel) {
+      delete out.is_multi_org_user
+      delete out.multi_org_employee_role
+      delete out.primary_organization_branch_id
+    }
+    if (lineManagerMode) for (const k of Object.keys(out)) if (!LINE_MANAGER_FIELDS.has(k)) delete out[k]
+    return out
+  }
 
+  // ── save ──
+  const save = async () => {
+    if (!validateStep1()) {
+      setStep(1)
+      return
+    }
+    if (!validateStep3()) {
+      setStep(3)
+      return
+    }
+    setDup(null)
+    const newRows = experiences.length + educations.length > 0
+    let employeeId = editId
+    let blocked = false
     setSaving(true)
     try {
-      if (isEdit) await update.mutateAsync({ id: employee!.id, body: payload })
-      else {
-        await apiPost(EMPLOYEES_LIST, payload)
-        invalidate()
+      if (isEdit) {
+        const changed = changedFields()
+        const anything = Object.keys(changed).length > 0 || newRows
+        if (!anything) {
+          onSaved?.({ id: editId!, created: false })
+          onClose()
+          return
+        }
+        if (!isBasisComplete(basis)) {
+          setErrors((e) => ({ ...e, basis: t('personnel.basis.required') }))
+          setStep(3)
+          toast.error(t('personnel.basis.required'))
+          return
+        }
+        if (Object.keys(changed).length) {
+          await update.mutateAsync({ id: editId!, body: { ...changed, basis: cleanBasis(basis) } })
+          if (typeof changed.email === 'string' && changed.email) {
+            const email = changed.email
+            setCred({ state: 'sending', email })
+            const result = await sendCredentialEmail(editId!)
+            if (result === 'sent') {
+              setCred(null)
+              toast.ok(t('personnel.cred.sent'))
+            } else if (result === 'superseded') {
+              setCred(null)
+              toast.info(t('personnel.cred.superseded'))
+            } else {
+              setCred({ state: result, email })
+              blocked = true
+            }
+          }
+        }
+      } else {
+        const created = await create.mutateAsync(createPayload())
+        employeeId = created.id
       }
-      toast.ok(isEdit ? t('employees.saved') : t('employees.created'))
-      onSaved()
+      if (!employeeId) return
+
+      const rowBasis = isEdit ? cleanBasis(basis) : null
+      for (const x of experiences) await addEmployeeRecord(employeeId, 'work-experiences', recordBody(x), rowBasis)
+      for (const x of educations) await addEmployeeRecord(employeeId, 'educations', recordBody(x), rowBasis)
+
+      if (!isEdit) {
+        const failed: string[] = []
+        for (const kind of SCAN_KINDS) {
+          const file = scans[kind]
+          if (!file) continue
+          try {
+            await uploadEmployeeDocument(employeeId, kind, file, t(`personnel.scan.${kind}`))
+          } catch (err) {
+            failed.push(`${t(`personnel.scan.${kind}`)} — ${errorMessage(err, t('personnel.docs.uploadFailed'))}`)
+          }
+        }
+        if (failed.length) toast.error(`${t('personnel.form.scansFailed')}: ${failed.join(', ')}`)
+      }
+      invalidateEmployees(qc)
+      if (blocked) return
+      toast.ok(isEdit ? t('personnel.form.updated') : t('personnel.form.created'))
+      onSaved?.({ id: employeeId, created: !isEdit })
       onClose()
-    } catch (e) {
-      setError(errorMessage(e, t('employees.saveFailed')))
-      // Takror JSHSHIR — kadr qidiruvni o'tkazib yuborgan bo'lsa ham (masalan
-      // maydonni to'ldirib darhol "Saqlash" bosgan) tanish kartochkasi shu
-      // yerda ochiladi, xato matni bilan birga.
-      const code = axios.isAxiosError(e)
-        ? ((e.response?.data as { detail?: { code?: string } } | undefined)?.detail?.code ?? null)
-        : null
-      if (code === 'personal_identification_number_exists') {
-        setSection('documents')
-        void runLookup(form.personal_identification_number)
-      }
+    } catch (err) {
+      handleSaveError(err)
     } finally {
       setSaving(false)
     }
   }
 
+  const removePhoto = async () => {
+    if (!editId) return
+    const ok = await confirm({ kind: 'delete', title: t('personnel.photo.removeTitle'), description: t('personnel.photo.removeConfirm') })
+    if (!ok) return
+    try {
+      await deletePhoto.mutateAsync(editId)
+      setOriginal((o) => (o ? { ...o, employee: { ...o.employee, photo_path: null, photo_thumb_path: null } } : o))
+      toast.ok(t('personnel.photo.removed'))
+    } catch (err) {
+      toast.error(errorMessage(err, t('common.actionFailed')))
+    }
+  }
+
+  // ── render helpers ──
+  const text = (k: string, label: string, opts: { required?: boolean; placeholder?: string; type?: string; maxLength?: number; hint?: string } = {}) => (
+    <Field label={label} required={opts.required} error={errors[k]} hint={opts.hint}>
+      <Input
+        type={opts.type ?? 'text'}
+        value={form[k]}
+        placeholder={opts.placeholder}
+        maxLength={opts.maxLength}
+        invalid={!!errors[k]}
+        disabled={locked(k)}
+        onChange={(e) => set(k, e.target.value)}
+      />
+    </Field>
+  )
+  const pick = (k: string, label: string, options: { value: string; label: string }[], opts: { required?: boolean; placeholder?: string; disabled?: boolean } = {}) => (
+    <Field label={label} required={opts.required} error={errors[k]}>
+      <Combobox
+        value={form[k]}
+        onChange={(v) => set(k, v)}
+        options={options}
+        placeholder={opts.placeholder ?? t('common.choose')}
+        disabled={opts.disabled || locked(k)}
+        invalid={!!errors[k]}
+        clearable={!opts.required}
+      />
+    </Field>
+  )
+  const date = (k: string, label: string, required = false) => (
+    <Field label={label} required={required} error={errors[k]}>
+      <DateInput value={form[k]} onChange={(v) => set(k, v)} invalid={!!errors[k]} disabled={locked(k)} aria-label={label} />
+    </Field>
+  )
+  const timeField = (k: string, label: string) => (
+    <Field label={label}>
+      <TimeInput value={form[k]} onChange={(v) => set(k, v)} disabled={locked(k)} aria-label={label} />
+    </Field>
+  )
+
+  const steps: { id: Step; label: string }[] = [
+    { id: 1, label: t('personnel.form.step1') },
+    { id: 2, label: t('personnel.form.step2') },
+    { id: 3, label: t('personnel.form.step3') },
+  ]
+  const days = [
+    t('personnel.days.mon'),
+    t('personnel.days.tue'),
+    t('personnel.days.wed'),
+    t('personnel.days.thu'),
+    t('personnel.days.fri'),
+    t('personnel.days.sat'),
+    t('personnel.days.sun'),
+  ]
+  const existingExp = original?.employee.work_experiences ?? []
+  const existingEdu = original?.employee.educations ?? []
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="full"
-      title={isEdit ? t('employees.editTitle') : t('employees.createTitle')}
-      description={isEdit ? (employee?.legal_name ?? undefined) : t('employees.createHint')}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={submit} loading={saving}>
-            {t('common.save')}
-          </Button>
-        </>
-      }
-    >
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {SECTIONS.filter((s) => !restricted || s.key === 'contact' || s.key === 'work').map((s) => {
-          const Icon = s.icon
-          return (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setSection(s.key)}
-              aria-pressed={section === s.key}
-              className={tabPill(section === s.key)}
-            >
-              <Icon size={13} /> {t(`employees.sec_${s.key}` as never)}
-            </button>
-          )
-        })}
-      </div>
-
-      {section === 'identity' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <PhotoPicker
-              value={photo}
-              onChange={setPhoto}
-              currentUrl={photoCleared ? null : employee?.photo_thumb_path}
-              currentFallbackUrl={photoCleared ? null : employee?.photo_path}
-              name={form.legal_name || employee?.legal_name}
-              onError={(m) => setError(m || null)}
-              onRemove={
-                isEdit
-                  ? async () => {
-                      // Removes the stored photo right away, not on Save.
-                      if (!(await confirm({ kind: 'delete', subject: employee?.legal_name, confirmLabel: t('employees.photoRemove') }))) return
-                      try {
-                        await apiDelete(`${EMPLOYEE_DETAIL(employee!.id)}/photo`)
-                        setPhotoCleared(true)
-                        setPhoto(null)
-                        toast.ok(t('employees.photoRemoved'))
-                        // Removed immediately, so refresh now: a Save with
-                        // no other change only closes the drawer, and the
-                        // card, roster and (own card) header kept the old
-                        // photo until a reload.
-                        invalidate()
-                        void queryClient.invalidateQueries({ queryKey: ['employee', employee!.id] })
-                        if (useAuthStore.getState().user?.employee?.id === employee!.id) {
-                          void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
-                        }
-                        onSaved()
-                      } catch (e) {
-                        setError(errorMessage(e, t('employees.saveFailed')))
-                      }
-                    }
-                  : undefined
-              }
-            />
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        placement="right"
+        size="md"
+        title={isEdit ? t('personnel.form.editTitle') : t('personnel.form.createTitle')}
+        description={isEdit ? t('personnel.form.editHint') : t('personnel.form.createHint')}
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <span>
+              {step === 2 && (
+                <Button variant="ghost" onClick={() => setStep(3)}>
+                  {t('personnel.form.skip')}
+                </Button>
+              )}
+            </span>
+            <span className="flex gap-2">
+              <Button variant="ghost" onClick={onClose} disabled={saving}>
+                {t('common.cancel')}
+              </Button>
+              {step < 3 ? (
+                <Button
+                  onClick={() => {
+                    if (step === 1 && !validateStep1()) return
+                    setStep((s) => (s + 1) as Step)
+                  }}
+                  disabled={loading}
+                >
+                  {t('personnel.form.next')}
+                </Button>
+              ) : (
+                <Button onClick={() => void save()} loading={saving} disabled={loading || cred?.state === 'sending'}>
+                  {cred?.state === 'sending' ? t('personnel.cred.sending') : t('common.save')}
+                </Button>
+              )}
+            </span>
           </div>
-          <Field label={t('employees.fieldName')} required wide>
-            <Input value={form.legal_name} onChange={(e) => set('legal_name', e.target.value)} autoFocus />
-          </Field>
-          <Field label={t('employees.fieldBirthDate')}>
-            <DateInput value={form.birth_date} onChange={(v) => set('birth_date', v)} />
-          </Field>
-          <Field label={t('employees.fieldGender')}>
-            <Select
-              value={form.gender}
-              onChange={(e) => set('gender', e.target.value)}
-              options={[
-                { value: '1', label: t('employees.male') },
-                { value: '2', label: t('employees.female') },
-              ]}
-              placeholder={t('t2.pick')}
-            />
-          </Field>
-          <Field label={t('t2.nationality')}>
-            <Combobox
-              value={form.nationality}
-              onChange={(v) => set('nationality', v)}
-              options={nationalityOptions}
-              placeholder={t('t2.pick')}
-            />
-          </Field>
-          <Field label={t('employees.fieldMarital')}>
-            <Combobox
-              value={form.maritial_status}
-              onChange={(v) => set('maritial_status', v)}
-              options={maritalOptions}
-              placeholder={t('t2.pick')}
-            />
-          </Field>
-          <Field label={t('employees.fieldAddress')} wide>
-            <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
-          </Field>
-        </div>
-      )}
-
-      {section === 'documents' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* ⚠️ SERIYA VA RAQAM BITTA MAYDON. Pasport hujjatda «AA1234567»
-              ko'rinishida yozilgan — ikkiga bo'lish kadrni har safar kursorni
-              ko'chirishga majbur qilardi va yarmi bo'sh qolgan kartalar
-              paydo bo'lardi. Bazada ikki ustun qoladi (boshqa modullar
-              o'qiydi), bo'lish shu yerda: ikki harf = seriya, qolgani raqam. */}
-          <Field label={t('employees.fieldPassport')} hint={t('employees.passportHint')}>
-            <Input
-              value={passportText}
-              onChange={(e) => setPassport(e.target.value)}
-              maxLength={12}
-              placeholder="AA1234567"
-              className="uppercase"
-            />
-          </Field>
-          <Field label={t('employees.fieldPassportIssuedBy')}>
-            <Input
-              value={form.pasport_issue_by}
-              onChange={(e) => set('pasport_issue_by', e.target.value)}
-            />
-          </Field>
-          {/*
-            ⚠️ THESE TWO HAD NO INPUT AT ALL. Both sit in the form's initial
-            state (and have since it was written), both are accepted by
-            `EmployeeCreate`/`EmployeeUpdate` — but neither was ever rendered
-            nor put in the submit body, so there was no way to record either
-            one from this screen, in create or in edit.
-          */}
-          <Field label={t('employees.fieldPassportIndividualNumber')}>
-            <Input
-              value={form.pasport_individual_number}
-              onChange={(e) => set('pasport_individual_number', e.target.value)}
-            />
-          </Field>
-          <Field label={t('employees.fieldPensionAccount')}>
-            <Input
-              value={form.individual_accumulative_pension_account_number}
-              onChange={(e) =>
-                set('individual_accumulative_pension_account_number', e.target.value)
-              }
-            />
-          </Field>
-          <Field
-            label={t('employees.fieldPinfl')}
-            required={!isEdit}
-            hint={isEdit ? t('employees.pinflHint') : t('assignments.pinflLookupHint')}
-          >
-            <Input
-              value={form.personal_identification_number}
-              onChange={(e) => {
-                const next = maskValue('pinfl', e.target.value)
-                set('personal_identification_number', next)
-                if (lookup) setLookup(null)
-                // 14 raqam to'lishi bilan qidiramiz: kadr maydonni tark
-                // etishini kutish shart emas, javob u yozib bo'lgan zahoti keladi.
-                if (next.replace(/\D/g, '').length === 14) void runLookup(next)
-              }}
-              onBlur={(e) => void runLookup(e.target.value)}
-              maxLength={14}
-              inputMode="numeric"
-            />
-          </Field>
-
-          {/* TAKROR JSHSHIR = MAVJUD XODIM. Xato o'rniga kim ekani va nima
-              qilish mumkinligi ko'rsatiladi. */}
-          {!isEdit && (lookupBusy || lookup) && (
-            <div className="sm:col-span-2">
-              {lookupBusy && !lookup ? (
-                <p className="text-[13px] text-fg-muted">{t('assignments.lookupBusy')}</p>
-              ) : lookup ? (
-                <div className="rounded-lg border border-warning/30 bg-warning-soft p-3">
-                  <p className="text-[13px] font-semibold text-fg">
-                    {t('assignments.foundTitle')}
-                  </p>
-                  <p className="mt-0.5 flex items-center gap-2 text-[13px] text-fg-muted">
-                    <Avatar src={lookup.photo_thumb_path} name={lookup.legal_name ?? '?'} size={24} />
-                    {lookup.legal_name} — {lookup.primary_branch_name || '—'}
-                    {lookup.primary_job_position_name ? ` · ${lookup.primary_job_position_name}` : ''}
-                  </p>
-                  <p className="mt-1.5 text-[12px] text-fg-muted">
-                    {lookup.reason === 'already_attached'
-                      ? t('assignments.reasonAlreadyAttached')
-                      : lookup.reason === 'forbidden'
-                        ? t('assignments.reasonForbidden')
-                        : lookup.reason === 'archived'
-                          ? t('assignments.reasonArchived')
-                          : t('assignments.foundHint')}
-                  </p>
-                  {lookup.can_attach && (
-                    <Button
-                      className="mt-2.5"
-                      size="sm"
-                      leftIcon={<UserPlus size={14} />}
-                      onClick={() => setAttachOpen(true)}
+        }
+      >
+        {loading ? (
+          <div className="grid place-items-center py-16">
+            <Spinner />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <ol className="flex flex-1 items-center gap-1.5" aria-label={t('personnel.form.steps')}>
+                {steps.map((s) => (
+                  <li key={s.id} className="flex-1">
+                    <button
+                      type="button"
+                      onClick={() => (s.id === 1 || validateStep1() ? setStep(s.id) : undefined)}
+                      aria-current={step === s.id ? 'step' : undefined}
+                      className={cn(
+                        'flex w-full flex-col items-center gap-1 rounded-inner px-1 py-1.5 text-[11.5px] font-semibold transition-colors',
+                        step >= s.id ? 'text-brand' : 'text-fg-subtle hover:text-fg',
+                      )}
                     >
-                      {t('assignments.attachAction')}
+                      <span
+                        className={cn(
+                          'grid h-7 w-7 place-items-center rounded-full text-[12px]',
+                          step >= s.id ? 'bg-brand text-fg-on-brand' : 'border border-line bg-surface-2',
+                        )}
+                      >
+                        {s.id}
+                      </span>
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              {isEdit && hr && (
+                <IconButton label={t('personnel.pwd.title')} onClick={() => setPwdOpen(true)}>
+                  <KeyRound size={17} />
+                </IconButton>
+              )}
+            </div>
+            {lineManagerMode && <p className="rounded-inner bg-info-soft px-3 py-2 text-[12px] text-info">{t('personnel.form.lineManagerHint')}</p>}
+
+            {step === 1 && (
+              <div className="flex flex-col gap-3.5">
+                {!lineManagerMode && (
+                  <PhotoPicker
+                    value={photo}
+                    onChange={setPhoto}
+                    currentUrl={original?.employee.photo_thumb_path || original?.employee.photo_path}
+                    currentFallbackUrl={original?.employee.photo_path}
+                    name={form.legal_name}
+                    size={64}
+                    onRemove={isEdit ? () => void removePhoto() : undefined}
+                    onError={setPhotoError}
+                  />
+                )}
+                <FormError>{photoError}</FormError>
+                {text('legal_name', t('personnel.form.fullName'), { required: true, placeholder: t('personnel.form.fullNamePh'), maxLength: 255 })}
+                {text('tabel_number', t('personnel.f.tabelNumber'), { placeholder: t('personnel.form.tabelPh'), maxLength: 64 })}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {pick('gender', t('personnel.f.gender'), [
+                    { value: '1', label: t('personnel.gender.male') },
+                    { value: '2', label: t('personnel.gender.female') },
+                  ])}
+                  {pick('maritial_status', t('personnel.f.marital'), MARITAL.map((m) => ({ value: m.value, label: t(`personnel.marital.${m.key}`) })))}
+                  {text('pasport_series', t('personnel.form.passportSeries'), { placeholder: 'AA' })}
+                  {text('pasport_number', t('personnel.form.passportNumber'), { placeholder: '1234567' })}
+                  {text('pasport_issue_by', t('personnel.f.passportIssuedBy'), { maxLength: 255 })}
+                  {date('birth_date', t('personnel.f.birthDate'))}
+                  {pick('nationality', t('personnel.f.nationality'), nationalities)}
+                  {text('personal_identification_number', t('personnel.form.pinfl'), { required: true, placeholder: '12345678901234' })}
+                  {text('taxpayer_identification_number', t('personnel.form.inn'), { placeholder: '123456789' })}
+                  {text('individual_accumulative_pension_account_number', t('personnel.f.inps'), { placeholder: '12345678901234' })}
+                </div>
+                <Field label={t('personnel.f.regAddress')}>
+                  <Textarea value={form.address} rows={2} maxLength={1000} disabled={locked('address')} onChange={(e) => set('address', e.target.value)} />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {pick('residence_country_code', t('personnel.form.residenceCountry'), countries)}
+                  {text('residence_address', t('personnel.form.residenceAddress'), { placeholder: t('personnel.form.streetPlaceholder'), maxLength: 1000 })}
+                  {text('email', t('personnel.form.email'), { required: true, type: 'email', placeholder: 'email@uzgidro.uz', hint: isEdit ? t('personnel.form.emailHint') : undefined })}
+                  {text('phone_number', t('personnel.form.phone'), { placeholder: '+998901234567' })}
+                  {text('internal_phone_number', t('personnel.f.internalPhone'), { placeholder: '1234' })}
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="flex flex-col gap-4">
+                <RecordsBlock
+                  icon={<Briefcase size={15} />}
+                  title={t('personnel.form.experiences')}
+                  empty={t('personnel.form.noExperiences')}
+                  disabled={lineManagerMode}
+                  onAdd={() => setRecordModal('experience')}
+                  existing={existingExp.map((x) => ({
+                    key: `e${x.id}`,
+                    title: x.position ?? '',
+                    sub: `${x.company_name ?? ''} (${fmtDate(x.start_date)} — ${x.is_current ? t('personnel.rec.untilNow') : fmtDate(x.end_date)})`,
+                  }))}
+                  drafts={experiences.map((x, i) => ({
+                    key: `n${i}`,
+                    title: x.position,
+                    sub: `${x.company_name} (${fmtDate(x.start_date)} — ${x.is_current ? t('personnel.rec.untilNow') : fmtDate(x.end_date)})`,
+                    remove: () => setExperiences((p) => p.filter((_, j) => j !== i)),
+                  }))}
+                />
+                <RecordsBlock
+                  icon={<GraduationCap size={15} />}
+                  title={t('personnel.form.educations')}
+                  empty={t('personnel.form.noEducations')}
+                  disabled={lineManagerMode}
+                  onAdd={() => setRecordModal('education')}
+                  existing={existingEdu.map((x) => ({
+                    key: `e${x.id}`,
+                    title: [x.degree_name, x.faculty_name].filter(Boolean).join(' — '),
+                    sub: `${x.institution_name ?? ''} (${fmtDate(x.start_date)} — ${x.is_current ? t('personnel.rec.untilNow') : fmtDate(x.end_date)})`,
+                  }))}
+                  drafts={educations.map((x, i) => ({
+                    key: `n${i}`,
+                    title: `${x.degree_name} — ${x.faculty_name}`,
+                    sub: `${x.institution_name} (${fmtDate(x.start_date)} — ${x.is_current ? t('personnel.rec.untilNow') : fmtDate(x.end_date)})`,
+                    remove: () => setEducations((p) => p.filter((_, j) => j !== i)),
+                  }))}
+                />
+                {isEdit && <p className="text-[12px] text-fg-subtle">{t('personnel.form.recordsHint')}</p>}
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="flex flex-col gap-3.5">
+                {date('job_acceptance_date', t('personnel.f.hireDate'), !isEdit)}
+                {pick(
+                  'contract_type',
+                  t('personnel.f.contractType'),
+                  CONTRACT_TYPES.map((c) => ({ value: c, label: t(`personnel.contract.${c}`) })),
+                )}
+
+                {adminLevel && (
+                  <Checkbox
+                    label={t('personnel.form.multiOrg')}
+                    checked={extra.is_multi_org_user}
+                    onChange={(e) => setExtra((x) => ({ ...x, is_multi_org_user: e.target.checked }))}
+                  />
+                )}
+
+                {extra.is_multi_org_user && adminLevel && (
+                  <>
+                    {pick(
+                      'multi_org_employee_role',
+                      t('personnel.form.multiOrgRole'),
+                      MULTI_ORG_ROLES.map((r) => ({ value: r, label: t(`personnel.form.role_${r}`) })),
+                      { required: true },
+                    )}
+                    <Field label={t('personnel.form.branches')} required error={errors.organization_branch_ids}>
+                      <div className="flex flex-col gap-1.5 rounded-inner border border-line p-2.5">
+                        {branches.map((b) => (
+                          <Checkbox
+                            key={b.id}
+                            label={b.name ?? `#${b.id}`}
+                            checked={extra.organization_branch_ids.includes(Number(b.id))}
+                            onChange={(e) =>
+                              setExtra((x) => {
+                                const ids = e.target.checked
+                                  ? [...x.organization_branch_ids, Number(b.id)]
+                                  : x.organization_branch_ids.filter((id) => id !== Number(b.id))
+                                if (!ids.includes(Number(form.primary_organization_branch_id))) set('primary_organization_branch_id', '')
+                                return { ...x, organization_branch_ids: ids }
+                              })
+                            }
+                          />
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label={t('personnel.form.primaryBranch')} hint={t('personnel.form.primaryBranchHint')}>
+                      <Combobox
+                        value={form.primary_organization_branch_id}
+                        onChange={(v) => set('primary_organization_branch_id', v)}
+                        options={branches
+                          .filter((b) => extra.organization_branch_ids.includes(Number(b.id)))
+                          .map((b) => ({ value: String(b.id), label: b.name ?? `#${b.id}` }))}
+                        placeholder={t('personnel.form.primaryBranchPh')}
+                        clearable
+                      />
+                    </Field>
+                  </>
+                )}
+
+                {!extra.is_multi_org_user && branchOptions.length > 1 &&
+                  pick('organization_branch_id', t('personnel.form.branch'), branchOptions, { placeholder: t('personnel.form.branchPh') })}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {pick('job_position_id', t('personnel.f.position'), positionOptions, {
+                    required: !isEdit && !extra.is_multi_org_user,
+                    placeholder: activeBranch ? t('personnel.form.positionPh') : t('personnel.place.orgFirst'),
+                    disabled: !activeBranch,
+                  })}
+                  {pick('department_id', t('personnel.f.department'), departmentOptions, {
+                    required: !isEdit && !extra.is_multi_org_user,
+                    placeholder: activeBranch ? t('personnel.form.departmentPh') : t('personnel.place.orgFirst'),
+                    disabled: !activeBranch,
+                  })}
+                </div>
+                {pick('supervisor_id', t('personnel.form.supervisor'), supervisorOptions, { placeholder: t('personnel.form.supervisorPh') })}
+
+                <Field label={t('personnel.form.stavka')}>
+                  <Combobox
+                    value={String(extra.stavka)}
+                    onChange={(v) => setExtra((x) => ({ ...x, stavka: Number(v) || 1 }))}
+                    options={STAVKAS.map((s) => ({ value: s, label: t(`personnel.form.stavka_${s.replace('.', '_') as '1'}`) }))}
+                    hidePlaceholderOption
+                    clearable={false}
+                  />
+                </Field>
+
+                {extra.stavka < 1 ? (
+                  <WeeklyScheduleEditor
+                    value={extra.weekly_schedule}
+                    stavka={extra.stavka}
+                    onChange={(ws) => setExtra((x) => ({ ...x, weekly_schedule: ws }))}
+                  />
+                ) : (
+                  <>
+                    <Field label={t('personnel.info.workDays')}>
+                      <div className="flex flex-wrap gap-1.5">
+                        {days.map((d, i) => {
+                          const on = extra.working_days.includes(i)
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() =>
+                                setExtra((x) => ({
+                                  ...x,
+                                  working_days: on ? x.working_days.filter((w) => w !== i) : [...x.working_days, i].sort(),
+                                }))
+                              }
+                              className={cn(
+                                'h-9 w-10 rounded-inner border text-[12px] font-bold transition-colors',
+                                on ? 'border-brand bg-brand text-fg-on-brand' : 'border-line bg-surface-2 text-fg-muted hover:text-fg',
+                              )}
+                            >
+                              {d}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </Field>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {timeField('working_hours_start', t('personnel.form.workStart'))}
+                      {timeField('working_hours_end', t('personnel.form.workEnd'))}
+                    </div>
+                  </>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {timeField('lunch_start_time', t('personnel.form.lunchStart'))}
+                  {timeField('lunch_end_time', t('personnel.form.lunchEnd'))}
+                </div>
+
+                {isEdit ? (
+                  <EmployeeBasisFields
+                    value={basis}
+                    onChange={(b) => {
+                      setBasis(b)
+                      if (errors.basis) setErrors((e) => ({ ...e, basis: '' }))
+                    }}
+                    error={errors.basis}
+                  />
+                ) : (
+                  <ScansPicker value={scans} onChange={setScans} />
+                )}
+              </div>
+            )}
+
+            {dup && (
+              <div role="alert" className="flex items-start gap-2.5 rounded-inner border border-danger/30 bg-danger-soft px-3.5 py-3">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden />
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-[13px] font-semibold text-danger">{dup.message}</span>
+                  {dup.employeeId && (
+                    <Link to={`/employees/${dup.employeeId}`} onClick={onClose} className="self-start text-[12.5px] font-semibold text-brand hover:underline">
+                      {t('personnel.form.openExisting')}
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {cred && cred.state !== 'sending' && (
+              <div role="alert" className="flex items-start gap-2.5 rounded-inner border border-danger/30 bg-danger-soft px-3.5 py-3">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden />
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-[13px] font-semibold text-danger">
+                    {cred.state === 'timeout' ? t('personnel.cred.timeout') : t('personnel.cred.failed')}
+                  </span>
+                  <p className="text-[12px] leading-relaxed text-fg-muted">
+                    {t('personnel.cred.explain', { email: cred.email })}{' '}
+                    {cred.state === 'timeout' ? t('personnel.cred.retrying') : t('personnel.cred.oldWorks')} {t('personnel.cred.manual')}
+                  </p>
+                  {hr && (
+                    <Button size="sm" className="self-start" leftIcon={<KeyRound size={13} />} onClick={() => setPwdOpen(true)}>
+                      {t('personnel.pwd.title')}
                     </Button>
                   )}
                 </div>
-              ) : null}
-            </div>
-          )}
-          <Field label={t('employees.fieldInn')}>
-            <Input
-              value={form.taxpayer_identification_number}
-              onChange={(e) => set('taxpayer_identification_number', maskValue('inn', e.target.value))}
-              maxLength={9}
-              inputMode="numeric"
-            />
-          </Field>
-        </div>
-      )}
-
-      {section === 'contact' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('employees.fieldEmail')} required={!isEdit}>
-            <Input
-              disabled={lock('email')}
-              type="email"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              spellCheck={false}
-            />
-          </Field>
-          <Field label={t('employees.fieldPhone')}>
-            <Input
-              value={form.phone_number}
-              onChange={(e) => set('phone_number', maskValue('phone', e.target.value))}
-              inputMode="tel"
-              placeholder="998__ ___ __ __"
-            />
-          </Field>
-          <Field label={t('employees.fieldInternalPhone')}>
-            <Input
-              value={form.internal_phone_number}
-              onChange={(e) => set('internal_phone_number', maskValue('internalPhone', e.target.value))}
-              maxLength={6}
-            />
-          </Field>
-        </div>
-      )}
-
-      {section === 'work' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('employees.colDepartment')} required={!isEdit}>
-            <Combobox
-              disabled={lock('department_id')}
-              value={form.department_id}
-              onChange={(v) => set('department_id', v)}
-              options={departments}
-              placeholder={t('employees.allDepartments')}
-            />
-          </Field>
-          <Field label={t('employees.colPosition')} required={!isEdit}>
-            <Combobox
-              value={form.job_position_id}
-              onChange={(v) => set('job_position_id', v)}
-              options={positions}
-              placeholder={t('employees.allPositions')}
-            />
-          </Field>
-          <Field label={t('employeeProfile.supervisor')} wide>
-            <Combobox
-              disabled={lock('supervisor_id')}
-              value={form.supervisor_id}
-              onChange={(v) => set('supervisor_id', v)}
-              options={supervisors}
-              loading={supLoading}
-              placeholder={t('t2.pick')}
-            />
-          </Field>
-          <Field label={t('employees.colHired')}>
-            <DateInput
-              disabled={lock('job_acceptance_date')}
-              value={form.job_acceptance_date}
-              onChange={(v) => set('job_acceptance_date', v)}
-            />
-          </Field>
-          <Field label={t('employees.fieldTabelNumber')} hint={t('employees.tabelNumberHint')}>
-            <Input value={form.tabel_number} onChange={(e) => set('tabel_number', e.target.value)} disabled={lock('tabel_number')} />
-          </Field>
-          {/* Why the card is being changed — an order number and date, kept with
-              the record so a later audit can see what a change was based on.
-              Only on edit: there is nothing to justify when creating. */}
-          {isEdit && (
-            <Field label={t('employees.fieldChangeReason')} hint={t('employees.changeReasonHint')} wide>
-              <Input value={form.change_reason} onChange={(e) => set('change_reason', e.target.value)} disabled={lock('change_reason')} />
-            </Field>
-          )}
-          <Field label={t('employees.fieldStavka')}>
-            <Input
-              type="number"
-              step="0.25"
-              min="0"
-              value={form.stavka}
-              onChange={(e) => set('stavka', e.target.value)}
-            />
-          </Field>
-          {isPartTime && (
-            <Field label={t('employees.weeklyScheduleLabel')} hint={t('employees.weeklyScheduleHint')} wide>
-              <div className="flex flex-col gap-3">
-                <Checkbox
-                  label={t('employees.cycleToggle')}
-                  checked={cycle}
-                  onChange={(e) => setCycle(e.target.checked)}
-                />
-                {cycle && (
-                  <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-surface-2/50 p-3">
-                    <div className="w-[180px]">
-                      <span className="mb-1 block text-[12px] font-semibold text-fg-muted">
-                        {t('employees.cycleAnchor')}
-                      </span>
-                      <DateInput value={cycleAnchor} onChange={(v) => setCycleAnchor(v)} />
-                    </div>
-                    <p className="min-w-[220px] flex-1 text-[12px] leading-snug text-fg-muted">
-                      {t('employees.cycleAnchorHint')}
-                      {cycleAnchor && (
-                        <>
-                          {' '}
-                          <b className="text-fg">
-                            {t('employees.cycleThisWeek', { week: cycleWeekOf(cycleAnchor) })}
-                          </b>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                )}
-                <WeeklyScheduleEditor
-                  value={weekly}
-                  onChange={setWeekly}
-                  stavka={Number(form.stavka)}
-                  title={cycle ? t('employees.cycleWeek1') : undefined}
-                />
-                {cycle && (
-                  <WeeklyScheduleEditor
-                    value={weeklyAlt}
-                    onChange={setWeeklyAlt}
-                    stavka={Number(form.stavka)}
-                    title={t('employees.cycleWeek2')}
-                  />
-                )}
               </div>
-            </Field>
-          )}
-          <Field label={t('employees.fieldWorkStart')}>
-            <TimeInput
-              value={form.working_hours_start}
-              onChange={(v) => set('working_hours_start', v)}
-            />
-          </Field>
-          <Field label={t('employees.fieldWorkEnd')}>
-            <TimeInput value={form.working_hours_end} onChange={(v) => set('working_hours_end', v)} />
-          </Field>
-          <Field label={t('employees.fieldLunchStart')}>
-            <TimeInput value={form.lunch_start_time} onChange={(v) => set('lunch_start_time', v)} />
-          </Field>
-          <Field label={t('employees.fieldLunchEnd')}>
-            <TimeInput value={form.lunch_end_time} onChange={(v) => set('lunch_end_time', v)} />
-          </Field>
-          <Field label={t('employees.fieldWorkingDays')} wide hint={t('employees.workingDaysHint')}>
-            <div className="flex flex-wrap gap-1.5">
-              {WEEKDAYS.map((d) => {
-                const on = days.includes(d)
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() =>
-                      setDays((prev) =>
-                        prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort(),
-                      )
-                    }
-                    aria-pressed={on}
-                    className={cn(
-                      'rounded-pill px-3 py-1.5 text-[12px] font-semibold capitalize transition-colors',
-                      on
-                        ? 'bg-brand text-fg-on-brand'
-                        : 'bg-fg/[0.06] text-fg-muted hover:bg-fg/[0.12]',
-                    )}
-                  >
-                    {(t('date.weekdays', { returnObjects: true }) as string[])[(d + 1) % 7]}
-                  </button>
-                )
-              })}
-            </div>
-          </Field>
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </Modal>
 
-      {section === 'flags' && (
-        <div className="flex flex-col gap-3">
-          {/*
-            MULTI-ORG ROLE — the assignment that decides which menu, which
-            screens and which powers this person gets.
-            ⚠️ IT WAS MISSING FROM v2 ENTIRELY: the card could be edited but
-            the role could not be granted, so every new deputy, chancellery
-            clerk or KPP controller had to be created in the old product.
-            Admin-level only, matching the backend
-            (`_ADMIN_ONLY_EMPLOYEE_FIELDS`: is_multi_org_user,
-            multi_org_employee_role, is_kpi_admin) — HR sees nothing here.
-          */}
-          {canSetMultiOrg && (
-            <div className="rounded-inner border border-line p-3.5">
-              <label className="flex cursor-pointer items-start gap-3">
-                <Checkbox
-                  checked={multiOrg}
-                  onChange={(e) => {
-                    setMultiOrg(e.target.checked)
-                    if (!e.target.checked) set('multi_org_employee_role', '')
-                  }}
-                  srLabel={t('employees.multiOrgTitle')}
-                />
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-medium text-fg">
-                    {t('employees.multiOrgTitle')}
-                  </span>
-                  <span className="block text-xs text-fg-muted">{t('employees.multiOrgHint')}</span>
-                </span>
-              </label>
-              {/* Which branches this person belongs to, and which one owns them.
-                  `primary_organization_branch_id` is in the server's
-                  `_ADMIN_ONLY_EMPLOYEE_FIELDS`, so both live in the admin block. */}
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <Field label={t('employees.fieldBranches')} hint={t('employees.branchesHint')}>
-                  <div className="space-y-1.5">
-                    <Combobox
-                      value=""
-                      onChange={(v) => {
-                        const id = Number(v)
-                        if (id) setBranchIds((p) => (p.includes(id) ? p : [...p, id]))
-                      }}
-                      options={branchOptions.filter((b) => !branchIds.includes(Number(b.value)))}
-                      placeholder={t('t2.pick')}
-                    />
-                    {branchIds.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {branchIds.map((id) => (
-                          <span
-                            key={id}
-                            className="inline-flex max-w-[15rem] items-center gap-1 rounded-pill bg-brand px-2.5 py-1 text-[11.5px] font-medium text-fg-on-brand"
-                          >
-                            <span className="truncate">
-                              {branchOptions.find((b) => Number(b.value) === id)?.label ?? `#${id}`}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={t('common.delete')}
-                              onClick={() =>
-                                setBranchIds((p) => {
-                                  const next = p.filter((x) => x !== id)
-                                  // The primary branch must stay inside the list.
-                                  if (Number(form.primary_organization_branch_id) === id) {
-                                    set('primary_organization_branch_id', '')
-                                  }
-                                  return next
-                                })
-                              }
-                            >
-                              <X size={12} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Field>
-                <Field label={t('employees.fieldPrimaryBranch')} hint={t('employees.primaryBranchHint')}>
-                  <Combobox
-                    value={form.primary_organization_branch_id}
-                    onChange={(v) => set('primary_organization_branch_id', v)}
-                    options={branchOptions.filter((b) => branchIds.includes(Number(b.value)))}
-                    placeholder={t('employees.primaryBranchNone')}
-                  />
-                </Field>
-              </div>
-
-              {multiOrg && (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label={t('employees.multiOrgRole')} required>
-                    <Select
-                      value={form.multi_org_employee_role}
-                      onChange={(e) => set('multi_org_employee_role', e.target.value)}
-                      options={MULTI_ORG_ROLES.map((r) => ({
-                        value: r,
-                        label: t(`roles.${r}` as never),
-                      }))}
-                      placeholder={t('t2.pick')}
-                    />
-                  </Field>
-                  <label className="flex cursor-pointer items-center gap-3 self-end pb-2">
-                    <Checkbox
-                      checked={kpiAdmin}
-                      onChange={(e) => setKpiAdmin(e.target.checked)}
-                      srLabel={t('employees.kpiAdmin')}
-                    />
-                    <span className="text-[13px] text-fg">{t('employees.kpiAdmin')}</span>
-                  </label>
-                </div>
-              )}
-            </div>
-          )}
-          {visibleFlags.map((k) => (
-            <label
-              key={k}
-              className="flex cursor-pointer items-start gap-3 rounded-inner border border-line px-3.5 py-3"
-            >
-              <Checkbox
-                checked={!!flags[k]}
-                onChange={(e) => setFlags((f) => ({ ...f, [k]: e.target.checked }))}
-                srLabel={t(`employees.flag_${k}` as never)}
-              />
-              <span className="min-w-0">
-                <span className="block text-[13px] font-medium text-fg">
-                  {t(`employees.flag_${k}` as never)}
-                </span>
-                <span className="block text-xs text-fg-muted">
-                  {t(`employees.flagHint_${k}` as never)}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-
-      <FormError className="mt-4">{error}</FormError>
-
-      {/* Mavjud xodimga ikkinchi ish o'rni — yangi kartochka OCHILMAYDI. */}
-      <ConcurrentPostModal
-        open={attachOpen}
-        onClose={() => setAttachOpen(false)}
-        lookup={lookup}
-        onDone={(msg) => {
-          toast.ok(msg)
-          invalidate()
-          onSaved()
-          onClose()
-        }}
+      <RecordModal
+        open={!!recordModal}
+        kind={recordModal ?? 'education'}
+        onClose={() => setRecordModal(null)}
+        onAdd={(d) => (recordModal === 'education' ? setEducations((p) => [...p, d as EducationDraft]) : setExperiences((p) => [...p, d as ExperienceDraft]))}
       />
-    </Modal>
+      {isEdit && (
+        <EmployeePasswordModal
+          target={pwdOpen ? { id: editId!, legal_name: form.legal_name } : null}
+          onClose={() => setPwdOpen(false)}
+          onSaved={() => {
+            if (cred) {
+              setCred(null)
+              onSaved?.({ id: editId!, created: false })
+              onClose()
+            }
+          }}
+        />
+      )}
+    </>
   )
 }
 
-/** Small helper the page uses for the "give this person a password" action. */
-export function SetPasswordModal({
-  employee,
-  onClose,
+function RecordsBlock({
+  icon,
+  title,
+  empty,
+  disabled,
+  onAdd,
+  existing,
+  drafts,
 }: {
-  employee: Employee | null
-  onClose: () => void
+  icon: ReactNode
+  title: string
+  empty: string
+  disabled?: boolean
+  onAdd: () => void
+  existing: { key: string; title: string; sub: string }[]
+  drafts: { key: string; title: string; sub: string; remove: () => void }[]
 }) {
   const { t } = useTranslation()
-  const toast = useToast()
-  const confirm = useConfirm()
-  const credentials = useCredentialEmail()
-  const [value, setValue] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  /**
-   * The queued mail job.
-   *
-   * ⚠️ THE POST'S 200 MEANS "ACCEPTED", NOT "DELIVERED". SMTP here has been
-   * measured hanging outright about a third of the time, and the modal used to
-   * announce "yuborildi" and close the moment the queue took the job — so a
-   * mail that never went out looked exactly like one that did, and personnel
-   * had no reason to fall back to setting the password by hand. The status
-   * endpoint that answers this properly already existed, with no caller.
-   */
-  const [taskId, setTaskId] = useState<string | null>(null)
-  const [waitedTooLong, setWaitedTooLong] = useState(false)
-  const mail = useCredentialEmailStatus(employee?.id ?? null, taskId)
-
-  useEffect(() => {
-    setValue('')
-    setError(null)
-    setTaskId(null)
-    setWaitedTooLong(false)
-  }, [employee])
-
-  /* The server's own note says PENDING also comes back for an unknown task id,
-     so the client must not wait forever — after this the honest answer is
-     "we cannot tell, set it by hand". */
-  useEffect(() => {
-    if (!taskId || mail.status !== 'pending') return
-    const timer = setTimeout(() => setWaitedTooLong(true), 90_000)
-    return () => clearTimeout(timer)
-  }, [taskId, mail.status])
-
-  if (!employee) return null
-
-  const submit = async () => {
-    if (value.trim().length < 6) return setError(t('employees.passwordTooShort'))
-    setSaving(true)
-    try {
-      await apiPost(EMPLOYEE_SET_PASSWORD(employee.id), { password: value })
-      toast.ok(t('employees.passwordSet'))
-      onClose()
-    } catch (e) {
-      setError(errorMessage(e, t('employees.saveFailed')))
-    } finally {
-      setSaving(false)
-    }
-  }
-
+  const total = existing.length + drafts.length
   return (
-    <Modal
-      open
-      onClose={onClose}
-      size="sm"
-      title={t('employees.setPassword')}
-      description={employee.legal_name ?? undefined}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            {t('common.cancel')}
-          </Button>
-          {/* The other way to hand over credentials: the server generates the
-              password itself and mails it, so nobody has to read one out. */}
-          <Button
-            variant="secondary"
-            leftIcon={<Mail size={15} />}
-            loading={credentials.send.isPending}
-            onClick={async () => {
-              // Generates a NEW password and mails it — the old one stops working.
-              if (!(await confirm({ kind: 'action', subject: employee.legal_name, confirmLabel: t('employees.sendCredentials') }))) return
-              try {
-                setWaitedTooLong(false)
-                const res = await credentials.send.mutateAsync(employee.id)
-                if (!res?.task_id) {
-                  // The broker was down: the server says so outright rather
-                  // than pretending the mail is on its way.
-                  toast.error(t('employees.credentialsNotQueued'))
-                  return
-                }
-                setTaskId(res.task_id)
-              } catch (e) {
-                toast.error(errorMessage(e, t('common.actionFailed')))
-              }
-            }}
-          >
-            {t('employees.sendCredentials')}
-          </Button>
-          <Button onClick={submit} loading={saving} leftIcon={<KeyRound size={15} />}>
-            {t('common.save')}
-          </Button>
-        </>
-      }
-    >
-      <Field label={t('employees.newPassword')} hint={t('employees.passwordHint')}>
-        <Input value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
-      </Field>
-
-      {taskId && (
-        <p
-          className={cn(
-            'mt-3 rounded-lg border px-3 py-2 text-[13px]',
-            mail.status === 'sent'
-              ? 'border-success/25 bg-success-soft text-success'
-              : mail.status === 'failed' || waitedTooLong
-                ? 'border-danger/25 bg-danger-soft text-danger'
-                : 'border-line bg-surface-2 text-fg-muted',
-          )}
-        >
-          {mail.status === 'sent'
-            ? t('employees.credentialsSent')
-            : mail.status === 'failed'
-              ? t('employees.credentialsFailed')
-              : mail.status === 'superseded'
-                ? t('employees.credentialsSuperseded')
-                : waitedTooLong
-                  ? t('employees.credentialsUnknown')
-                  : t('employees.credentialsSending')}
-        </p>
+    <section className="overflow-hidden rounded-inner border border-line">
+      <div className="flex items-center justify-between gap-2 border-b border-line bg-surface-2/50 px-3.5 py-2.5">
+        <span className="flex items-center gap-2 text-[13.5px] font-semibold text-fg">
+          <span className="text-brand">{icon}</span>
+          {title}
+          <span className="rounded-pill bg-brand-soft px-1.5 text-[11px] text-brand-strong">{total}</span>
+        </span>
+        <Button size="sm" variant="outline" leftIcon={<Plus size={13} />} onClick={onAdd} disabled={disabled}>
+          {t('common.add')}
+        </Button>
+      </div>
+      {total === 0 ? (
+        <p className="px-3.5 py-5 text-center text-[12.5px] text-fg-subtle">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-line/60">
+          {existing.map((r) => (
+            <li key={r.key} className="px-3.5 py-2.5">
+              <span className="block text-[13px] font-medium text-fg">{r.title}</span>
+              <span className="block text-[11.5px] text-fg-subtle">{r.sub}</span>
+            </li>
+          ))}
+          {drafts.map((r) => (
+            <li key={r.key} className="flex items-center justify-between gap-2 bg-brand-soft/30 px-3.5 py-2.5">
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium text-fg">{r.title}</span>
+                <span className="block text-[11.5px] text-fg-subtle">{r.sub}</span>
+              </span>
+              <IconButton size="sm" label={t('common.delete')} onClick={r.remove} className="text-danger">
+                <Trash2 size={14} />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
       )}
-      <FormError className="mt-3">{error}</FormError>
-    </Modal>
+    </section>
   )
 }
+
+/** C1: passport / diploma / labour-book scans picked now, uploaded after the employee is created. */
+function ScansPicker({ value, onChange }: { value: Record<string, File | null>; onChange: (v: Record<string, File | null>) => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  return (
+    <fieldset className="flex flex-col gap-2.5 rounded-lg border border-brand/30 bg-brand-soft/40 p-3">
+      <legend className="flex items-center gap-1.5 px-1.5 text-[13px] font-semibold text-fg">
+        <Paperclip size={14} aria-hidden /> {t('personnel.form.scans')}
+      </legend>
+      <p className="text-[11.5px] text-fg-subtle">{t('personnel.form.scansHint')}</p>
+      {SCAN_KINDS.map((kind) => {
+        const file = value[kind]
+        return (
+          <div key={kind} className="flex items-center gap-2.5">
+            <span className="w-[150px] shrink-0 text-[13px] text-fg-muted">{t(`personnel.scan.${kind}`)}</span>
+            {file ? (
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px] text-brand">
+                <span className="truncate">{file.name}</span>
+                <IconButton size="sm" label={t('common.delete')} onClick={() => onChange({ ...value, [kind]: null })}>
+                  <Trash2 size={14} />
+                </IconButton>
+              </span>
+            ) : (
+              <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[12px] font-semibold text-fg hover:bg-surface-2">
+                <Plus size={13} aria-hidden /> {t('personnel.form.pickFile')}
+                <input
+                  type="file"
+                  accept={SCAN_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!f) return
+                    const problem = scanProblem(f)
+                    if (problem) {
+                      toast.error(problem === 'type' ? t('personnel.docs.wrongType') : t('personnel.docs.tooBig'))
+                      return
+                    }
+                    onChange({ ...value, [kind]: f })
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )
+      })}
+    </fieldset>
+  )
+}
+
