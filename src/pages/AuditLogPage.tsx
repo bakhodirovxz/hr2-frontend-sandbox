@@ -1,143 +1,173 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
-import { Copy, Download } from 'lucide-react'
-import { Avatar } from '@/components/ui/Avatar'
+import dayjs from 'dayjs'
+import { AlertTriangle, CheckCircle2, Copy, Download, XCircle } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { Modal } from '@/components/ui/Modal'
 import { Combobox } from '@/components/ui/Combobox'
+import { DateInput } from '@/components/ui/DateInput'
+import { Modal } from '@/components/ui/Modal'
+import { Segmented } from '@/components/ui/Segmented'
+import { ActionMenu } from '@/components/ui/ActionMenu'
+import { useToast } from '@/components/ui/Toast'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
-import { OnlineNowStrip } from '@/features/audit/OnlineNowStrip'
-import { DataTable, type Column } from '@/components/data/DataTable'
+import { DataTable, type Column, type SortState } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
-import { useListParams } from '@/hooks/useListParams'
 import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
 import { FilterToggle } from '@/components/data/FilterToggle'
-import { useEmployeePickerSearch } from '@/features/employees/EmployeePicker'
-import { employeeOption } from '@/features/employees/subLabel'
+import { useListParams } from '@/hooks/useListParams'
 import { formatDateTime } from '@/lib/format'
-import { cn } from '@/lib/cn'
-import { AUDIT_CATEGORIES, AUDIT_RESOURCE_TYPES, useAuditLogs, useAuditStats, type AuditLog } from '@/features/audit/useAuditLogs'
-import { Button } from '@/components/ui/Button'
-import { DateInput } from '@/components/ui/DateInput'
-import { useToast } from '@/components/ui/Toast'
-import { XLSX_MIME, downloadFile } from '@/lib/download'
+import { PDF_MIME, XLSX_MIME, downloadFile } from '@/lib/download'
 import { AUDIT_LOGS } from '@/api/endpoints'
 import { errorMessage } from '@/api/errorMessage'
 import { useBranchStore } from '@/store/branchStore'
-import dayjs from 'dayjs'
+import {
+  AUDIT_CATEGORIES,
+  AUDIT_RESOURCE_TYPES,
+  CATEGORY_ACTIONS,
+  auditParams,
+  useAuditActors,
+  useAuditLogs,
+  useAuditStats,
+  type AuditCategory,
+  type AuditLog,
+} from '@/features/audit/useAuditLogs'
 import type { Translation } from '@/i18n/uz'
 
-const FILTER_KEYS = ['action', 'cat', 'status', 'from', 'to', 'user', 'res', 'branch'] as const
+/*
+ * AUDIT JURNALI — TZ A4 «Просмотр журнала действий». v1 `AuditLogPage` bilan
+ * bir xil: toifa tablari (raqamlari `audit-logs/stats` dan), filtrlar
+ * (qidiruv, filial, foydalanuvchi, amal, resurs, xato kodi 4xx/5xx, natija,
+ * davr), ustunlar bo'yicha saralash, tafsilot oynasi va CSV / Excel / PDF
+ * eksport (`audit-logs/export?format=&lang=`, ro'yxat bilan AYNAN bir xil
+ * filtrlar bilan).
+ */
+
+const FILTER_KEYS = ['cat', 'action', 'status', 'result', 'from', 'to', 'user', 'res', 'branch', 'sort'] as const
+/** Everything but the category tab and the sort counts as a «filter». */
+const NARROWING = ['action', 'status', 'result', 'from', 'to', 'user', 'res', 'branch'] as const
 
 type AuditKey = keyof Translation['audit']
 const ACTION_META: Record<string, { labelKey: AuditKey; tone: BadgeTone }> = {
   CREATE: { labelKey: 'actionCreate', tone: 'success' },
   UPDATE: { labelKey: 'actionUpdate', tone: 'warning' },
   DELETE: { labelKey: 'actionDelete', tone: 'danger' },
-  VIEW: { labelKey: 'actionView', tone: 'info' },
-  PAGE_VIEW: { labelKey: 'actionPageView', tone: 'neutral' },
-  LOGIN: { labelKey: 'actionLogin', tone: 'brand' },
-  // Everything else the middleware writes (TEST: ERROR 23.5k, ASK 5.9k,
-  // EXPORT 2.2k, LOGOUT 0.9k …). Without these the column showed raw slugs
-  // and the Action filter could not narrow to errors at all.
-  ERROR: { labelKey: 'actionError', tone: 'danger' },
-  LOGOUT: { labelKey: 'actionLogout', tone: 'neutral' },
   EXPORT: { labelKey: 'actionExport', tone: 'info' },
-  SEARCH: { labelKey: 'actionSearch', tone: 'neutral' },
-  ASK: { labelKey: 'actionAsk', tone: 'brand' },
+  LOGIN: { labelKey: 'actionLogin', tone: 'brand' },
+  LOGOUT: { labelKey: 'actionLogout', tone: 'neutral' },
+  PASSWORD: { labelKey: 'actionPassword', tone: 'warning' },
+  PAGE_VIEW: { labelKey: 'actionPageView', tone: 'neutral' },
+  VIEW: { labelKey: 'actionView', tone: 'neutral' },
+  SEARCH: { labelKey: 'actionSearch', tone: 'info' },
   EMAIL: { labelKey: 'actionEmail', tone: 'info' },
   EMAIL_FAIL: { labelKey: 'actionEmailFail', tone: 'danger' },
-  PASSWORD: { labelKey: 'actionPassword', tone: 'warning' },
-  attendance_period_lock: { labelKey: 'actionPeriodLock', tone: 'warning' },
-  attendance_period_unlock: { labelKey: 'actionPeriodUnlock', tone: 'warning' },
+  ERROR: { labelKey: 'actionError', tone: 'danger' },
+  FEEDBACK: { labelKey: 'actionFeedback', tone: 'neutral' },
+  // System events written by the services themselves (lower case).
   backup_created: { labelKey: 'actionBackup', tone: 'neutral' },
   backup_deleted: { labelKey: 'actionBackupDeleted', tone: 'danger' },
   system_emergency_shutdown: { labelKey: 'actionShutdown', tone: 'danger' },
   system_resume: { labelKey: 'actionResume', tone: 'success' },
   system_recovery: { labelKey: 'actionRecovery', tone: 'success' },
 }
+/** The actions the filter offers (v1 order). */
+const FILTER_ACTIONS = [
+  'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'LOGIN', 'LOGOUT', 'PASSWORD',
+  'PAGE_VIEW', 'VIEW', 'SEARCH', 'EMAIL', 'EMAIL_FAIL', 'ERROR',
+]
+
+/** Column key → server `sort` value (TZ A4 «сортировка»). */
+const SORT_FIELD: Record<string, string> = { time: 'created_at', user: 'user', action: 'action', result: 'result' }
+const SORT_COLUMN: Record<string, string> = { created_at: 'time', user: 'user', action: 'action', result: 'result' }
+
+const EXPORTS = [
+  { format: 'csv', labelKey: 'exportCsv', mime: 'text/csv' },
+  { format: 'xlsx', labelKey: 'exportXlsx', mime: XLSX_MIME },
+  { format: 'pdf', labelKey: 'exportPdf', mime: PDF_MIME },
+] as const
+
+const isFailure = (row: AuditLog) =>
+  (row.result ?? (row.action === 'ERROR' || row.action === 'EMAIL_FAIL' ? 'failure' : 'success')) === 'failure'
 
 export function AuditLogPage() {
   const { t } = useTranslation()
-  // A type the dictionary does not know yet is shown as its slug, never as a raw key.
-  const resourceLabel = (r: string) => (i18n.exists(`audit.res_${r}`) ? t(`audit.res_${r}` as never) : r)
-  const { search, setSearch, page, setPage, size, setSize, filters, setFilter, activeFilterCount, reset } =
-    useListParams(FILTER_KEYS)
-  const foldedCount = [filters.user, filters.cat, filters.action, filters.res, filters.branch, filters.status, filters.from, filters.to].filter(Boolean).length
-  const [filtersOpen, setFiltersOpen] = useState(() => foldedCount > 0)
-
   const toast = useToast()
-  // ⚠️ THE JOURNAL DOES NOT FOLLOW THE HEADER BRANCH. v1 deliberately opts out
-  // of the global stamp and defaults to EVERY branch, because auditing branch B
-  // should not require switching every other page to branch B. Measured live:
-  // unfiltered 42 621 rows against 18 194 for branch 1 — the global selector was
-  // silently hiding more than half the journal. An explicit pick here narrows it.
+  const resourceLabel = (r: string) => (i18n.exists(`audit.res_${r}`) ? t(`audit.res_${r}` as never) : r)
+  const actionLabel = (a?: string | null) => {
+    const meta = a ? ACTION_META[a] : undefined
+    return meta ? t(`audit.${meta.labelKey}`) : a || '—'
+  }
+
+  const { search, setSearch, page, setPage, size, setSize, filters, setFilter, setFilters } = useListParams(FILTER_KEYS)
+
+  // v1 opens on «Amallar» — the real changes, not page views and errors.
+  const category: AuditCategory = (AUDIT_CATEGORIES as readonly string[]).includes(filters.cat)
+    ? (filters.cat as AuditCategory)
+    : 'changes'
+  const narrowingCount = NARROWING.filter((k) => filters[k]).length
+  const activeCount = narrowingCount + (search ? 1 : 0)
+  const [filtersOpen, setFiltersOpen] = useState(() => narrowingCount > 0)
+
   const branchId = filters.branch ? Number(filters.branch) : null
   const allBranches = useBranchStore((st) => st.branches)
   const branchOptions = allBranches.map((b) => ({ value: String(b.id), label: b.name ?? String(b.id) }))
-  const [exporting, setExporting] = useState(false)
-  const [viewing, setViewing] = useState<AuditLog | null>(null)
 
-  // Values the server would 422 on are dropped here, never sent: a resource
-  // type outside the known set, a status group outside the errors category,
-  // a range that runs backwards.
-  const resourceType = (AUDIT_RESOURCE_TYPES as readonly string[]).includes(filters.res) ? filters.res : ''
-  const statusGroup = filters.cat === 'errors' && ['4xx', '5xx'].includes(filters.status) ? filters.status : ''
-  const rangeInvalid = !!filters.from && !!filters.to && filters.from > filters.to
-
-  // The user picker searches `/employees` the way every form picker does and
-  // filters by the LOGIN behind the person (`user_id`), which is what the
-  // journal is keyed by. A person with no login cannot appear in it.
-  const [userQuery, setUserQuery] = useState('')
-  const { candidates, loading: usersLoading, hasMore: usersHasMore, loadMore: loadMoreUsers } = useEmployeePickerSearch(userQuery, null, true)
-  const userOptions = useMemo(() => {
-    const opts = candidates
-      .filter((e) => e.user_id != null)
-      .map((e) => ({ ...employeeOption(e), value: String(e.user_id) }))
-    // The selection lives in the URL as an id; after a reload the label is
-    // not known until the person is searched again, so keep a stand-in row.
+  const actors = useAuditActors(branchId)
+  const actorOptions = useMemo(() => {
+    const opts = (actors.data ?? []).map((a) => ({
+      value: String(a.user_id),
+      label: a.name && a.name !== a.username ? `${a.name} (${a.username})` : a.name || a.username || `#${a.user_id}`,
+    }))
     if (filters.user && !opts.some((o) => o.value === filters.user)) {
       opts.unshift({ value: filters.user, label: t('audit.userSelected', { id: filters.user }) })
     }
     return opts
-  }, [candidates, filters.user, t])
+  }, [actors.data, filters.user, t])
+
+  // Values the server would refuse are dropped, never sent.
+  const allowedActions = category === 'all' ? FILTER_ACTIONS : CATEGORY_ACTIONS[category]
+  const action = allowedActions.includes(filters.action) ? filters.action : ''
+  const statusGroup = (category === 'errors' || category === 'all') && ['4xx', '5xx'].includes(filters.status) ? filters.status : ''
+  const result = ['success', 'failure'].includes(filters.result) ? filters.result : ''
+  const rangeInvalid = !!filters.from && !!filters.to && filters.from > filters.to
+
+  const [sortBy, sortDir] = (filters.sort || 'created_at:desc').split(':')
+  const sort: SortState = {
+    key: SORT_COLUMN[sortBy] ?? 'time',
+    dir: sortDir === 'asc' ? 'asc' : 'desc',
+  }
 
   const query = {
     userId: filters.user,
-    action: filters.action,
-    category: filters.cat,
+    action,
+    category,
     statusGroup,
-    resourceType,
+    resourceType: filters.res,
+    result,
     dateFrom: filters.from,
     dateTo: filters.to,
     search,
     branchId,
+    sort: SORT_FIELD[sort.key],
+    order: sort.dir,
     enabled: !rangeInvalid,
   }
   const { rows, total, pages, loading, fetching, denied, error, refetch } = useAuditLogs(page, size, query)
-  const auditStats = useAuditStats(query, !denied)
+  const stats = useAuditStats(query, !denied)
 
-  const exportExcel = async () => {
+  const [exporting, setExporting] = useState(false)
+  const exportAs = async (fmt: (typeof EXPORTS)[number]) => {
     setExporting(true)
     try {
       await downloadFile({
         url: `${AUDIT_LOGS}/export`,
-        mime: XLSX_MIME,
-        filename: `Audit_${dayjs().format('DD.MM.YYYY')}.xlsx`,
-        params: {
-          user_id: query.userId || undefined,
-          action: query.action || undefined,
-          category: query.category || undefined,
-          status_group: query.statusGroup || undefined,
-          resource_type: query.resourceType || undefined,
-          date_from: query.dateFrom || undefined,
-          date_to: query.dateTo || undefined,
-          search: query.search || undefined,
-          organization_branch_id: branchId || undefined,
-        },
+        mime: fmt.mime,
+        filename: `audit-jurnali_${dayjs().format('DD.MM.YYYY')}.${fmt.format}`,
+        // A-D10: column and action names in the interface language.
+        params: { ...auditParams(query), format: fmt.format, lang: i18n.language || 'uz' },
       })
       toast.ok(t('audit.exported'))
     } catch (e) {
@@ -147,31 +177,20 @@ export function AuditLogPage() {
     }
   }
 
-  const categoryOptions = useMemo(
-    () =>
-      AUDIT_CATEGORIES.map((c) => ({
-        value: c,
-        label: t(`audit.cat_${c}` as never),
-        subLabel: t(`audit.catHint_${c}` as never),
-      })),
-    [t],
-  )
+  const reset = () =>
+    setFilters({ q: null, ...Object.fromEntries(NARROWING.map((k) => [k, null])) })
 
-  const resourceOptions = useMemo(
-    () => AUDIT_RESOURCE_TYPES.map((r) => ({ value: r, label: resourceLabel(r) })),
-    [t],
-  )
+  const selectCategory = (next: AuditCategory) => {
+    const allowed = next === 'all' ? FILTER_ACTIONS : CATEGORY_ACTIONS[next]
+    setFilters({
+      cat: next === 'changes' ? null : next,
+      // A filter the new tab cannot have would silently empty the list.
+      action: filters.action && allowed.includes(filters.action) ? filters.action : null,
+      status: next === 'errors' || next === 'all' ? filters.status || null : null,
+    })
+  }
 
-  const actionOptions = useMemo(
-    () =>
-      // The server upper-cases the filter value, so the lower-case system
-      // events (backup_*, system_*) can be labelled but not filtered by.
-      Object.keys(ACTION_META).filter((a) => a === a.toUpperCase()).map((a) => ({
-        value: a,
-        label: t(`audit.${ACTION_META[a].labelKey}`),
-      })),
-    [t],
-  )
+  const [viewing, setViewing] = useState<AuditLog | null>(null)
 
   const columns: Column<AuditLog>[] = [
     {
@@ -179,43 +198,44 @@ export function AuditLogPage() {
       header: t('audit.colTime'),
       className: 'whitespace-nowrap tabular-nums text-fg-muted',
       skeleton: 'w-28',
+      lockVisible: true,
+      // Sorted by the server; the constant keeps the page in its order.
+      sortValue: () => 0,
       cell: (row) => formatDateTime(row.created_at),
     },
     {
       key: 'user',
       header: t('audit.colUser'),
       skeleton: 'w-40',
-      cell: (row) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={row.employee_name} size={28} />
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium text-fg">
-              {row.employee_name || t('common.unknown')}
+      sortValue: () => 0,
+      cell: (row) => {
+        const branch = row.actor_branch_name || row.organization_branch_name
+        const target =
+          row.organization_branch_name && row.organization_branch_name !== branch ? row.organization_branch_name : null
+        return (
+          <div className="min-w-0 max-w-[240px]">
+            <p className="truncate text-[13px] font-medium text-fg">{row.employee_name || t('common.unknown')}</p>
+            <p className="truncate text-[11.5px] text-fg-subtle" title={branch ?? undefined}>
+              {branch || '—'}
+              {target && <span> → {target}</span>}
             </p>
-            {row.actor_branch_name && row.actor_branch_name !== row.organization_branch_name && (
-              <p className="truncate text-[11px] text-fg-subtle">
-                {t('audit.colActorBranch')}: {row.actor_branch_name}
-              </p>
-            )}
-            {row.organization_branch_name && (
-              <p className="truncate text-[11px] text-fg-subtle">{row.organization_branch_name}</p>
-            )}
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: 'action',
       header: t('audit.colAction'),
       skeleton: 'w-16',
-      cell: (row) => {
-        const meta = row.action ? ACTION_META[row.action] : undefined
-        return (
-          <Badge tone={meta?.tone ?? 'neutral'}>
-            {meta ? t(`audit.${meta.labelKey}`) : row.action || '—'}
-          </Badge>
-        )
-      },
+      sortValue: () => 0,
+      cell: (row) => <Badge tone={(row.action && ACTION_META[row.action]?.tone) || 'neutral'}>{actionLabel(row.action)}</Badge>,
+    },
+    {
+      key: 'result',
+      header: t('audit.colResult'),
+      skeleton: 'w-20',
+      sortValue: () => 0,
+      cell: (row) => <ResultMark failure={isFailure(row)} />,
     },
     {
       key: 'resource',
@@ -237,7 +257,7 @@ export function AuditLogPage() {
       className: 'max-w-[240px] truncate font-mono text-[12px] text-fg-subtle',
       skeleton: 'w-40',
       cell: (row) => (
-        <span>
+        <span title={row.endpoint ?? undefined}>
           {row.method && <span className="mr-1 text-fg-muted">{row.method}</span>}
           {row.endpoint || '—'}
         </span>
@@ -248,61 +268,56 @@ export function AuditLogPage() {
       header: t('audit.colIp'),
       className: 'tabular-nums text-fg-subtle',
       skeleton: 'w-20',
-      cell: (row) => row.ip_address || '—',
+      cell: (row) => (
+        <>
+          <span className="block font-mono text-[12px]">{row.ip_address || '—'}</span>
+          <span className="block text-[11px]">{shortAgent(row.user_agent, t('audit.mobileApp'))}</span>
+        </>
+      ),
     },
   ]
+
+  const resourceOptions = AUDIT_RESOURCE_TYPES.map((r) => ({ value: r, label: resourceLabel(r) })).sort((a, b) =>
+    a.label.localeCompare(b.label, 'uz'),
+  )
+  const countOf = (c: AuditCategory) => (c === 'all' ? stats.total : stats.byCategory[c] ?? (stats.total != null ? 0 : undefined))
 
   return (
     <PageContainer>
       <PageHeader
         title={t('audit.title')}
-        subtitle={t('audit.subtitle')}
+        subtitle={`${t(`audit.catHint_${category}` as never)} — ${t('audit.totalRows', { count: total })}`}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportExcel}
-            loading={exporting}
-            disabled={denied}
-            leftIcon={<Download size={14} />}
-          >
-            Excel
-          </Button>
+          denied ? undefined : (
+            <ActionMenu
+              label={t('audit.export')}
+              icon={<Download size={14} />}
+              width={180}
+              items={EXPORTS.map((f) => ({
+                key: f.format,
+                label: t(`audit.${f.labelKey}`),
+                loading: exporting,
+                disabled: exporting || rangeInvalid,
+                onClick: () => void exportAs(f),
+              }))}
+            />
+          )
         }
       />
 
-      <OnlineNowStrip />
+      <Segmented
+        className="mb-4"
+        aria-label={t('audit.title')}
+        value={category}
+        onChange={selectCategory}
+        options={AUDIT_CATEGORIES.map((c) => ({
+          value: c,
+          label: t(`audit.cat_${c}` as never),
+          count: countOf(c),
+        }))}
+      />
 
-      {/* The whole current selection by category — the table below shows one
-          page of it. Clicking a category applies it as the filter. */}
-      {auditStats.total > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {Object.entries(auditStats.byCategory)
-            .filter(([, n]) => n > 0)
-            .sort((a, b) => b[1] - a[1])
-            .map(([key, n]) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={filters.cat === key}
-                onClick={() => setFilter('cat', filters.cat === key ? '' : key)}
-                className={cn(
-                  'rounded-lg border px-3 py-1.5 text-left transition-colors',
-                  filters.cat === key
-                    ? 'border-brand bg-brand-soft'
-                    : 'border-border bg-surface-2 hover:bg-fg/[0.05]',
-                )}
-              >
-                <span className="block text-[11.5px] font-semibold text-fg-muted">
-                  {t(`audit.cat_${key}` as never)}
-                </span>
-                <span className="block text-[15px] font-bold tabular-nums text-fg">{n}</span>
-              </button>
-            ))}
-        </div>
-      )}
-
-      <Card className="flex h-[calc(100dvh-13rem)] flex-col overflow-hidden">
+      <Card className="flex h-[calc(100dvh-15rem)] flex-col overflow-hidden">
         <div className="flex flex-col gap-2.5 border-b border-line p-4 lg:flex-row lg:flex-wrap lg:items-center">
           <SearchInput
             value={search}
@@ -310,93 +325,88 @@ export function AuditLogPage() {
             placeholder={t('audit.searchPlaceholder')}
             className="flex-1 lg:max-w-md"
           />
-          {/* Seven narrowing controls wrapped to a second row with a lone date;
-              they fold behind «Filtrlar» (redesign 2026-09-24). */}
-          <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={foldedCount} />
-          <FilterReset count={activeFilterCount} onReset={reset} />
+          <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={narrowingCount} />
+          <FilterReset count={activeCount} onReset={reset} />
           {filtersOpen && (
-          <div className="grid w-full grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Combobox
-            value={filters.user}
-            onChange={(v) => setFilter('user', v)}
-            options={userOptions}
-            onSearchChange={setUserQuery}
-            loading={usersLoading}
-            hasMore={usersHasMore}
-            onLoadMore={loadMoreUsers}
-            placeholder={t('audit.allUsers')}
-            searchPlaceholder={t('audit.userSearchPlaceholder')}
-            className="w-full"
-          />
-          {/* Category first: it is the question the reader arrived with, and it
-              narrows the action list that follows. */}
-          <Combobox
-            value={filters.cat}
-            onChange={(v) => setFilter('cat', v)}
-            options={categoryOptions}
-            placeholder={t('audit.allCategories')}
-            className="w-full"
-          />
-          <Combobox
-            value={filters.action}
-            onChange={(v) => setFilter('action', v)}
-            options={actionOptions}
-            placeholder={t('audit.allActions')}
-            className="w-full"
-          />
-          <Combobox
-            value={resourceType}
-            onChange={(v) => setFilter('res', v)}
-            options={resourceOptions}
-            placeholder={t('audit.allResources')}
-            className="w-full"
-          />
-          {/* The journal's OWN branch picker. Empty means every branch — see the
-              note on `branchId` above. */}
-          <Combobox
-            value={filters.branch}
-            onChange={(v) => setFilter('branch', v)}
-            options={branchOptions}
-            placeholder={t('audit.allBranches')}
-            className="w-full"
-          />
-          {filters.cat === 'errors' && (
-            <Combobox
-              value={statusGroup}
-              onChange={(v) => setFilter('status', v)}
-              options={[
-                { value: '4xx', label: t('audit.status4xx') },
-                { value: '5xx', label: t('audit.status5xx') },
-              ]}
-              placeholder={t('audit.allErrors')}
-              className="w-full"
-            />
-          )}
-          <DateInput
-            value={filters.from}
-            onChange={(v) => setFilter('from', v)}
-            invalid={rangeInvalid}
-            aria-label={t('audit.dateFrom')}
-            placeholder={t('audit.dateFrom')}
-            className="w-full"
-          />
-          <DateInput
-            value={filters.to}
-            onChange={(v) => setFilter('to', v)}
-            invalid={rangeInvalid}
-            aria-label={t('audit.dateTo')}
-            placeholder={t('audit.dateTo')}
-            className="w-full"
-          />
-          </div>
+            <div className="grid w-full grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {/* The journal's OWN branch picker — empty means every branch. */}
+              <Combobox
+                value={filters.branch}
+                onChange={(v) => setFilters({ branch: v || null, user: null })}
+                options={branchOptions}
+                placeholder={t('audit.allBranches')}
+                className="w-full"
+              />
+              <Combobox
+                value={filters.user}
+                onChange={(v) => setFilter('user', v)}
+                options={actorOptions}
+                loading={actors.isLoading}
+                placeholder={t('audit.allUsers')}
+                searchPlaceholder={t('audit.userSearchPlaceholder')}
+                className="w-full"
+              />
+              <Combobox
+                value={action}
+                onChange={(v) => setFilter('action', v)}
+                options={allowedActions.map((a) => ({ value: a, label: actionLabel(a) }))}
+                placeholder={t('audit.allActions')}
+                className="w-full"
+              />
+              <Combobox
+                value={filters.res}
+                onChange={(v) => setFilter('res', v)}
+                options={resourceOptions}
+                placeholder={t('audit.allResources')}
+                className="w-full"
+              />
+              {(category === 'errors' || category === 'all') && (
+                <Combobox
+                  value={statusGroup}
+                  onChange={(v) => setFilter('status', v)}
+                  options={[
+                    { value: '4xx', label: t('audit.status4xx') },
+                    { value: '5xx', label: t('audit.status5xx') },
+                  ]}
+                  placeholder={t('audit.allErrors')}
+                  className="w-full"
+                />
+              )}
+              <Combobox
+                value={result}
+                onChange={(v) => setFilter('result', v)}
+                options={[
+                  { value: 'success', label: t('audit.resultSuccess') },
+                  { value: 'failure', label: t('audit.resultFailure') },
+                ]}
+                placeholder={t('audit.allResults')}
+                className="w-full"
+              />
+              <DateInput
+                value={filters.from}
+                onChange={(v) => setFilter('from', v)}
+                invalid={rangeInvalid}
+                aria-label={t('audit.dateFrom')}
+                className="w-full"
+              />
+              <DateInput
+                value={filters.to}
+                onChange={(v) => setFilter('to', v)}
+                invalid={rangeInvalid}
+                aria-label={t('audit.dateTo')}
+                className="w-full"
+              />
+            </div>
           )}
           {rangeInvalid && (
-            <p role="alert" className="w-full text-xs text-danger">{t('list.invalidRange')}</p>
+            <p role="alert" className="w-full text-xs text-danger">
+              {t('list.invalidRange')}
+            </p>
           )}
         </div>
 
         <DataTable
-        tableId="audit-log"
+          tableId="audit-log"
           rows={rows}
           columns={columns}
           loading={loading}
@@ -404,45 +414,45 @@ export function AuditLogPage() {
           onRetry={refetch}
           emptyTitle={denied ? t('audit.denied') : t('audit.empty')}
           emptyDescription={denied ? t('audit.deniedHint') : t('audit.emptyHint')}
-          filtered={!denied && activeFilterCount > 0}
-          minWidth={1000}
+          filtered={!denied && activeCount > 0}
+          emptyAction={<FilterReset count={activeCount} onReset={reset} />}
+          minWidth={1100}
+          sort={sort}
+          onSort={(s) => setFilter('sort', s.key === 'time' && s.dir === 'desc' ? '' : `${SORT_FIELD[s.key]}:${s.dir}`)}
           onRowClick={setViewing}
         />
 
-        <Pagination
-          page={page}
-          size={size}
-          total={total}
-          pages={pages}
-          onPage={setPage}
-          onSize={setSize}
-          loading={fetching}
-        />
+        <Pagination page={page} size={size} total={total} pages={pages} onPage={setPage} onSize={setSize} loading={fetching} />
       </Card>
 
-      <AuditDetailModal
-        row={viewing}
-        onClose={() => setViewing(null)}
-        actionLabel={(a) => {
-          const meta = a ? ACTION_META[a] : undefined
-          return meta ? t(`audit.${meta.labelKey}`) : a || '—'
-        }}
-        resourceLabel={resourceLabel}
-      />
+      <AuditDetailModal row={viewing} onClose={() => setViewing(null)} actionLabel={actionLabel} resourceLabel={resourceLabel} />
     </PageContainer>
   )
 }
 
-/** «Chrome 128 · Windows» out of a raw user-agent string — enough to tell a
- *  phone from the office PC without reading 200 characters. */
+function ResultMark({ failure }: { failure: boolean }) {
+  const { t } = useTranslation()
+  return failure ? (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] text-danger">
+      <XCircle size={13} aria-hidden /> {t('audit.resultFailure')}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] text-success">
+      <CheckCircle2 size={13} aria-hidden /> {t('audit.resultSuccess')}
+    </span>
+  )
+}
+
+/** «Chrome 128 · Windows» out of a raw user-agent string. */
 function shortAgent(ua: string | null | undefined, appLabel: string) {
   if (!ua) return '—'
-  const browser = /Edg\/(\d+)/.exec(ua) ? `Edge ${/Edg\/(\d+)/.exec(ua)![1]}`
-    : /OPR\/(\d+)/.exec(ua) ? `Opera ${/OPR\/(\d+)/.exec(ua)![1]}`
-    : /YaBrowser\/(\d+)/.exec(ua) ? `Yandex ${/YaBrowser\/(\d+)/.exec(ua)![1]}`
-    : /Chrome\/(\d+)/.exec(ua) ? `Chrome ${/Chrome\/(\d+)/.exec(ua)![1]}`
-    : /Firefox\/(\d+)/.exec(ua) ? `Firefox ${/Firefox\/(\d+)/.exec(ua)![1]}`
-    : /Version\/(\d+).*Safari/.exec(ua) ? `Safari ${/Version\/(\d+)/.exec(ua)![1]}`
+  const ver = (re: RegExp) => re.exec(ua)?.[1]
+  const browser = ver(/Edg\/(\d+)/) ? `Edge ${ver(/Edg\/(\d+)/)}`
+    : ver(/OPR\/(\d+)/) ? `Opera ${ver(/OPR\/(\d+)/)}`
+    : ver(/YaBrowser\/(\d+)/) ? `Yandex ${ver(/YaBrowser\/(\d+)/)}`
+    : ver(/Chrome\/(\d+)/) ? `Chrome ${ver(/Chrome\/(\d+)/)}`
+    : ver(/Firefox\/(\d+)/) ? `Firefox ${ver(/Firefox\/(\d+)/)}`
+    : /Version\/(\d+).*Safari/.test(ua) ? `Safari ${ver(/Version\/(\d+)/)}`
     : /okhttp|Expo|Dart|CFNetwork/i.test(ua) ? appLabel
     : ua.split(' ')[0]
   const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iOS/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : ''
@@ -450,9 +460,9 @@ function shortAgent(ua: string | null | undefined, appLabel: string) {
 }
 
 /**
- * One journal entry in full. The list shows who/what/where; the question that
- * follows is «what exactly was sent» — the request body the middleware stored
- * (passwords and tokens already masked as ***) — and from which device.
+ * One journal entry in full: who, where from, the outcome (response code and
+ * the server's reason for a failure) and the request body the middleware
+ * stored (passwords and tokens already masked).
  */
 function AuditDetailModal({
   row,
@@ -467,17 +477,26 @@ function AuditDetailModal({
 }) {
   const { t } = useTranslation()
   const toast = useToast()
+  const d = row?.details && typeof row.details === 'object' && !Array.isArray(row.details) ? (row.details as Record<string, unknown>) : null
   const hasBody = row?.details != null && !(typeof row.details === 'object' && Object.keys(row.details as object).length === 0)
   const body = hasBody ? JSON.stringify(row!.details, null, 2) : ''
+  const failure = row ? isFailure(row) : false
   const items: [string, ReactNode][] = row
     ? [
         [t('audit.colTime'), row.created_at ? formatDateTime(row.created_at) : '—'],
         [t('audit.colUser'), row.employee_name || '—'],
         [t('audit.colActorBranch'), row.actor_branch_name || '—'],
+        [t('audit.colTargetBranch'), row.organization_branch_name || '—'],
         [t('audit.colAction'), actionLabel(row.action)],
-        [t('audit.colResource'), row.resource_type ? `${resourceLabel(row.resource_type)}${row.resource_id ? ` #${row.resource_id}` : ''}` : '—'],
+        [t('audit.colResult'), <ResultMark key="r" failure={failure} />],
+        [
+          t('audit.colResource'),
+          row.resource_type ? `${resourceLabel(row.resource_type)}${row.resource_id ? ` #${row.resource_id}` : ''}` : '—',
+        ],
         [t('audit.colIp'), row.ip_address || '—'],
         [t('audit.device'), <span key="ua" title={row.user_agent ?? undefined}>{shortAgent(row.user_agent, t('audit.mobileApp'))}</span>],
+        ...(d?.status != null ? ([[t('audit.responseCode'), String(d.status)]] as [string, ReactNode][]) : []),
+        ...(d?.code != null ? ([[t('audit.errorCode'), String(d.code)]] as [string, ReactNode][]) : []),
       ]
     : []
   return (
@@ -488,6 +507,14 @@ function AuditDetailModal({
             <span className="mr-2 font-semibold text-brand-strong">{row.method}</span>
             {row.endpoint || '—'}
           </p>
+          {failure && d?.error != null && (
+            <p className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden />
+              <span>
+                <b>{t('audit.errorReason')}:</b> {String(d.error)}
+              </span>
+            </p>
+          )}
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
             {items.map(([k, v]) => (
               <div key={k} className="min-w-0">
