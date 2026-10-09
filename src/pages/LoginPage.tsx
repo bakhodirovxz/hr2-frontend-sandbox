@@ -14,7 +14,7 @@ import { useAuthStore } from '@/store/authStore'
 import { LABEL_CLS, control, CONTROL_PAD } from '@/components/ui/control'
 import { cn } from '@/lib/cn'
 import type { QrTokens } from '@/features/auth/QrLoginPanel'
-import { takeLogoutReason } from '@/features/auth/logoutReason'
+import { clearLogoutReason, peekLogoutReason } from '@/features/auth/logoutReason'
 
 /**
  * ⚠️ LAZY. `LoginPage` is the one page kept EAGER in the entry chunk (it is the
@@ -55,7 +55,8 @@ export function LoginPage() {
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null)
   const [code, setCode] = useState('')
   /** TZ U2 — harakatsizlik sababli chiqarilgan bo'lsa, bir marta aytiladi. */
-  const [idleNotice] = useState(() => takeLogoutReason() === 'idle')
+  const [idleNotice] = useState(() => peekLogoutReason() === 'idle')
+  useEffect(() => clearLogoutReason(), [])
 
   const from = (location.state as { from?: Location } | null)?.from
   const redirectTo = from ? `${from.pathname}${from.search || ''}` : '/'

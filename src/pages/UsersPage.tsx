@@ -144,13 +144,13 @@ export function UsersPage() {
       key: 'username',
       header: t('userAdmin.login'),
       skeleton: 'w-28',
-      cell: (u) => <span className="font-semibold text-fg">{u.username}</span>,
+      cell: (u) => <span className="block max-w-[14rem] break-all font-semibold text-fg">{u.username}</span>,
     },
     {
       key: 'full_name',
       header: t('userAdmin.fullName'),
       skeleton: 'w-44',
-      cell: (u) => <span className="text-fg">{u.full_name || '—'}</span>,
+      cell: (u) => <span className="block min-w-[11rem] text-fg">{u.full_name || '—'}</span>,
     },
     {
       key: 'email',
