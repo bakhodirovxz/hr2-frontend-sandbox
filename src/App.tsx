@@ -26,6 +26,7 @@ const DashboardPage = page(() => import('@/pages/DashboardPage'), 'DashboardPage
 const MyProfilePage = page(() => import('@/pages/MyProfilePage'), 'MyProfilePage')
 const MyAttendancePage = page(() => import('@/pages/MyAttendancePage'), 'MyAttendancePage')
 const UsersPage = page(() => import('@/pages/UsersPage'), 'UsersPage')
+const RolesPage = page(() => import('@/pages/RolesPage'), 'RolesPage')
 const BranchesPage = page(() => import('@/pages/BranchesPage'), 'BranchesPage')
 const RegistrationsPage = page(() => import('@/pages/RegistrationsPage'), 'RegistrationsPage')
 const AuditLogPage = page(() => import('@/pages/AuditLogPage'), 'AuditLogPage')
@@ -71,6 +72,7 @@ export function App() {
                       <Route path="/my-attendance" element={<MyAttendancePage />} />
                       {/* Tizim boshqaruvi — 4.2.1, A1–A4, E1–E3, LMS */}
                       <Route path="/users" element={<UsersPage />} />
+                      <Route path="/roles" element={<RolesPage />} />
                       <Route path="/branches" element={<BranchesPage />} />
                       <Route path="/registrations" element={<RegistrationsPage />} />
                       <Route path="/audit-logs" element={<AuditLogPage />} />
