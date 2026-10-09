@@ -1,41 +1,62 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
+import { apiGet, apiPatch, apiPost } from '@/api/http'
 import { useBranchStore } from '@/store/branchStore'
 
 const URL = 'inspections'
 
 /**
- * AUDITLAR — an internal inspection of an employee, a department or a process.
- *
- * The lifecycle is the point: planned → started → completed (or cancelled), and
- * the FINDINGS are what survives it. A finding carries a severity, someone
- * responsible and a due date, so "the audit is done" and "the problems are
- * fixed" stay two different questions.
+ * AUDITLAR — TZ K5 «Проведение аудитов». Planned → started → completed (or
+ * cancelled with a reason); findings carry a severity, someone responsible
+ * and a due date. A completed audit is frozen on the server (409
+ * `inspection_closed` on edit, no new findings).
  */
 export const INSPECTION_STATUSES = ['planned', 'in_progress', 'completed', 'cancelled'] as const
-export const INSPECTION_OBJECTS = ['employee', 'department', 'process'] as const
+export const INSPECTION_OBJECTS = ['department', 'employee', 'process'] as const
 export const FINDING_SEVERITIES = ['low', 'medium', 'high'] as const
+export const ASSESSMENTS = ['satisfactory', 'partly', 'unsatisfactory'] as const
 
 export interface Finding {
   id: number
-  description?: string | null
+  description: string
   recommendation?: string | null
-  severity?: string | null
-  status?: string | null
+  severity: string
+  status: string
   responsible_id?: number | null
   responsible_name?: string | null
   due_date?: string | null
-  resolution_note?: string | null
-  /** Server-computed: open and past `due_date`. */
+  /** Server-computed: still open and past `due_date`. */
   is_overdue?: boolean
+  resolution_note?: string | null
+}
+
+export interface SnapshotRow {
+  indicator_id?: number
+  name?: string | null
+  measure?: string | null
+  entries?: number | null
+  plan?: number | null
+  fact?: number | null
+  percent?: number | null
+  deviation_abs?: number | null
+}
+/** `kpi_snapshot` — plan / fact of the chosen indicators over the audited period. */
+export interface KpiSnapshotData {
+  taken_at?: string | null
+  period_start?: string | null
+  period_end?: string | null
+  rows?: SnapshotRow[]
+}
+
+export interface Extension {
+  at?: string | null
+  by?: string | null
+  old_end?: string | null
+  new_end?: string | null
+  reason?: string | null
 }
 
 export interface Inspection {
   id: number
-  /** Caller's rights on this row, computed by the server (`_to_read`). */
-  can_manage?: boolean
-  is_member?: boolean
-  can_add_finding?: boolean
   title: string
   purpose?: string | null
   period_start?: string | null
@@ -47,23 +68,26 @@ export interface Inspection {
   department_id?: number | null
   department_name?: string | null
   process_name?: string | null
+  organization_branch_id?: number | null
   branch_name?: string | null
+  kpi_indicator_ids?: number[] | null
   status: string
   conclusion?: string | null
   cancel_reason?: string | null
-  created_by_name?: string | null
-  members?: { id: number; employee_id: number; employee_name?: string | null; role?: string | null }[]
+  members?: { id: number; employee_id: number; employee_name?: string | null }[]
   findings?: Finding[]
   findings_open?: number
   findings_total?: number
+  kpi_snapshot?: KpiSnapshotData | null
+  extensions?: Extension[]
 }
 
 interface Page<T> { items?: T[]; total?: number; pages?: number }
 
-export function useInspections(params: { page: number; size: number; search?: string; status?: string; objectType?: string }) {
+export function useInspections(params: { page: number; size: number; search?: string; status?: string }) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const q = useQuery({
-    queryKey: [URL, { ...params, branchId }],
+    queryKey: [URL, 'list', { ...params, branchId }],
     queryFn: () =>
       apiGet<Page<Inspection>>(URL, {
         page: params.page,
@@ -71,7 +95,6 @@ export function useInspections(params: { page: number; size: number; search?: st
         organization_branch_id: branchId || undefined,
         search: params.search || undefined,
         status: params.status || undefined,
-        object_type: params.objectType || undefined,
       }),
     placeholderData: (prev) => prev,
   })
@@ -79,9 +102,11 @@ export function useInspections(params: { page: number; size: number; search?: st
   return {
     rows: q.data?.items ?? [],
     total,
-    pages: q.data?.pages ?? Math.max(1, Math.ceil(total / (params.size || 1))),
+    pages: q.data?.pages || Math.max(1, Math.ceil(total / (params.size || 1))),
     loading: q.isLoading,
     fetching: q.isFetching,
+    error: q.error,
+    refetch: q.refetch,
   }
 }
 
@@ -90,45 +115,54 @@ export function useInspection(id: number | null) {
     enabled: !!id,
     queryKey: [URL, 'detail', id],
     queryFn: () => apiGet<Inspection>(`${URL}/${id}`),
+    retry: false,
   })
-  return { inspection: q.data ?? null, loading: q.isLoading }
+  return { inspection: q.data ?? null, loading: q.isLoading, error: q.error }
+}
+
+export interface AuditIndicator {
+  id: number
+  name: string
+  is_active?: boolean
+  organization_branch_id?: number | null
+  organization_branch_name?: string | null
+}
+
+/** KPI indicators — only where the KPI module is on (`/me` kpi_enabled). */
+export function useAuditIndicators(enabled: boolean) {
+  const branchId = useBranchStore((s) => s.selectedBranchId)
+  const q = useQuery({
+    queryKey: [URL, 'indicators', branchId],
+    queryFn: () => apiGet<AuditIndicator[]>('kpi/indicators', { organization_branch_id: branchId || undefined }),
+    enabled,
+    staleTime: 5 * 60_000,
+  })
+  return q.data ?? []
 }
 
 export function useInspectionMutations() {
   const qc = useQueryClient()
   const done = () => qc.invalidateQueries({ queryKey: [URL] })
+  const action = (path: string) => ({
+    mutationFn: ({ id, body }: { id: number; body?: Record<string, unknown> }) => apiPost<Inspection>(`${URL}/${id}/${path}`, body ?? {}),
+    onSuccess: done,
+  })
   return {
-    create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost(URL, body), onSuccess: done }),
+    create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<Inspection>(URL, body), onSuccess: done }),
+    /** Extending the deadline: `{period_end, extension_reason}`. */
     update: useMutation({
-      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => apiPatch(`${URL}/${id}`, body),
+      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => apiPatch<Inspection>(`${URL}/${id}`, body),
       onSuccess: done,
     }),
-    remove: useMutation({ mutationFn: (id: number) => apiDelete(`${URL}/${id}`), onSuccess: done }),
-    start: useMutation({ mutationFn: (id: number) => apiPost(`${URL}/${id}/start`, {}), onSuccess: done }),
-    complete: useMutation({
-      mutationFn: ({ id, conclusion }: { id: number; conclusion?: string | null }) =>
-        apiPost(`${URL}/${id}/complete`, { conclusion: conclusion ?? null }),
-      onSuccess: done,
-    }),
-    /* ⚠️ `reason`, and it is REQUIRED (`InspectionCancel`, min_length 1).
-       The old payload sent `cancel_reason: null`, which the server rejected
-       with 422 — the Cancel button could never cancel anything. */
-    cancel: useMutation({
-      mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-        apiPost(`${URL}/${id}/cancel`, { reason }),
-      onSuccess: done,
-    }),
-    addFinding: useMutation({
-      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => apiPost(`${URL}/${id}/findings`, body),
-      onSuccess: done,
-    }),
+    start: useMutation(action('start')),
+    /** `{conclusion, assessment?, recommendations?}` */
+    complete: useMutation(action('complete')),
+    /** `{reason}` — required. */
+    cancel: useMutation(action('cancel')),
+    addFinding: useMutation(action('findings')),
     updateFinding: useMutation({
       mutationFn: ({ id, findingId, body }: { id: number; findingId: number; body: Record<string, unknown> }) =>
         apiPatch(`${URL}/${id}/findings/${findingId}`, body),
-      onSuccess: done,
-    }),
-    removeFinding: useMutation({
-      mutationFn: ({ id, findingId }: { id: number; findingId: number }) => apiDelete(`${URL}/${id}/findings/${findingId}`),
       onSuccess: done,
     }),
   }

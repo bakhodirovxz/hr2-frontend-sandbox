@@ -2,18 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
 import { useBranchStore } from '@/store/branchStore'
-import { useDebounce } from '@/hooks/useDebounce'
 
 const PLANS = 'work-plans'
 
+export type Priority = 'low' | 'medium' | 'high'
+export const PRIORITIES: Priority[] = ['low', 'medium', 'high']
+
+/** One task of the work plan — `WorkPlanService.out` (TZ K2). */
 export interface WorkPlan {
   id: number
   title?: string | null
   description?: string | null
   employee_id?: number | null
   employee_name?: string | null
-  employee_photo_thumb_path?: string | null
-  employee_photo_path?: string | null
   department_id?: number | null
   department_name?: string | null
   organization_branch_id?: number | null
@@ -23,21 +24,39 @@ export interface WorkPlan {
   end_date?: string | null
   kpi_indicator_id?: number | null
   kpi_indicator_name?: string | null
+  kpi_measure?: string | null
   planned_result?: string | null
   weight?: number | null
   status?: string | null
   status_label?: string | null
+  priority?: string | null
+  priority_label?: string | null
 }
 
-interface PlanMeta {
-  period_types: { value: string; label: string }[]
-  statuses: { value: string; label: string }[]
+/** A task from the 409 `work_plan_overlap` → `params.tasks`. */
+export interface OverlapTask {
+  id?: number
+  title?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  status?: string | null
 }
+
+type Opt = { value: string; label: string }
+interface PlanMeta {
+  period_types: Opt[]
+  statuses: Opt[]
+  priorities: Opt[]
+}
+
+/** The server says which priority a row has; an older row without one is «medium». */
+export const priorityOf = (row?: { priority?: string | null } | null): Priority =>
+  PRIORITIES.includes(row?.priority as Priority) ? (row!.priority as Priority) : 'medium'
 
 /**
- * Period types and statuses come from the server rather than a copied constant:
- * they carry their own labels, and a client-side list would silently drift the
- * day a status is added.
+ * Period types, statuses and priorities come from `/work-plans/meta`; the
+ * dictionary names each known value in the UI language and the server label
+ * stays the fallback for a value added later.
  */
 export function useWorkPlanMeta() {
   const q = useQuery({
@@ -45,92 +64,142 @@ export function useWorkPlanMeta() {
     queryFn: () => apiGet<PlanMeta>(`${PLANS}/meta`),
     staleTime: 30 * 60_000,
   })
-  // The server's labels are Uzbek only; the dictionary names each known value
-  // in the UI language and the server label stays the fallback for a new one.
   const { t } = useTranslation()
-  const tr = (prefix: string, o: { value: string; label: string }) =>
-    t(`workPlan.${prefix}_${o.value}` as never, { defaultValue: o.label }) as string
+  const tr = (prefix: string, o: Opt) => t(`workPlan.${prefix}_${o.value}` as never, { defaultValue: o.label }) as string
   return {
     periods: (q.data?.period_types ?? []).map((o) => ({ ...o, label: tr('period', o) })),
     statuses: (q.data?.statuses ?? []).map((o) => ({ ...o, label: tr('status', o) })),
+    priorities: PRIORITIES.map((value) => ({ value, label: t(`workPlan.priority_${value}`) })),
   }
 }
+
+export interface PlanFilters {
+  employeeId?: string
+  departmentId?: string
+  priority?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+const filterParams = (f: PlanFilters, branchId: number | null) => ({
+  organization_branch_id: branchId || undefined,
+  employee_id: f.employeeId || undefined,
+  department_id: f.departmentId || undefined,
+  priority: f.priority || undefined,
+})
 
 /**
- * `search` goes to the SERVER over plan title + employee name + department
- * name. Plans accumulate period after period, so filtering the fetched array
- * searched a list that never shrinks; the server also folds Cyrillic against
- * Latin and apostrophe glyphs, which a substring test does not.
+ * The list view. `GET /work-plans` is not paged — it returns every task that
+ * OVERLAPS the period — so the status counts are taken from this one answer
+ * and the status filter is applied on the client (see the page).
  */
-export function useWorkPlans(
-  filters: {
-    status?: string
-    employeeId?: string
-    departmentId?: string
-    search?: string
-    /** `/work-plans` has always accepted these; the page never sent them. */
-    dateFrom?: string
-    dateTo?: string
-    page?: number
-    size?: number
-  },
-) {
+export function useWorkPlans(f: PlanFilters, enabled = true) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const term = useDebounce((filters.search ?? '').trim(), 300)
   const q = useQuery({
-    queryKey: ['work-plans', { ...filters, search: term, branchId }],
+    queryKey: ['work-plans', 'list', { ...f, branchId }],
     queryFn: () =>
-      apiGet<{ items: WorkPlan[]; total?: number; pages?: number }>(PLANS, {
-        status: filters.status || undefined,
-        employee_id: filters.employeeId || undefined,
-        department_id: filters.departmentId || undefined,
-        date_from: filters.dateFrom || undefined,
-        date_to: filters.dateTo || undefined,
-        search: term || undefined,
-        page: filters.page,
-        size: filters.size,
+      apiGet<{ items: WorkPlan[] }>(PLANS, {
+        ...filterParams(f, branchId),
+        date_from: f.dateFrom || undefined,
+        date_to: f.dateTo || undefined,
       }),
     placeholderData: (prev) => prev,
+    enabled,
   })
-  return {
-    rows: q.data?.items ?? [],
-    total: q.data?.total ?? q.data?.items?.length ?? 0,
-    pages: q.data?.pages ?? 1,
-    loading: q.isLoading,
-    fetching: q.isFetching,
-    error: q.error,
-    refetch: q.refetch,
-  }
+  return { rows: q.data?.items ?? [], loading: q.isLoading, fetching: q.isFetching, error: q.error, refetch: q.refetch }
 }
 
-/** Tile counts {all, overdue, planned, in_progress, done, cancelled} — `/work-plans/summary`. */
-export function useWorkPlanSummary(filters: { employeeId?: string; departmentId?: string; search?: string; dateFrom?: string; dateTo?: string }) {
+/** K2 «календарь планирования»: `view=calendar&from&to` — tasks overlapping the range. */
+export function useWorkPlanCalendar(f: PlanFilters & { status?: string }, from: string, to: string, enabled: boolean) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const term = useDebounce((filters.search ?? '').trim(), 300)
   const q = useQuery({
-    queryKey: ['work-plans', 'summary', { ...filters, search: term, branchId }],
+    queryKey: ['work-plans', 'calendar', { ...f, branchId, from, to }],
     queryFn: () =>
-      apiGet<Record<string, number>>(`${PLANS}/summary`, {
-        employee_id: filters.employeeId || undefined,
-        department_id: filters.departmentId || undefined,
-        date_from: filters.dateFrom || undefined,
-        date_to: filters.dateTo || undefined,
-        search: term || undefined,
+      apiGet<{ items: WorkPlan[] }>(PLANS, {
+        ...filterParams(f, branchId),
+        status: f.status || undefined,
+        view: 'calendar',
+        from,
+        to,
       }),
     placeholderData: (prev) => prev,
+    enabled,
   })
-  return q.data ?? {}
+  return { rows: q.data?.items ?? [], loading: q.isFetching, error: q.error, refetch: q.refetch }
 }
 
 export function useWorkPlanMutations() {
   const qc = useQueryClient()
+  const done = () => qc.invalidateQueries({ queryKey: ['work-plans'] })
   return {
-    invalidate: () => qc.invalidateQueries({ queryKey: ['work-plans'] }),
-    create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<WorkPlan>(PLANS, body) }),
+    create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<WorkPlan>(PLANS, body), onSuccess: done }),
     update: useMutation({
-      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-        apiPatch<WorkPlan>(`${PLANS}/${id}`, body),
+      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => apiPatch<WorkPlan>(`${PLANS}/${id}`, body),
+      onSuccess: done,
     }),
-    remove: useMutation({ mutationFn: (id: number) => apiDelete(`${PLANS}/${id}`) }),
+    remove: useMutation({ mutationFn: (id: number) => apiDelete(`${PLANS}/${id}`), onSuccess: done }),
   }
+}
+
+/** A KPI indicator as the plan form needs it (`GET /kpi/indicators`). */
+export interface PlanIndicator {
+  id: number
+  name: string
+  measure?: string | null
+  is_active?: boolean
+  scope?: string | null
+  organization_branch_id?: number | null
+  department_id?: number | null
+  assignees?: { employee_ids?: number[]; department_ids?: number[]; position_categories?: string[] } | null
+}
+
+/** Asked only while the form is open and only where KPI is on (`/me` kpi_enabled). */
+export function usePlanIndicators(enabled: boolean) {
+  const branchId = useBranchStore((s) => s.selectedBranchId)
+  const q = useQuery({
+    queryKey: ['work-plans', 'indicators', branchId],
+    queryFn: () => apiGet<PlanIndicator[]>('kpi/indicators', { organization_branch_id: branchId || undefined }),
+    enabled,
+    staleTime: 5 * 60_000,
+  })
+  return q.data ?? []
+}
+
+/** The plan's employee — department, organisation and position category decide which indicators apply. */
+export interface PlanEmployee {
+  id: number
+  department_id?: number | null
+  department?: { organization_branch_id?: number | null } | null
+  job_position?: { category?: string | null } | null
+}
+
+export function usePlanEmployee(id: number | null, enabled: boolean) {
+  const q = useQuery({
+    queryKey: ['work-plans', 'employee', id],
+    queryFn: () => apiGet<PlanEmployee>(`employees/${id}`),
+    enabled: enabled && !!id,
+    staleTime: 5 * 60_000,
+  })
+  return q.data && q.data.id === id ? q.data : null
+}
+
+/**
+ * TZ K2: only the indicators assigned to the chosen employee (or department)
+ * — the backend's `assignee_matches` rule plus the indicator's own scope.
+ */
+export function indicatorApplies(i: PlanIndicator, emp: PlanEmployee | null, deptId: number | null): boolean {
+  const dept = emp ? emp.department_id ?? null : deptId
+  if (!emp && dept == null) return true
+  const empBranch = emp?.department?.organization_branch_id ?? null
+  if (i.scope === 'department' && Number(i.department_id) !== Number(dept)) return false
+  if (i.scope === 'branch' && empBranch != null && Number(i.organization_branch_id) !== Number(empBranch)) return false
+  const a = i.assignees ?? {}
+  const ids = (a.employee_ids ?? []).map(Number)
+  const depts = (a.department_ids ?? []).map(Number)
+  const cats = (a.position_categories ?? []).map(String)
+  if (!ids.length && !depts.length && !cats.length) return true
+  if (emp && ids.includes(Number(emp.id))) return true
+  if (dept != null && depts.includes(Number(dept))) return true
+  const cat = emp?.job_position?.category
+  return !!(emp && cats.length && cat && cats.includes(String(cat)))
 }
