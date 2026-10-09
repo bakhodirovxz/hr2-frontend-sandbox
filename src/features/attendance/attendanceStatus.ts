@@ -6,6 +6,7 @@ export type CalStatus =
   | 'absent'
   | 'early_leave'
   | 'day_off'
+  | 'holiday'
   | 'business_trip'
   | 'sick_leave'
   | 'annual_leave'
@@ -34,7 +35,9 @@ export function mapCalStatus(raw?: string | null): CalStatus {
     // Unexcused absence with a reason attached is still an absence, not a leave.
     progul: 'absent', noaniq_sabab: 'absent',
     early_leave: 'early_leave', early: 'early_leave', erta_ketdi: 'early_leave',
-    day_off: 'day_off', dam_olish: 'day_off', holiday: 'day_off', off: 'day_off',
+    day_off: 'day_off', dam_olish: 'day_off', off: 'day_off',
+    // «Bayramlar» (`/holidays`) — kelmadi/kechikish sanalmaydigan kun.
+    holiday: 'holiday', bayram: 'holiday',
     // "Otgul" is compensatory time off — a rest day by design (davomatda ОГ).
     otgul: 'day_off',
     business_trip: 'business_trip', sick_leave: 'sick_leave',
@@ -69,6 +72,7 @@ export const CAL_COLOR: Record<CalStatus, string> = {
   absent: '--danger',
   early_leave: '--info',
   day_off: '--border-strong',
+  holiday: '--chart-6',
   business_trip: '--chart-2',
   sick_leave: '--chart-5',
   annual_leave: '--chart-4',
@@ -86,6 +90,7 @@ export const CAL_LABEL: Record<CalStatus, keyof Translation['attendance']> = {
   absent: 'stAbsent',
   early_leave: 'stEarly',
   day_off: 'stDayoff',
+  holiday: 'stHoliday',
   business_trip: 'stTrip',
   sick_leave: 'stSick',
   annual_leave: 'stLeave',
@@ -98,5 +103,5 @@ export const CAL_LABEL: Record<CalStatus, keyof Translation['attendance']> = {
 
 /** Statuses shown in the legend (the common ones). */
 export const LEGEND_STATUSES: CalStatus[] = [
-  'present', 'late', 'absent', 'early_leave', 'business_trip', 'sick_leave', 'annual_leave', 'work_leave', 'day_off',
+  'present', 'late', 'absent', 'early_leave', 'day_off', 'holiday', 'sick_leave', 'annual_leave', 'business_trip',
 ]

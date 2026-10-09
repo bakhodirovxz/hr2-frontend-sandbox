@@ -16,18 +16,12 @@ export const ORGANIZATION_BRANCH_DETAIL = (pk: number | string) => `organization
 export const ORGANIZATION_BRANCH_LEADERS = (pk: number | string) => `organization-branches/${pk}/leaders`
 export const ORGANIZATION_BRANCH_LEADER_DELETE = (pk: number | string, empId: number | string) =>
   `organization-branches/${pk}/leaders/${empId}`
-export const ORGANIZATION_BRANCH_UPLOAD_STAMP = (pk: number | string) => `organization-branches/${pk}/upload-stamp`
-export const ORGANIZATION_BRANCH_STAMP_PREVIEW = (pk: number | string) => `organization-branches/${pk}/stamp-preview`
 /* The branch's own letterhead image, used on every document it generates. */
 export const ORGANIZATION_BRANCH_UPLOAD_LOGO = (pk: number | string) => `organization-branches/${pk}/upload-logo`
-// Filialning O'Z Excel tabel blanki ({{belgi}}lar bilan) — yuklash/olish/o'chirish; namuna alohida.
-export const ORGANIZATION_BRANCH_TABEL_TEMPLATE = (pk: number | string) => `organization-branches/${pk}/tabel-template`
-export const ORGANIZATION_BRANCH_TABEL_TEMPLATE_SAMPLE = 'organization-branches/tabel-template-sample'
 export const ORGANIZATION_BRANCH_LOGO = (pk: number | string) => `organization-branches/${pk}/logo`
 /* A ready-made .docx blank the branch uploads for one document type. */
 export const ORGANIZATION_BRANCH_DOC_TEMPLATE = (pk: number | string, docType: string) =>
   `organization-branches/${pk}/document-template/${docType}`
-export const LETTER_NEXT_REG_NUMBER = 'letters/next-registration-number'
 
 // Employees
 export const EMPLOYEES_LIST = 'employees'

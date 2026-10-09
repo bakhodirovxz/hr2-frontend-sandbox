@@ -6,26 +6,12 @@ import { useBranchStore } from '@/store/branchStore'
 import type { Page } from '@/features/employees/useEmployees'
 
 /**
- * SOAT BO'YICHA O'RINDOSHLIK — faqat qabul qilgan filial tabelida to'ladi.
+ * Normallashtirilgan tabel (TZ I2) — `GET turnstile-attendance-events/normalized`.
  *
- * Xodim bu filialda kun-kun jadval bilan ishlamaydi: kelishuv «oyiga N soat»
- * ko'rinishida, ish kunlari esa uning ASOSIY filialiniki. Haqiqiy soat
- * yuqoridagi `work_duration_hours` da — u turniket yozuvlaridan yig'iladi.
+ * hr-backend-sandbox `AttendanceSummary`: kelgan/kechikkan/kelmagan kunlar
+ * soni, ish soati, kunma-kun `calendar` va kechikish daqiqalari. Erta ketish
+ * alohida maydon emas — u `calendar` dagi `early_leave` holati.
  */
-export interface ConcurrentPostSummary {
-  employment_type?: string | null
-  hours_norm?: number | null
-  hours_period?: 'week' | 'month' | null
-  norm_hours_for_range?: number | null
-}
-
-/** One day the person left before the end of their working window. */
-export interface EarlyLeaveDay {
-  left_at: string
-  work_end: string
-  minutes: number
-}
-
 export interface AttendanceSummary {
   present_days_count: number
   late_days_count: number
@@ -33,13 +19,6 @@ export interface AttendanceSummary {
   work_duration_hours: number
   calendar: Record<string, string>
   daily_late_minutes?: Record<string, number>
-  /**
-   * Early departures — SEPARATE from `calendar`: a day can be both late and
-   * left early, and the calendar status stays present/late for it.
-   */
-  early_leave_days_count?: number
-  daily_early_leave?: Record<string, EarlyLeaveDay>
-  concurrent_post?: ConcurrentPostSummary | null
 }
 
 export interface AttendanceRow {
@@ -47,31 +26,34 @@ export interface AttendanceRow {
   legal_name?: string | null
   photo_path?: string | null
   photo_thumb_path?: string | null
-  department?: { id?: number; name?: string } | null
+  department_id?: number | null
+  department?: { id?: number; name?: string; organization_branch_id?: number | null } | null
   job_position?: { name?: string } | string | null
-  /**
-   * The person's OWN schedule — the day modal sets the plan against the fact
-   * with it. Half the roster does not lunch at 13:00, so a hard-coded window
-   * would cut the wrong hour out of their worked time.
-   *
-   * (PII on this row — passport, PINFL, address — comes back NULL for an
-   * ordinary employee; the server masks it. Verified live.)
-   */
+  /** Xodimning O'Z ish vaqti — kun oynasida reja va fakt shu bilan solishtiriladi. */
   working_hours_start?: string | null
   working_hours_end?: string | null
   lunch_start_time?: string | null
   lunch_end_time?: string | null
   working_days?: number[] | null
+  stavka?: number | string | null
+  weekly_schedule?: unknown
   attendance: AttendanceSummary
 }
 
-/** Default window: 1st of the current month → today. */
+/** v1 standarti: o'tgan oyning shu kunidan bugungacha (5-iyun → 5-may…5-iyun). */
 export function defaultAttendanceRange() {
+  const today = dayjs().startOf('day')
+  const prev = today.subtract(1, 'month').startOf('month')
+  const day = Math.min(today.date(), prev.daysInMonth())
   return {
-    from: dayjs().startOf('month').format('YYYY-MM-DD'),
-    to: dayjs().format('YYYY-MM-DD'),
+    from: prev.date(day).format('YYYY-MM-DD'),
+    to: today.format('YYYY-MM-DD'),
   }
 }
+
+/** `sort_by` qiymatlari (`list_normalized_events`) — boshqasi jim e'tiborsiz qoladi. */
+export const ATTENDANCE_SORT_KEYS = ['present', 'absent', 'late', 'early', 'hours'] as const
+export type AttendanceSortKey = (typeof ATTENDANCE_SORT_KEYS)[number]
 
 interface Args {
   from: string
@@ -81,71 +63,50 @@ interface Args {
   search?: string
   departmentId?: string
   jobPositionId?: string
-  /**
-   * KO'P TANLOV (2026-09-22): several departments / positions at once. Sent as
-   * repeated query params (`department_ids=1&department_ids=2`); the server
-   * ANDs them with the singular ones, so passing both is safe.
-   */
-  departmentIds?: string[]
-  jobPositionIds?: string[]
-  filterType?: string // 'late' | 'absent' | 'early_leave'
-  /** Restrict to one employee (personal "my attendance" view). */
+  /** `late` | `absent` */
+  filterType?: string
+  /** Bitta xodim (shaxsiy kalendar). */
   employeeId?: number
-  /**
-   * `regular` (default) hides ГПХ staff, `gpx` shows ONLY them. They are paid
-   * and reported separately, so mixing them into one list misstates both — the
-   * server splits them for that reason and v2 was never asking for the second
-   * half.
-   */
-  workerType?: string
-  /** Server-side ordering; only the values the API validates (see `ATTENDANCE_SORT_KEYS`). */
   sortBy?: AttendanceSortKey
   sortDir?: 'asc' | 'desc'
-  /** Only the viewer's direct reports. */
+  /** Faqat bevosita bo'ysunuvchilar. */
   supervised?: boolean
-  /** `false` while the range is invalid — from > to is a 422 on the server. */
+  /** `false` — sana oralig'i noto'g'ri (from > to). */
   enabled?: boolean
 }
 
-/** The `sort_by` values `/normalized` accepts; anything else is a 422. */
-export const ATTENDANCE_SORT_KEYS = ['present', 'absent', 'late', 'hours', 'early'] as const
-export type AttendanceSortKey = (typeof ATTENDANCE_SORT_KEYS)[number]
+/** Ro'yxat va eksport bitta parametr to'plamidan quriladi — fayl ekrandagidan farq qilmasin. */
+export function attendanceParams(a: Omit<Args, 'page' | 'size' | 'enabled'>, branchId: number | null) {
+  return {
+    date_from: a.from,
+    date_to: a.to,
+    // Bitta xodimning tabeli tanlangan filialga bog'lanmaydi: begona filial
+    // tanlangan bo'lsa ham o'z qatori qaytadi (server ko'lamni o'zi tekshiradi).
+    ...(a.employeeId ? { _no_branch_inject: true } : { organization_branch_id: branchId || undefined }),
+    search: a.search || undefined,
+    department_id: a.departmentId || undefined,
+    job_position_id: a.jobPositionId || undefined,
+    filter_type: a.filterType || undefined,
+    employee_id: a.employeeId || undefined,
+  }
+}
 
-export function useAttendance({
-  from, to, page, size, search, departmentId, jobPositionId, departmentIds, jobPositionIds,
-  filterType, employeeId, workerType, sortBy, sortDir, supervised, enabled = true,
-}: Args) {
+export function useAttendance({ page, size, sortBy, sortDir, supervised, enabled = true, ...rest }: Args) {
   const branchId = useBranchStore((s) => s.selectedBranchId)
+  const base = attendanceParams(rest, branchId)
 
   const query = useQuery({
-    queryKey: ['attendance', {
-      from, to, page, size, search, departmentId, jobPositionId,
-      // Arrays go into the key as text: a new array identity on every render
-      // would otherwise refetch on each keystroke elsewhere on the page.
-      departmentIds: (departmentIds ?? []).join(','),
-      jobPositionIds: (jobPositionIds ?? []).join(','),
-      filterType, employeeId, workerType, sortBy, sortDir, supervised, branchId,
-    }],
+    queryKey: ['attendance', { ...base, page, size, sortBy, sortDir, supervised }],
     queryFn: () =>
       apiGet<Page<AttendanceRow>>(`${TURNSTILE_ATTENDANCE_EVENTS}/normalized`, {
-        date_from: from,
-        date_to: to,
+        ...base,
         page,
         size,
-        organization_branch_id: branchId || undefined,
-        search: search || undefined,
-        department_id: departmentId || undefined,
-        job_position_id: jobPositionId || undefined,
-        department_ids: departmentIds?.length ? departmentIds : undefined,
-        job_position_ids: jobPositionIds?.length ? jobPositionIds : undefined,
-        filter_type: filterType || undefined,
-        employee_id: employeeId || undefined,
-        worker_type: workerType || undefined,
         sort_by: sortBy || undefined,
         sort_dir: sortBy ? sortDir || undefined : undefined,
         supervised: supervised || undefined,
       }),
-    enabled: enabled && !!from && !!to,
+    enabled: enabled && !!rest.from && !!rest.to,
     placeholderData: (prev) => prev,
   })
 
