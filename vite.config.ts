@@ -53,38 +53,11 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      // Dev proxy → live API (same as the v1 frontend).
+      // Dev proxy → hr-backend-sandbox API (docker compose, :8000).
       '/api': {
-        target: 'https://hr-api.uzgidro.uz',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
-        secure: false,
         rewrite: (p) => p.replace(/^\/api/, ''),
-      },
-      /**
-       * MAP TILES — our own tileserver, exactly as `default.conf` proxies them
-       * in the built image.
-       *
-       * ⚠️ WITHOUT THIS THE MAP IS DEAD IN `npm run dev` ONLY: the style sheet
-       * is fetched from `/tiles/styles/…/style.json`, which the dev server
-       * answers with its index.html 404 while the deployed nginx proxies it
-       * fine — so the vehicle map worked in TEST and failed on localhost.
-       *
-       * ⚠️ THE DEFAULT MUST BE REACHABLE FROM THE DEVELOPER'S MACHINE. It used
-       * to be the tileserver's address on THIS server's docker bridge
-       * (172.18.0.15), which exists only on the server — so `npm run dev`
-       * anywhere else got a dead map, exactly the symptom the comment above
-       * warns about. The deployed host already publishes the same tiles, so
-       * that is the default now; the docker address still works as an override
-       * when developing ON the server:
-       *     VITE_TILES_TARGET=http://172.18.0.15:8080 npm run dev
-       */
-      '/tiles': {
-        target: process.env.VITE_TILES_TARGET || 'https://hr.uzgidro.uz/tiles',
-        changeOrigin: true,
-        secure: false,
-        // Same rewrite for both targets: vite appends the remaining path, so
-        // stripping the prefix gives `<target>/styles/…` either way.
-        rewrite: (p) => p.replace(/^\/tiles/, ''),
       },
     },
   },

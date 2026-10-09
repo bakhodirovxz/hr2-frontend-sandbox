@@ -1,80 +1,53 @@
-# Uzgidro HR — Frontend v2 (TypeScript)
+# HRM — TZ sandbox, v2 interfeysi
 
-A ground-up rewrite of the HR web app in **React + TypeScript + Vite + Tailwind**,
-with a fully centralized, theme-aware design system (light + dark) and a
-responsive shell (mobile / tablet / desktop).
+«O'zbekgidroenergo» AJ kadrlar boshqaruvi tizimining interfeysi —
+**«ТЗ_HRM_Ver 3.2»** da ko'rsatilgan modullar, v2 dizayn tizimida
+(React + TypeScript + Vite + Tailwind). Backend va ma'lumotlar bazasi:
+`hr-backend-sandbox` repozitoriyasi (`v2` tarmog'i).
 
-> Runs alongside the existing `hrm-frontend` (v1). Nothing in v1 is touched.
+> Holat: **ko'chirish jarayonida.** Funksional referens — `hr-frontend-sandbox`
+> (v1 interfeysi). Marshrutlar o'sha jadvalda saqlanadi, chunki backend
+> bildirishnoma, qidiruv va xatlarda shu yo'llarni yuboradi.
 
-## Stack
+## Texnologiyalar
 
-- **React 18 + TypeScript + Vite**
-- **Tailwind CSS** mapped to CSS-variable design tokens (single source of truth)
-- **TanStack Query** for server state, **Zustand** for local/session state
-- **axios** client with automatic token refresh + branch-scope injection
-- **recharts** for charts, **lucide-react** for icons
+React 18, TypeScript (strict), Vite 5, Tailwind 3 (CSS-o'zgaruvchi tokenlar),
+TanStack Query 5, Zustand, axios, i18next (UZ / ЎЗ / RU), recharts,
+lucide-react.
 
-## The design system (one place to rule them all)
+## Dizayn tizimi
 
-All colors, fonts, radii and shadows are CSS variables defined **once** in
-[`src/styles/theme.css`](src/styles/theme.css) — for both light and dark. Tailwind
-(`tailwind.config.js`) maps semantic utilities onto them:
+Barcha ranglar, shriftlar, radiuslar va soyalar **bir joyda** — CSS
+o'zgaruvchilari sifatida [`src/styles/theme.css`](src/styles/theme.css) da
+(yorug' va qorong'i). Tailwind (`tailwind.config.js`) semantik utilitalarni
+shularga bog'laydi (`bg-surface`, `text-fg`, `border-line`, `text-brand` …).
+Komponentlar hech qachon hex qiymatni to'g'ridan-to'g'ri yozmaydi. Forma
+boshqaruvlari — `src/components/ui/control.ts`, jadvallar —
+`src/components/data/DataTable.tsx`.
 
-```
-bg-surface  text-fg  text-fg-muted  border-line  text-brand
-bg-brand-soft  shadow-md  rounded-xl  font-sans  bg-success-soft …
-```
-
-Change a token in `theme.css` → the whole app (light **and** dark) re-themes.
-**Components never hardcode a hex value.** The active theme is toggled by
-`ThemeProvider` via the `data-theme` attribute on `<html>` (applied pre-paint in
-`index.html` to avoid a flash).
-
-## Structure
-
-```
-src/
-  api/           axios client, endpoints, http helpers, query client, token storage
-  auth/          roles (typed), branch helpers, ProtectedRoute
-  components/
-    ui/          design-system primitives (Card, Button, Badge, Avatar, …)
-    layout/      AppShell, Sidebar, Header, BranchSelector, navConfig, …
-  features/
-    dashboard/   attendance normalization + dashboard widgets
-  hooks/         auth, branches, notifications, media query, debounce, …
-  pages/         LoginPage, DashboardPage, PlaceholderPage
-  store/         auth / branch / ui (zustand)
-  styles/        theme.css (tokens) + global.css
-  theme/         ThemeProvider
-  types/         domain + dashboard types
-```
-
-## Develop
+## Ishga tushirish
 
 ```bash
-npm install
-npm run dev        # http://localhost:3001  (proxies /api → hr-api.uzgidro.uz)
+npm ci
+npm run dev        # http://localhost:3001  (/api → http://localhost:8000)
 ```
 
-## Build
+Backend boshqa manzilda bo'lsa: `VITE_API_PROXY_TARGET=http://host:8000 npm run dev`.
+
+## Qurish va tekshirish
 
 ```bash
-npm run build      # tsc -b && vite build  → dist/
-npm run typecheck  # types only
+npm run build                                    # tsc -b && vite build → dist/
+scripts/dump_routes.sh > /tmp/sandbox_routes.txt # backend marshrutlari (jonli)
+node scripts/contract_audit.mjs                  # har API yo'li ↔ backend marshruti
+node scripts/orphans.mjs                         # hech qayerdan import qilinmagan fayllar
 ```
 
-## Deploy (Docker + nginx, same pattern as v1)
+## Docker
 
 ```bash
-docker compose build && docker compose up -d
+docker compose build && docker compose up -d     # http://localhost:3001
 ```
 
-The image bakes `VITE_BASE_URL` at build time (see `docker-compose.yml`).
-
-## Migration status
-
-Phase 1 (this pass): design system, responsive shell (sidebar + header +
-branch selector), auth/API layer, **Login**, and the **Kadr dashboard** — the
-old geographic map is removed and replaced by the employee attendance table;
-branch selection now lives in the header. Remaining v1 pages render a
-placeholder and are migrated in later phases.
+`VITE_BASE_URL` (brauzer ko'radigan API manzili) build vaqtida yoziladi,
+sukut bo'yicha `http://localhost:8000`.

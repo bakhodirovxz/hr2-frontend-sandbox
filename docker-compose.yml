@@ -1,8 +1,5 @@
 services:
   hr-frontend-v2:
-    # F-01: siyosat YO'Q edi — host qayta yuklansa yoki konteyner qulasa
-    # sayt qo'lda ko'tarilgunicha o'lik qolardi. Qolgan barcha
-    # konteynerlarda siyosat allaqachon bor.
     restart: unless-stopped
     healthcheck:
       # 127.0.0.1 ATAYLAB: bu tasvirda `localhost` ::1 (IPv6) ga ketadi,
@@ -16,12 +13,15 @@ services:
       context: ./
       dockerfile: Dockerfile
       args:
-        VITE_BASE_URL: "https://hr-api.uzgidro.uz/"
+        # hr-backend-sandbox API manzili (brauzer nuqtai nazaridan).
+        VITE_BASE_URL: "${VITE_BASE_URL:-http://localhost:8000}"
+    ports:
+      # v1 sandbox frontendi :3000 da — qabulgacha yonma-yon ishlaydi.
+      - "${FRONTEND_PORT:-3001}:80"
     networks:
-      hr_network:
-        aliases:
-          - hr-frontend-v2
+      - hr_network
 
 networks:
+  # Repo yakka o'zi ko'tarilishi kerak — tashqi tarmoq kutilmaydi.
   hr_network:
-    external: true
+    driver: bridge
