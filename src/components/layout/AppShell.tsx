@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { CenteredSpinner } from '@/components/ui/Spinner'
@@ -7,20 +7,19 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 import { useUIStore } from '@/store/uiStore'
+import { Navigate } from 'react-router-dom'
 import { useBranches, useBranchInit } from '@/hooks/useBranches'
 import { useMenuBadges } from '@/hooks/useMenuBadges'
-import { useWebPush } from '@/hooks/useWebPush'
-import { BirthdayGreetingModal } from '@/features/employees/BirthdayGreetingModal'
-import { PendingActionsPopup } from '@/components/layout/PendingActionsPopup'
 import { PasswordGate } from '@/features/auth/PasswordGate'
 import { BackgroundDecor } from './BackgroundDecor'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
-import { auditPageTitle, isPathAllowed, type NavModuleOverrides } from './navConfig'
+import { TopNav } from './TopNav'
+import { Footer } from './Footer'
+import { FeedbackModal } from './FeedbackModal'
+import { auditPageTitle, pathVerdict } from './navConfig'
 import { initPageTracker, trackPageChange } from '@/lib/pageTracker'
-import { useSystemSettings } from '@/features/settings/useSystemSettings'
 import { useAuthStore } from '@/store/authStore'
-import { useBranchStore } from '@/store/branchStore'
 import { RequireRole } from './RequireRole'
 
 export function AppShell() {
@@ -32,28 +31,14 @@ export function AppShell() {
   const { branches } = useBranches()
   useBranchInit(branches)
 
-  /* ⚠️ A HIDDEN PAGE MUST ALSO BE A CLOSED PAGE. The matrix takes an entry out
-     of the menu, but the address bar still works and a bookmark still opens —
-     so the shell checks the current path against the same rules before it
-     renders anything. While the settings are still loading nothing is blocked:
-     flashing "no access" on every reload would be worse than a moment of
-     openness, and every page behind this has its own server-side gate anyway. */
+  /* Yashirilgan sahifa YOPIQ sahifa ham bo'lishi kerak: manzil satri va
+     xatcho'p baribir ishlaydi, shuning uchun qobiq joriy yo'lni menyu bilan
+     BIR XIL qoidalar bo'yicha tekshiradi (navConfig). Mehmon ochiq yo'llardan
+     tashqarida bo'lsa — vakansiyalarga (TZ 4.2.2). */
   const user = useAuthStore((st) => st.user)
-  const branchId = useBranchStore((st) => st.selectedBranchId)
-  const { values, ready } = useSystemSettings()
-  const navOverrides = values['nav.modules'] as NavModuleOverrides | undefined
-  const pathAllowed =
-    !ready || isPathAllowed(location.pathname, user, navOverrides, branchId)
-  const menuBadges = useMenuBadges()
-  // Browser push. Lives here because the shell is the one component that is
-  // mounted for the whole authenticated session, and the subscription must be
-  // attempted once per session rather than once per page.
-  useWebPush()
-  // The server's own per-module counts. `leaves` is computed there with the
-  // exact SQL the old client-side floor used (`useLeaveBadge`), so the extra
-  // `work-leaves` request that floor made on EVERY page — plus its two-minute
-  // poll — was pure duplication and is gone.
-  const badges = menuBadges
+  const verdict = pathVerdict(location.pathname, user)
+  const badges = useMenuBadges()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const drawerRef = useRef<HTMLElement>(null)
   const closeMobile = useCallback(() => setMobileOpen(false), [setMobileOpen])
@@ -122,16 +107,13 @@ export function AppShell() {
           the page scrolls, the way a backdrop behaves. Cards are opaque, so it
           only shows through the gaps. */}
       <BackgroundDecor />
-      {/* NOCTURNE: the navigation is a DRAWER at every width, not a docked
-          rail. The dashboard designs give the whole viewport to the board and
-          reach the menu through the hamburger in the header — the sidebar was
-          taking a fifth of the screen to repeat what the header already says.
-          While closed the drawer stays mounted (so it can animate), so it must
-          be `inert`: aria-hidden alone would leave its buttons in the tab order
-          and duplicate the nav in the accessibility tree. */}
+      {/* Telefon kengligidagi menyu — yon panel (kompyuterda gorizontal
+          TopNav, TZ 440–441). Yopiq paytda ham o'rnatilgan turadi (animatsiya
+          uchun), shuning uchun `inert`: aks holda tugmalari Tab tartibida
+          qolib, menyu yordamchi texnologiyalarga ikki marta ko'rinardi. */}
       <div
         className={cn(
-          'fixed inset-0 z-50',
+          'fixed inset-0 z-50 lg:hidden',
           mobileOpen ? 'pointer-events-auto' : 'pointer-events-none',
         )}
         aria-hidden={!mobileOpen}
@@ -163,18 +145,28 @@ export function AppShell() {
           >
             <X size={18} />
           </button>
-          <Sidebar mobile badges={badges} onNavigate={() => setMobileOpen(false)} />
+          <Sidebar
+            badges={badges}
+            onNavigate={() => setMobileOpen(false)}
+            onFeedback={() => {
+              setMobileOpen(false)
+              setFeedbackOpen(true)
+            }}
+          />
         </aside>
       </div>
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header onOpenNav={() => setMobileOpen(true)} />
-        <main className="scroll-thin flex-1 overflow-y-auto">
+        <Header onOpenNav={() => setMobileOpen(true)} onFeedback={() => setFeedbackOpen(true)} />
+        <TopNav badges={badges} />
+        <main className="scroll-thin flex flex-1 flex-col overflow-y-auto">
+          <div className="flex-1">
           {/* Keyed on the route: a crashed page clears itself once you navigate,
               and the sidebar/header stay usable meanwhile. */}
           <ErrorBoundary resetKey={location.pathname}>
-            <RequireRole allowed={pathAllowed} title={t('nav.hiddenTitle')}>
+            {verdict === 'guest-redirect' && <Navigate to="/vacancies" replace />}
+            <RequireRole allowed={verdict === 'ok'}>
               {/* ⚠️ THE ONLY SUSPENSE BOUNDARY USED TO BE IN `App.tsx`, ABOVE
                   `<Routes>`. Every one of the 63 lazy pages therefore suspended
                   against THAT boundary, and React replaced the WHOLE tree —
@@ -187,11 +179,12 @@ export function AppShell() {
               </Suspense>
             </RequireRole>
           </ErrorBoundary>
+          </div>
+          <Footer />
         </main>
       </div>
-      <BirthdayGreetingModal />
-      <PendingActionsPopup />
-      {/* Mandatory password change (rotation) — blocks the shell until done. */}
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      {/* TZ U1: vaqtinchalik parol almashtirilmaguncha qobiq yopiq. */}
       <PasswordGate />
     </div>
   )

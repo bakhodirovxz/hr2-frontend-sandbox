@@ -6,8 +6,8 @@ import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import { useArrowNav } from '@/hooks/useArrowNav'
-import * as roles from '@/auth/roles'
-import { findExecutiveBranchId, visibleBranches } from '@/auth/branchHelpers'
+import { canSwitchBranchScope, ownBranchIds as ownBranchIdsOf } from '@/auth/permissions'
+import { visibleBranches } from '@/auth/branchHelpers'
 import type { OrganizationBranch } from '@/types'
 import { AnchoredPanel } from '@/components/ui/AnchoredPanel'
 import { control, POPOVER } from '@/components/ui/control'
@@ -31,8 +31,7 @@ export function BranchSelector() {
     typeahead: false,
   })
 
-  const execBranchId = useMemo(() => findExecutiveBranchId(branches), [branches])
-  const canSwitchScope = roles.canSwitchBranchScope(user, execBranchId)
+  const canSwitchScope = canSwitchBranchScope(user)
 
   // Branches this user is allowed to view — see `visibleBranches`.
   const allowedBranches = useMemo<OrganizationBranch[]>(
@@ -41,7 +40,7 @@ export function BranchSelector() {
   )
 
   // The user's *own* branches — quick chips.
-  const ownBranchIds = roles.getAllowedBranchIds(user)
+  const ownBranchIds = useMemo(() => ownBranchIdsOf(user) ?? [], [user])
   const ownBranches = useMemo(
     () => allowedBranches.filter((b) => ownBranchIds.includes(b.id)),
     [allowedBranches, ownBranchIds],

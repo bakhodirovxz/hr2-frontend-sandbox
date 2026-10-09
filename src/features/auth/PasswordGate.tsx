@@ -34,16 +34,17 @@ import { useLogout } from '@/hooks/useAuth'
 export function PasswordGate() {
   const user = useAuthStore((s) => s.user)
   if (!user) return null
-  if (user.password_must_change) return <ForcedChangeModal expired={!!user.password_expired} />
-  if (typeof user.password_days_left === 'number' && user.password_days_left <= 14) {
-    return <ExpiryStrip days={user.password_days_left} />
-  }
+  // TZ U1: vaqtinchalik (administrator bergan) parol — almashtirmaguncha server
+  // boshqa amallarga 403 `password_change_required` qaytaradi.
+  if (user.must_change_password) return <ForcedChangeModal expired={false} />
+  // Boshlang'ich parol hali almashtirilmagan — majburiy emas, eslatma.
+  if (user.default_password && user.password_change_warning) return <ExpiryStrip days={null} />
   return null
 }
 
 const WARN_DISMISS_KEY = 'pw-expiry-strip-dismissed'
 
-function ExpiryStrip({ days }: { days: number }) {
+function ExpiryStrip({ days }: { days: number | null }) {
   const { t } = useTranslation()
   const [hidden, setHidden] = useState(() => {
     try {
@@ -67,8 +68,14 @@ function ExpiryStrip({ days }: { days: number }) {
       className="fixed inset-x-0 bottom-0 z-[60] flex items-center justify-center gap-3 border-t border-warning/40 bg-warning-soft px-4 py-2 text-[13px] text-fg sm:bottom-4 sm:left-1/2 sm:right-auto sm:w-auto sm:-translate-x-1/2 sm:rounded-xl sm:border sm:shadow-pop"
     >
       <ShieldAlert size={16} className="shrink-0 text-warning" />
-      <span>{days > 0 ? t('password.expiresIn', { count: days }) : t('password.expiresToday')}</span>
-      <Link to="/sozlamalar" className="font-semibold text-brand-strong hover:underline">
+      <span>
+        {days == null
+          ? t('password.defaultPasswordHint')
+          : days > 0
+            ? t('password.expiresIn', { count: days })
+            : t('password.expiresToday')}
+      </span>
+      <Link to="/my-profile?tab=security" className="font-semibold text-brand-strong hover:underline">
         {t('password.changeNow')}
       </Link>
       <button type="button" onClick={dismiss} aria-label={t('common.close')} className="grid h-6 w-6 place-items-center rounded text-fg-muted hover:bg-surface-2 hover:text-fg">

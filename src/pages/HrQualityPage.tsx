@@ -5,8 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, Download, Pencil, ShieldCheck, XCircle } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/cn'
-import { isPathAllowed, type NavModuleOverrides } from '@/components/layout/navConfig'
-import { useSystemSettings } from '@/features/settings/useSystemSettings'
+import { pathVerdict } from '@/components/layout/navConfig'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Combobox } from '@/components/ui/Combobox'
@@ -82,8 +81,7 @@ function HrQualityPageInner() {
   const rows = data?.items ?? []
   const navigate = useNavigate()
   const me = useAuthStore((st) => st.user)
-  const { values } = useSystemSettings()
-  const canOpenCard = isPathAllowed('/employees/1', me, values['nav.modules'] as NavModuleOverrides | undefined, branchId)
+  const canOpenCard = pathVerdict('/employees/1', me) === 'ok'
   /** Group the protocol by person; worst cards (most errors) first. */
   const people = useMemo(() => {
     const m = new Map<number, { id: number; name: string; photo?: string | null; photoFull?: string | null; issues: QualityRow[]; errors: number; warnings: number }>()

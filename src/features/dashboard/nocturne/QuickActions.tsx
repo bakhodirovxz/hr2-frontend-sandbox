@@ -2,14 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowUp, Check, Plus, RotateCcw, Settings2, Zap } from 'lucide-react'
-import { apiDelete, apiGet, apiPut } from '@/api/http'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/authStore'
-import { useBranchStore } from '@/store/branchStore'
-import { useSystemSettings } from '@/features/settings/useSystemSettings'
-import { getNavForUser, groupNav, type NavItem, type NavModuleOverrides } from '@/components/layout/navConfig'
+import { flattenNav, getNavForUser, isGroup, type NavLeaf } from '@/components/layout/navConfig'
 import { tipProps } from './boardDrill'
 
 /**
@@ -20,12 +17,9 @@ import { tipProps } from './boardDrill'
  * account (`getNavForUser`, same overrides and branch), so a button can never
  * lead to a page the menu would hide.
  *
- * Saved per user on the server (`/ui-settings/dashboard:quick_actions`, the
- * same store the table column settings use) so it follows them to another
- * computer; a local copy paints the first frame and keeps the choice when the
- * server copy is unreachable.
+ * Tanlov shu brauzerda, foydalanuvchi bo'yicha saqlanadi (localStorage) —
+ * bu shaxsiy qulaylik, server ma'lumoti emas.
  */
-const KEY = 'dashboard:quick_actions'
 const LOCAL = 'quick-actions:'
 // 12 = three full rows of four (user, 2026-09-24): with 9 the last row
 // stood a third empty.
@@ -54,39 +48,19 @@ function writeLocal(uid: number | undefined, paths: string[] | null) {
 
 export function useQuickActions(kind: 'hr' | 'employee') {
   const user = useAuthStore((s) => s.user)
-  const branchId = useBranchStore((s) => s.selectedBranchId)
-  const { values } = useSystemSettings()
-  const overrides = values['nav.modules'] as NavModuleOverrides | undefined
   const uid = user?.id
 
   /** Everything this account may open, minus home itself. */
   const available = useMemo(
-    () => getNavForUser(user, overrides, branchId).filter((i) => i.path !== '/'),
-    [user, overrides, branchId],
+    () => flattenNav(getNavForUser(user)).filter((i) => i.path !== '/'),
+    [user],
   )
   const [saved, setSaved] = useState<string[] | null>(() => readLocal(uid))
-
-  useEffect(() => {
-    let alive = true
-    apiGet<{ value: { paths?: string[] } | null }>(`ui-settings/${KEY}`)
-      .then((r) => {
-        if (!alive) return
-        const paths = r?.value?.paths ?? null
-        setSaved(paths)
-        writeLocal(uid, paths)
-      })
-      .catch(() => {
-        /* offline, or the settings store is not deployed yet — keep the local copy */
-      })
-    return () => {
-      alive = false
-    }
-  }, [uid])
 
   const defaults = useMemo(() => {
     const pref = kind === 'hr' ? DEFAULTS_HR : DEFAULTS_EMP
     const byKey = new Map(available.map((i) => [i.labelKey as string, i]))
-    const picked = pref.map((k) => byKey.get(k)).filter((x): x is NavItem => !!x)
+    const picked = pref.map((k) => byKey.get(k)).filter((x): x is NavLeaf => !!x)
     for (const i of available) if (picked.length < 8 && !picked.includes(i)) picked.push(i)
     return picked.slice(0, 8).map((i) => i.path)
   }, [available, kind])
@@ -94,7 +68,7 @@ export function useQuickActions(kind: 'hr' | 'employee') {
   const byPath = useMemo(() => new Map(available.map((i) => [i.path, i])), [available])
   // A saved page the account lost access to simply drops out.
   const items = useMemo(
-    () => (saved ?? defaults).map((p) => byPath.get(p)).filter((x): x is NavItem => !!x),
+    () => (saved ?? defaults).map((p) => byPath.get(p)).filter((x): x is NavLeaf => !!x),
     [saved, defaults, byPath],
   )
 
@@ -102,14 +76,12 @@ export function useQuickActions(kind: 'hr' | 'employee') {
     (paths: string[]) => {
       setSaved(paths)
       writeLocal(uid, paths)
-      apiPut(`ui-settings/${KEY}`, { value: { paths } }).catch(() => {})
     },
     [uid],
   )
   const reset = useCallback(() => {
     setSaved(null)
     writeLocal(uid, null)
-    apiDelete(`ui-settings/${KEY}`).catch(() => {})
   }, [uid])
 
   return { items, available, save, reset, isCustom: saved != null }
@@ -195,7 +167,22 @@ export function QuickActionsFace({ kind }: { kind: 'hr' | 'employee' }) {
 function QuickActionsEditor({ qa, onClose }: { qa: ReturnType<typeof useQuickActions>; onClose: () => void }) {
   const { t } = useTranslation()
   const [picked, setPicked] = useState<string[]>(() => qa.items.map((i) => i.path))
-  const groups = useMemo(() => groupNav(qa.available), [qa.available])
+  const user = useAuthStore((s) => s.user)
+  // Menyu guruhlari bo'yicha: guruhsiz bandlar — «Asosiy», qolgani o'z guruhi ostida.
+  const groups = useMemo(() => {
+    const allowed = new Set(qa.available.map((i) => i.path))
+    const tree = getNavForUser(user)
+    const main = tree.filter((n): n is NavLeaf => !isGroup(n) && allowed.has(n.path))
+    const out: { key: string; labelKey: string; items: NavLeaf[] }[] = main.length
+      ? [{ key: 'main', labelKey: 'dashboard.quick.section_main', items: main }]
+      : []
+    for (const n of tree) {
+      if (!isGroup(n)) continue
+      const items = n.children.filter((c) => allowed.has(c.path))
+      if (items.length) out.push({ key: n.key, labelKey: `nav.${n.labelKey}`, items })
+    }
+    return out
+  }, [qa.available, user])
   const byPath = useMemo(() => new Map(qa.available.map((i) => [i.path, i])), [qa.available])
   const toggle = (p: string) =>
     setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : cur.length >= QUICK_MAX ? cur : [...cur, p]))
@@ -247,8 +234,8 @@ function QuickActionsEditor({ qa, onClose }: { qa: ReturnType<typeof useQuickAct
       <div className="grid gap-5 md:grid-cols-[1fr_260px]">
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
-            <div key={g.section}>
-              <p className="mb-1.5 text-[12px] font-semibold text-fg-subtle">{t(`dashboard.quick.section_${g.section}` as never)}</p>
+            <div key={g.key}>
+              <p className="mb-1.5 text-[12px] font-semibold text-fg-subtle">{t(g.labelKey as never)}</p>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {g.items.map((i) => {
                   const on = picked.includes(i.path)

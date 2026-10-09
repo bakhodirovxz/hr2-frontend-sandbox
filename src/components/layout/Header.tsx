@@ -1,43 +1,37 @@
-import { Menu } from 'lucide-react'
+import { Menu, MessageSquare, Phone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { LogoMark } from './Logo'
 import { BranchSelector } from './BranchSelector'
 import { NotificationsBell } from './NotificationsBell'
 import { UserMenu } from './UserMenu'
 import { LiveClock } from './LiveClock'
 import { HeaderTools } from './HeaderTools'
-import { TourLauncher } from '@/features/tour/TourLauncher'
 import { GlobalSearch } from '@/features/search/GlobalSearch'
+import { telHref, useSiteInfo } from '@/features/site/useSiteInfo'
 import { useAuthStore } from '@/store/authStore'
-import * as roles from '@/auth/roles'
+import { isGuest as isGuestUser } from '@/auth/permissions'
 
 interface HeaderProps {
   onOpenNav: () => void
+  onFeedback: () => void
 }
 
 /**
- * The header — NOCTURNE.
+ * SHAPKA (TZ 436–439, GEN-6): logotip — bosilganda doim bosh sahifaga;
+ * texnik yordam telefoni va «Qayta aloqa»; qidiruv qatori (TZ 1840);
+ * til UZ / ЎЗ / RU; ko'zi ojizlar rejimi; F1 qo'llanma; bildirishnomalar;
+ * foydalanuvchi menyusi; filial tanlagich (bir nechta filialni ko'radiganlar).
  *
- * It carries the way IN to the product (the hamburger, the mark and the
- * keyword search), the SCOPE everything below it is read at (which branch),
- * and what belongs to YOU (the time at the gate, help, how you READ the page —
- * low-vision mode, language, theme — your notifications, your account).
- * The middle of the row is left to the anniversary ribbon, which is a season
- * and not a feature — out of season the row simply breathes.
- *
- * Search, the low-vision mode and the language picker are TZ 4.1.7 items
- * («поисковая строка», «режим для слабовидящих», «двуязычность»); the help
- * button is the section-8 administrator guide, also reachable with F1.
- *
- * The navigation lives behind the hamburger at every width now (see AppShell):
- * the dashboard designs give the whole viewport to the board.
+ * Asosiy menyu shapka ostida — gorizontal `TopNav`. Telefon kengligida
+ * hamburger yon panelni ochadi.
  */
-export function Header({ onOpenNav }: HeaderProps) {
+export function Header({ onOpenNav, onFeedback }: HeaderProps) {
   const { t } = useTranslation()
-  // Mehmon (TZ 4.2.2) tasdiqlanmaguncha butun tizim unga yopiq: filial
-  // tanlagich ham, global qidiruv ham u chaqira olmaydigan endpointlarga
-  // boradi (403). Tugmani qoldirish faqat "ishlamaydigan tugma" bo'lardi.
-  const isGuest = roles.isGuest(useAuthStore((s) => s.user))
+  // Mehmon (TZ 4.2.2): filial tanlagich va global qidiruv u chaqira olmaydigan
+  // endpointlarga boradi — ishlamaydigan tugma qoldirilmaydi.
+  const isGuest = isGuestUser(useAuthStore((s) => s.user))
+  const site = useSiteInfo().data
 
   return (
     <header className="relative z-30 flex h-header shrink-0 items-center gap-ui px-page pt-[env(safe-area-inset-top)]">
@@ -46,49 +40,52 @@ export function Header({ onOpenNav }: HeaderProps) {
           type="button"
           onClick={onOpenNav}
           aria-label={t('header.menu')}
-          data-tour="nav-toggle"
           title={t('header.menu')}
-          className="grid h-icon w-icon shrink-0 place-items-center rounded-inner bg-fg/[0.06] text-fg transition-colors hover:bg-fg/[0.12]"
+          className="grid h-icon w-icon shrink-0 place-items-center rounded-inner bg-fg/[0.06] text-fg transition-colors hover:bg-fg/[0.12] lg:hidden"
         >
           <Menu size={18} />
         </button>
-        <span className="hidden shrink-0 sm:block">
+        <Link to="/" aria-label={t('nav.home')} className="hidden shrink-0 rounded-inner sm:block">
           <LogoMark size={30} />
-        </span>
+        </Link>
         {!isGuest && (
           <>
-            {/* The wrappers must be shrinkable flex items themselves: a plain
-                inline span keeps its content width (min-width:auto), so at
-                360–414 px the branch picker could not give way and the tools
-                cluster was drawn over it and over the search button
-                (measured 2026-09-19). */}
-            <span data-tour="branch" className="flex min-w-0 flex-1">
+            {/* O'ramlar o'zi siqiladigan flex element bo'lishi shart: 360–414px
+                da filial nomi joy bermasa asboblar uning ustiga chizilardi. */}
+            <span className="flex min-w-0 flex-1">
               <BranchSelector />
             </span>
-            <span data-tour="search" className="shrink-0">
+            <span className="shrink-0">
               <GlobalSearch />
             </span>
           </>
         )}
       </div>
 
-      {/* ⚠️ `shrink-0`: bildirishnoma va profil (ya'ni CHIQISH ham) hech qachon
-          siqilmasin — 390px da o'ng guruh ekrandan tashqarida qolib ketgan edi. */}
       <div className="flex shrink-0 items-center gap-ui-sm">
+        {site?.support_phone && (
+          <a
+            href={telHref(site.support_phone)}
+            title={t('site.supportPhone')}
+            className="hidden items-center gap-1.5 rounded-inner px-2 py-1 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg xl:inline-flex"
+          >
+            <Phone size={14} aria-hidden />
+            <span className="tabnum">{site.support_phone}</span>
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={onFeedback}
+          title={t('site.feedback')}
+          aria-label={t('site.feedback')}
+          className="hidden h-icon items-center gap-1.5 rounded-inner px-2.5 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg md:inline-flex"
+        >
+          <MessageSquare size={15} aria-hidden />
+          <span className="hidden 2xl:inline">{t('site.feedback')}</span>
+        </button>
         <LiveClock />
-        <span data-tour="tools" className="contents">
-          {/* The guided tour is written for the desktop layout; on a phone the
-              button only took the room the branch name needed. */}
-          {!isGuest && (
-            <span className="hidden sm:contents">
-              <TourLauncher />
-            </span>
-          )}
-          <HeaderTools showHelp={!isGuest} />
-        </span>
-        <span data-tour="notifications" className="contents">
-          <NotificationsBell />
-        </span>
+        <HeaderTools showHelp={!isGuest} />
+        <NotificationsBell />
         <UserMenu />
       </div>
     </header>

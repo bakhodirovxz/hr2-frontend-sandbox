@@ -713,6 +713,7 @@ const core = {
     expiresIn: 'Parolingiz muddati {{count}} kundan so‘ng tugaydi.',
     expiresToday: 'Parolingiz muddati bugun tugaydi.',
     changeNow: 'Hozir almashtirish',
+    defaultPasswordHint: 'Siz hali boshlang‘ich paroldan foydalanyapsiz. Xavfsizlik uchun uni o‘zingizning parolingizga almashtiring.',
   },
 
   header: {
@@ -893,6 +894,28 @@ const core = {
   },
 
   // ── Ro'yxatdan o'tish formasi (TZ 4.2.2) ────────────────────────────────
+  /** Shapka, pastki panel, «Qayta aloqa» (TZ 439, 442, GEN-6) — login sahifasida ham. */
+  site: {
+    feedback: 'Qayta aloqa',
+    feedbackHint: 'Taklif, savol yoki nosozlik haqida yozing — xabar tizim administratoriga yetkaziladi.',
+    feedbackUrgent: 'Shoshilinch holatda qo‘ng‘iroq qiling:',
+    subject: 'Mavzu',
+    subjectPh: 'Masalan: Hisobot yuklanmayapti',
+    message: 'Xabar',
+    messagePh: 'Xabaringizni yozing',
+    messageRequired: 'Xabar matnini yozing',
+    send: 'Yuborish',
+    sent: 'Xabaringiz yuborildi. Rahmat!',
+    sendFailed: 'Xabar yuborilmadi',
+    supportPhone: 'Texnik yordam telefoni',
+    footerNav: 'Pastki navigatsiya',
+    contacts: 'Kontaktlar',
+    sitemap: 'Tizim xaritasi',
+    mail: 'Pochta',
+    visits: 'Tashriflar hisoblagichi',
+    visitsToday: 'Bugun',
+    visitsTotal: 'Jami',
+  },
   register: {
     title: 'Ro‘yxatdan o‘tish',
     subtitle:

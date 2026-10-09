@@ -5,15 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { CornerDownLeft, Loader2, Search, X } from 'lucide-react'
 import { apiGet } from '@/api/http'
-import { SEARCH, SEARCH_SOURCES } from '@/api/endpoints'
-import { normalizeLetterType } from '@/features/letters/useLetters'
-import { ticketStatusKey } from '@/features/support/useSupport'
 import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/authStore'
-import { useBranchStore } from '@/store/branchStore'
-import { getAllowedBranchIds } from '@/auth/roles'
 import { useDynamicT } from '@/i18n/dynamicKey'
-import { PAGES_TYPE, pagesForUser, resolveSearchUrl } from './searchRoutes'
+import { PAGES_TYPE, SEARCH_MODULES, pagesForUser } from './searchRoutes'
 
 /**
  * Kalit so'z bo'yicha global qidiruv — TZ 4.1.7 va 4.2
@@ -34,26 +29,12 @@ import { PAGES_TYPE, pagesForUser, resolveSearchUrl } from './searchRoutes'
 
 const MIN_QUERY = 2
 
-/* A letter row's `meta` is the stored `letter_type` code (`application`,
- * `explanotary`…); the user knows it as «Ariza» / «Bildirgi». Other sources
- * already send display text (department, date, type name). */
-const LETTER_TYPE_KEY: Record<string, string> = {
-  explanatory: 'letters.typeBildirgi',
-  application: 'letters.typeAriza',
-  business_trip: 'letters.typeTrip',
-  javob_xati: 'letters.typeReply',
-}
-
 interface SearchItem {
   id: number
   title: string
   subtitle?: string | null
   meta?: string | null
   url?: string | null
-  /** Yozuv qaysi filialga tegishli (bo'lim, lavozim). Ro'yxat sahifalari
-   *  TANLANGAN filial bilan cheklangan, qidiruv esa butun ko'lam bo'ylab
-   *  ishlaydi — shu sababli o'tishdan oldin filial moslanadi. */
-  branch_id?: number | null
 }
 interface SearchGroup {
   type: string
@@ -61,10 +42,9 @@ interface SearchGroup {
   total: number
   items: SearchItem[]
 }
+/** `GET /search` javobi: modul → natijalar (har biri tayyor `url` bilan). */
 interface SearchResponse {
-  query: string
-  total: number
-  groups: SearchGroup[]
+  results: Record<string, SearchItem[]>
 }
 interface SearchSource {
   type: string
@@ -73,18 +53,6 @@ interface SearchSource {
 
 export function GlobalSearch() {
   const { t } = useTranslation()
-  // A ticket row's `subtitle` is the stored status code (`open`, `rated`…).
-  const subtitleLabel = (type: string, subtitle?: string | null) => {
-    if (!subtitle || type !== 'support') return subtitle
-    const k = ticketStatusKey(subtitle)
-    const KEY = { done: 'statusDone', taken: 'statusTaken', rated: 'statusRated', new: 'statusNew' } as const
-    return t(`support.${KEY[k]}` as never) as string
-  }
-  const metaLabel = (type: string, meta?: string | null) => {
-    if (!meta) return meta
-    const key = type === 'letters' ? LETTER_TYPE_KEY[normalizeLetterType(meta)] : undefined
-    return key ? (t(key as never) as string) : meta
-  }
   const tk = useDynamicT()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
@@ -119,13 +87,6 @@ export function GlobalSearch() {
     return () => clearTimeout(id)
   }, [q])
 
-  const sources = useQuery({
-    queryKey: ['search-sources'],
-    queryFn: () => apiGet<SearchSource[]>(SEARCH_SOURCES),
-    enabled: open,
-    staleTime: 10 * 60_000,
-  })
-
   const results = useQuery({
     queryKey: ['global-search', debounced, type],
     /**
@@ -136,13 +97,12 @@ export function GlobalSearch() {
      */
     queryFn: ({ signal }) =>
       apiGet<SearchResponse>(
-        SEARCH,
+        'search',
         {
-        q: debounced,
-        types: type || undefined,
-        // Bitta modulga toraytirilganda ancha ko'proq qator ko'rsatiladi —
-        // aynan shu «углубленный поиск» degani.
-        limit: type ? 20 : 6,
+          q: debounced,
+          modules: type || undefined,
+          // Bitta modulga toraytirilganda ko'proq qator — «углубленный поиск».
+          limit: type ? 20 : 5,
         },
         { signal },
       ),
@@ -185,11 +145,13 @@ export function GlobalSearch() {
   /** Ko'rsatiladigan guruhlar: sahifalar TEPADA (ular navigatsiya, ya'ni
    *  odatda aynan shu qidiriladi), keyin server natijalari. */
   const groups = useMemo<SearchGroup[]>(() => {
-    const server = data?.groups ?? []
+    const server: SearchGroup[] = Object.entries(data?.results ?? {})
+      .filter(([, items]) => items.length > 0)
+      .map(([k, items]) => ({ type: k, label: tk(`search.mod_${k}`), total: items.length, items }))
     if (type === PAGES_TYPE) return pageGroup ? [pageGroup] : []
     if (type) return server
     return pageGroup ? [pageGroup, ...server] : server
-  }, [data, pageGroup, type])
+  }, [data, pageGroup, type, tk])
 
   const flat = useMemo(
     () => groups.flatMap((g) => g.items.map((i) => ({ ...i, groupType: g.type }))),
@@ -201,38 +163,29 @@ export function GlobalSearch() {
   const go = useCallback(
     (item: (SearchItem & { groupType?: string }) | undefined, groupType?: string) => {
       if (!item) return
-      const kind = groupType ?? item.groupType ?? ''
-
-      // Topilgan yozuv BOSHQA filialda bo'lsa, ro'yxat sahifasi uni
-      // ko'rsatolmaydi (u tanlangan filial bilan cheklangan) — foydalanuvchi
-      // bo'sh jadvalga tushardi. Shuning uchun o'tishdan OLDIN ko'lam
-      // moslanadi. Xavfsiz: qidiruv allaqachon faqat foydalanuvchi ko'ra
-      // oladigan yozuvni qaytargan, ammo baribir ruxsat etilgan filiallar
-      // ro'yxatiga qarshi tekshiramiz (ko'p filialli bo'lmaganlar uchun
-      // ro'yxat bo'sh — u holda hech nima o'zgartirilmaydi).
-      const branch = item.branch_id
-      if (branch) {
-        const { selectedBranchId, setSelectedBranchId } = useBranchStore.getState()
-        const allowed = getAllowedBranchIds(user)
-        if (selectedBranchId !== branch && (allowed.length === 0 || allowed.includes(branch))) {
-          setSelectedBranchId(branch)
-        }
-      }
-
-      // Sahifa natijasi allaqachon v2 manzili; server natijasi v1 manzilini
-      // beradi va u SHU YERDA moslanadi (izohi `searchRoutes.ts` da).
-      const url =
-        kind === PAGES_TYPE ? item.url : resolveSearchUrl(kind, item.id, item.url, item.title)
+      void groupType
+      const url = item.url
       if (!url) return
       setOpen(false)
       setQ('')
       navigate(url)
     },
-    [navigate, user],
+    [navigate],
   )
 
+  /** Kengaytirilgan qidiruv sahifasi (TZ 1840, 1867) — filtrlar bilan. */
+  const openFull = () => {
+    if (!debounced) return
+    setOpen(false)
+    navigate(`/search?q=${encodeURIComponent(debounced)}${type && type !== PAGES_TYPE ? `&modules=${type}` : ''}`)
+    setQ('')
+  }
+
   const onInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!flat.length) return
+    if (!flat.length) {
+      if (e.key === 'Enter') openFull()
+      return
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setCursor((c) => (c + 1) % flat.length)
@@ -250,7 +203,7 @@ export function GlobalSearch() {
   const chips: SearchSource[] = [
     { type: '', label: t('search.all') },
     { type: PAGES_TYPE, label: t('search.pages') },
-    ...(sources.data ?? []),
+    ...SEARCH_MODULES.map((m): SearchSource => ({ type: m, label: tk(`search.mod_${m}`) })),
   ]
   let running = -1
 
@@ -373,7 +326,7 @@ export function GlobalSearch() {
                               <div className="truncate text-sm text-fg">{item.title}</div>
                               {(item.subtitle || item.meta) && (
                                 <div className="truncate text-xs text-fg-muted">
-                                  {[subtitleLabel(g.type, item.subtitle), metaLabel(g.type, item.meta)].filter(Boolean).join(' · ')}
+                                  {[item.subtitle, item.meta].filter(Boolean).join(' · ')}
                                 </div>
                               )}
                             </div>
@@ -401,7 +354,15 @@ export function GlobalSearch() {
                 <span>{t('search.hintMove')}</span>
                 <span>{t('search.hintOpen')}</span>
                 <span>{t('search.hintClose')}</span>
-                <span className="ml-auto font-mono">Ctrl + K</span>
+                {debounced.length >= MIN_QUERY && (
+                  <button
+                    type="button"
+                    onClick={openFull}
+                    className="ml-auto font-semibold text-brand-strong hover:underline"
+                  >
+                    {t('search.allResults')} →
+                  </button>
+                )}
               </div>
             </div>
           </div>,

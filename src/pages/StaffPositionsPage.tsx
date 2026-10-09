@@ -430,7 +430,7 @@ export function StaffPositionsPage() {
         void queryClient.invalidateQueries({ queryKey: ['staff-positions'] })
       }} />
       <PageHeader
-        title={t('nav.staffPositions')}
+        title={t('nav.staffing')}
         subtitle={t('staff.subtitle')}
         actions={
           /* Eight equal buttons became two menus and the primary action

@@ -1,3 +1,4 @@
+import type { Actor, ModuleCode, PermissionLevel } from '@/auth/permissions'
 /* Domain types shared across the app. These model the hr-api responses we
  * consume; they intentionally keep optional fields loose where the backend is
  * permissive. Extend as more pages are migrated. */
@@ -199,6 +200,24 @@ export interface User {
   id: number
   type: UserType
   username?: string
+  /** Hisobdagi F.I.Sh. (xodim kartasi bo'lmagan hisoblar uchun). */
+  full_name?: string | null
+  email?: string | null
+  is_active?: boolean
+  last_login_at?: string | null
+  /** TZ A1/A2 — `{modul: none|view|edit|full}` (`src/auth/permissions.ts`). */
+  permissions?: Partial<Record<ModuleCode, PermissionLevel>>
+  /** Ssenariy aktyori va modul bo'yicha yozish ko'lami (`core/access_policy.py`). */
+  actor?: Actor | null
+  /** Tayinlangan rol (`permission_groups`). */
+  role?: { id: number; code?: string | null; name: string } | null
+  /** U1 — vaqtinchalik parol: almashtirmaguncha boshqa amal yopiq. */
+  must_change_password?: boolean
+  /** Boshlang'ich parol hali almashtirilmagan (eslatma, majburiy emas). */
+  default_password?: boolean
+  /** Ikki bosqichli kirish (kod emailga). */
+  two_factor_enabled?: boolean
+  master_admin?: unknown
   /**
    * Admin profile row, NOT a flag.
    *

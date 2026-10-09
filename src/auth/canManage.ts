@@ -1,67 +1,35 @@
-import * as roles from './roles'
 import type { User } from '@/types'
+import { canWriteOrg, canManageEmployees as canManageEmployeesPerm } from './permissions'
 
 /**
  * KIM QAYSI MODULDA YOZA OLADI — YAGONA MANBA.
  *
- * ⚠️ NEGA KERAK: har bir sahifa bu savolni o'zicha hal qilardi, ko'pchiligi
- * esa umuman hal qilmasdi. Natijada foydalanuvchi «Yangi …» tugmasini ko'rar,
- * formani to'ldirar va faqat SAQLAGANDA 403 olardi (jonli tekshirildi: rais
- * kun tartibi, tuzilma, bayramlar, buyruq turlari, navbatchilik). Endi javob
- * shu yerda, backend darvozalarining KO'ZGUSI sifatida turadi.
- *
- * Har bir bandda AYNAN qaysi backend funksiyasi aks etayotgani yozilgan —
- * backend qoidasi o'zgarsa, shu bitta fayl yangilanadi.
- *
- * Bu — QULAYLIK qatlami, xavfsizlik chegarasi EMAS: haqiqiy tekshiruv
- * backendda va u o'z kuchida qoladi.
+ * Har bir javob `/auth/me` modul ruxsati va aktyor ko'lamidan
+ * (`src/auth/permissions.ts`) olinadi va hr-frontend-sandbox `App.jsx`
+ * darvozalari bilan bir xil. Backend (`require_module` + servis ko'lami) baribir
+ * qayta tekshiradi — bu faqat ko'ringan tugma jimgina 403 bermasligi uchun.
  */
 
-/** `users.type === 'admin'` — «akt xodimi» hisobi.
- *  `UserType` da bu qiymat sanab o'tilmagan (v2 tipi to'liq emas), shu bois
- *  satr sifatida solishtiriladi. */
-function isAdminAccount(user?: User | null): boolean {
-  return String(user?.type) === 'admin'
-}
-
-/**
- * `core/scoping.py::org_structure_scope` — tashkiliy tuzilmani BOSHQARISH:
- * master-admin, `admin` hisobi va KADR. Qolgani DENY (o'qish ochiq).
- *
- * Shu bitta qoida ostida: bo'limlar, lavozimlar, ierarxiya va NAVBATCHILIK
- * (`duty_day.py::assert_can_manage`). Bayramlar — `canManageHolidays`.
- */
+/** S1/S2 — bo'limlar, lavozimlar, ierarxiya: tashkilot darajasida tahrir. */
 export function canManageStructure(user?: User | null): boolean {
-  return roles.isSiteMasterAdmin(user) || isAdminAccount(user) || roles.isHR(user)
+  return canWriteOrg(user, 'structure')
 }
 
 /**
- * `api/v1/holiday.py::_assert_holiday_writer` — bayram va ko'chirilgan ish
- * kuni butun tashkilotning kalendari (har bir filialga ta'sir qiladi), shu
- * sabab uni faqat BOSH FILIAL kadri, `admin` hisobi va master-admin yozadi
- * (`org_structure_scope` GLOBAL). Filial kadrlari ro'yxatni faqat ko'radi.
- * Bosh filial kadri — serverning o'z hukmi `/me.is_executive_hr`.
+ * I2 — bayramlar va ko'chirilgan ish kunlari (`/holidays`). Filial yozuvi —
+ * o'z tashkiloti kadri; umumiy (butun tizim) yozuvi — faqat `global` ko'lam,
+ * buni sahifa `canWriteGlobal(user, 'attendance')` bilan alohida tekshiradi.
  */
 export function canManageHolidays(user?: User | null): boolean {
-  return roles.isSiteMasterAdmin(user) || isAdminAccount(user) || user?.is_executive_hr === true
+  return canWriteOrg(user, 'attendance')
 }
 
-/**
- * `services/employee.py::_is_privileged_manager` — master-admin / `admin`
- * hisobi / multi-org roli `hr` yoki `ministr`.
- *
- * BUYRUQ TURLARI shu darvoza ortida (`_require_category_manager` aynan shuni
- * chaqiradi).
- */
+/** 4.2.9 — buyruq turlari (`/order-types`): buyruqlar moduli to'liq daraja. */
 export function canManageOrderTypes(user?: User | null): boolean {
-  return roles.isSiteMasterAdmin(user) || isAdminAccount(user) || roles.isHR(user) || roles.isMinister(user)
+  return canWriteOrg(user, 'orders', 'full')
 }
 
-/**
- * `services/employee.py::_can_crud_employees` — 2026-08-13 da TORAYTIRILGAN:
- * FAQAT kadr va sayt master-admini. Ministr va `admin` hisobi xodimlar
- * sahifasini KO'RADI, lekin yoza olmaydi.
- */
+/** C1/C3/C4 — xodim kartalarini tashkilot darajasida boshqarish. */
 export function canManageEmployees(user?: User | null): boolean {
-  return roles.isHR(user) || roles.isSiteMasterAdmin(user)
+  return canManageEmployeesPerm(user)
 }

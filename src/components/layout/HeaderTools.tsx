@@ -6,12 +6,11 @@ import { AnchoredPanel } from '@/components/ui/AnchoredPanel'
 import { POPOVER } from '@/components/ui/control'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { HelpButton } from '@/features/help/HelpButton'
-import { AssistantButton } from '@/features/llm/AssistantButton'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeToggle } from './ThemeToggle'
 
 /**
- * O'qish sozlamalari — qo'llanma (F1), kam ko'ruvchilar rejimi, til, mavzu.
+ * O'qish sozlamalari — qo'llanma (F1, TZ 1745), ko'zi ojizlar rejimi, til (UZ / ЎЗ / RU), mavzu.
  *
  * ⚠️ TELEFONDA BULAR YO'QOLGAN EDI. Sarlavha qatori bitta qator, o'ralmaydi va
  * `overflow` ni ko'rsatmaydi: 390px da o'ng guruh (qo'llanma…profil) ekrandan
@@ -33,7 +32,6 @@ export function HeaderTools({ showHelp }: { showHelp: boolean }) {
     <>
       {/* Keng ekran: qatorda */}
       <div className="hidden items-center gap-ui-sm lg:flex">
-        <AssistantButton />
         {showHelp && <HelpButton />}
         <LowVisionPanel />
         <LanguageSwitcher />
@@ -67,7 +65,6 @@ export function HeaderTools({ showHelp }: { showHelp: boolean }) {
           label={t('header.moreTools')}
           className="p-1.5"
         >
-            <ToolRow label={t('assistant.title')}><AssistantButton /></ToolRow>
             {showHelp && <ToolRow label={t('guide.title')}><HelpButton /></ToolRow>}
             <ToolRow label={t('a11y.title')}><LowVisionPanel /></ToolRow>
             <ToolRow label={t('header.language')}><LanguageSwitcher inline /></ToolRow>

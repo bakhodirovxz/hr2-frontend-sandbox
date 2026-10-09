@@ -8,7 +8,6 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, ExternalLink, FileText
 import { Modal } from '@/components/ui/Modal'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/cn'
-import { useBranchStore } from '@/store/branchStore'
 import { useAttendance } from '@/features/attendance/useAttendance'
 import {
   eventDirection,
@@ -23,8 +22,7 @@ import { useMonthDocuments } from '@/features/attendance/useDayDocuments'
 import { holidayOn, useHolidayRange } from '@/features/holidays/useHolidays'
 import { usePhoneContact } from '@/features/phone/usePhoneDirectory'
 import { useAuthStore } from '@/store/authStore'
-import { useSystemSettings } from '@/features/settings/useSystemSettings'
-import { isPathAllowed, type NavModuleOverrides } from '@/components/layout/navConfig'
+import { pathVerdict } from '@/components/layout/navConfig'
 import { PassDetailModal } from './PassDetailModal'
 import type { AttendanceRow } from '@/types/dashboard'
 
@@ -108,13 +106,11 @@ function CalendarBody({ person, onClose }: { person: CalendarPerson; onClose: ()
   const { byDay, loading: evLoading } = useMonthEvents(person.id, month)
   const holidays = useHolidayRange(from, monthEnd.format('YYYY-MM-DD'))
   const docs = useMonthDocuments(person.id, from, monthEnd.format('YYYY-MM-DD'))
-  const branchId = useBranchStore((s) => s.selectedBranchId)
   const contact = usePhoneContact(person.id)
   // The profile link only for an account that may open employee profiles —
   // an ordinary employee looking at a colleague gets the calendar, not the file.
   const user = useAuthStore((s) => s.user)
-  const { values } = useSystemSettings()
-  const canProfile = isPathAllowed(`/employees/${person.id}`, user, values['nav.modules'] as NavModuleOverrides | undefined, branchId)
+  const canProfile = pathVerdict(`/employees/${person.id}`, user) === 'ok'
   const [pass, setPass] = useState<import('@/features/attendance/useDayEvents').TurnstileEvent | null>(null)
   const passRow = useMemo<AttendanceRow | null>(() => {
     if (!pass) return null
@@ -296,7 +292,7 @@ function CalendarBody({ person, onClose }: { person: CalendarPerson; onClose: ()
           lunch={{ start: row?.lunch_start_time, end: row?.lunch_end_time }}
           // A colleague's orders / requests are listed only where the viewer may open them.
           documents={docs.forDate(picked.format('YYYY-MM-DD')).filter((d) =>
-            isPathAllowed(d.href, user, values['nav.modules'] as NavModuleOverrides | undefined, branchId),
+            pathVerdict(d.href, user) === 'ok',
           )}
           profileHref={canProfile ? `/employees/${person.id}` : null}
           onNavigate={onClose}
