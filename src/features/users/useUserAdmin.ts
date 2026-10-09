@@ -211,10 +211,13 @@ export function useUserMutations() {
         }),
       onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: [USERS, 'sessions', v.id] }),
     }),
+    /** TZ A2 869: `force` — save despite a `permission_conflict` (409). */
     setPermissions: useMutation({
       meta,
-      mutationFn: ({ id, permissions }: { id: number; permissions: PermissionMap }) =>
-        apiPatch<UserAdminRow>(`${USERS}/${id}`, { permissions }, NO_INJECT_CFG),
+      mutationFn: ({ id, permissions, force }: { id: number; permissions: PermissionMap; force?: boolean }) =>
+        apiPatch<UserAdminRow>(`${USERS}/${id}`, { permissions }, {
+          params: { ...NO_INJECT, force: force || undefined },
+        }),
       onSuccess: invalidate,
     }),
   }
@@ -276,8 +279,11 @@ export function useRoleMutations() {
   return {
     save: useMutation({
       meta,
-      mutationFn: ({ id, body }: { id?: number; body: RolePayload }) =>
-        id ? apiPatch<RoleRow>(`${ROLES}/${id}`, body, NO_INJECT_CFG) : apiPost<RoleRow>(ROLES, body, NO_INJECT_CFG),
+      // TZ A2 869: `force` — save the matrix despite a `permission_conflict` (409).
+      mutationFn: ({ id, body, force }: { id?: number; body: RolePayload; force?: boolean }) => {
+        const cfg = { params: { ...NO_INJECT, force: force || undefined } }
+        return id ? apiPatch<RoleRow>(`${ROLES}/${id}`, body, cfg) : apiPost<RoleRow>(ROLES, body, cfg)
+      },
       onSuccess: invalidate,
     }),
     remove: useMutation({

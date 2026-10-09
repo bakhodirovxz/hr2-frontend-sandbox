@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Lock, Save } from 'lucide-react'
+import { AlertTriangle, Lock, Save } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,15 @@ import { errorCode, errorMessage } from '@/api/errorMessage'
 import type { ModuleCode, PermissionLevel } from '@/auth/permissions'
 import { LevelControl, useLevelLabel, useModuleLabel } from './PermissionLevel'
 import { normalizePerms, useRoleMutations, type PermissionMap, type RoleRow } from './useUserAdmin'
+import {
+  PermissionConflictPanel,
+  compactMatrix,
+  conflictFromError,
+  conflictModules,
+  usePermissionValidation,
+  type ConflictReport,
+  type PermissionFix,
+} from './PermissionConflicts'
 
 interface Draft {
   name: string
@@ -45,10 +54,16 @@ export function RoleModal({
   const isSystem = !!role?.is_system
   const [d, setD] = useState<Draft>({ name: '', code: '', description: '', permissions: {} })
   const [nameError, setNameError] = useState('')
+  /** TZ A2 869: the 409 of the last save — the panel then offers «Baribir saqlash». */
+  const [refused, setRefused] = useState<ConflictReport | null>(null)
+  const live = usePermissionValidation(d.permissions, { enabled: !!state })
+  const report = refused ?? live.report
+  const marked = conflictModules(report)
 
   useEffect(() => {
     if (!state) return
     setNameError('')
+    setRefused(null)
     setD({
       name: role?.name ?? '',
       code: role?.code ?? '',
@@ -57,20 +72,30 @@ export function RoleModal({
     })
   }, [state, role])
 
-  const setLevel = (m: ModuleCode, lv: PermissionLevel) =>
+  const setLevel = (m: ModuleCode, lv: PermissionLevel) => {
+    setRefused(null)
     setD((x) => {
       const permissions = { ...x.permissions }
       if (lv === 'none') delete permissions[m]
       else permissions[m] = lv
       return { ...x, permissions }
     })
-  const setAll = (lv: PermissionLevel) =>
+  }
+  const setAll = (lv: PermissionLevel) => {
+    setRefused(null)
     setD((x) => ({
       ...x,
       permissions: lv === 'none' ? {} : Object.fromEntries(modules.map((m) => [m, lv])),
     }))
+  }
+  const applyFix = (fix: PermissionFix) => setLevel(fix.module as ModuleCode, fix.level as PermissionLevel)
+  const applyAll = () => {
+    if (!report) return
+    setRefused(null)
+    setD((x) => ({ ...x, permissions: compactMatrix(report.resolved_permissions) }))
+  }
 
-  const submit = async (e?: FormEvent) => {
+  const submit = async (e?: FormEvent, force = false) => {
     e?.preventDefault()
     if (!d.name.trim()) return setNameError(t('roleAdmin.errName'))
     const body = {
@@ -80,10 +105,15 @@ export function RoleModal({
       ...(isSystem ? {} : { code: d.code.trim() || null }),
     }
     try {
-      await save.mutateAsync({ id: role?.id, body })
+      await save.mutateAsync({ id: role?.id, body, force })
       toast.ok(t('common.saved'))
       onClose()
     } catch (err) {
+      const conflict = conflictFromError(err)
+      if (conflict) {
+        setRefused(conflict)
+        return
+      }
       const msg = errorMessage(err, t('common.actionFailed'))
       if (errorCode(err) === 'role_name_taken') setNameError(msg)
       else toast.error(msg)
@@ -155,16 +185,30 @@ export function RoleModal({
             <div className="flex flex-wrap items-center gap-1 text-xs text-fg-muted">
               <span className="mr-1">{t('roleAdmin.setAll')}:</span>
               {levels.map((lv) => (
-                <Button key={lv} size="sm" variant="ghost" onClick={() => setAll(lv)}>
+                <Button key={lv} type="button" size="sm" variant="ghost" onClick={() => setAll(lv)}>
                   {levelLabel(lv)}
                 </Button>
               ))}
             </div>
           </div>
+          <div className="mb-3">
+            <PermissionConflictPanel
+              report={report}
+              onFix={applyFix}
+              onFixAll={applyAll}
+              disabled={save.isPending}
+              force={refused ? { onForce: () => void submit(undefined, true), pending: save.isPending } : null}
+            />
+          </div>
           <div className="divide-y divide-line rounded-inner border border-line">
             {modules.map((m) => (
               <div key={m} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
-                <span className="shrink-0 text-sm text-fg sm:w-52">{moduleLabel(m)}</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-sm text-fg sm:w-52">
+                  {moduleLabel(m)}
+                  {marked.has(m) && (
+                    <AlertTriangle size={13} className="text-warning" aria-label={t('permConflict.rowMark')} />
+                  )}
+                </span>
                 <LevelControl
                   label={moduleLabel(m)}
                   levels={levels}

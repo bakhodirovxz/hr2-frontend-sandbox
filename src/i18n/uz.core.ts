@@ -1087,6 +1087,17 @@ const core = {
     errTooMany: 'Juda ko‘p urinish. Birozdan so‘ng qaytadan urinib ko‘ring.',
     errConflict: 'Bu ma’lumotlar bilan hisob allaqachon mavjud.',
   },
+  // TZ 4.2.2 · 1894 — kirish usuli (ro‘yxatdan o‘tish formasi kirishdan oldin ochiladi)
+  regAuth: {
+    label: 'Kirish usuli',
+    col: 'Kirish usuli',
+    password: 'Login va parol',
+    passwordNote: 'Kirish sahifasida login va parol bilan.',
+    qr: 'QR-kod orqali',
+    qrNote: 'Kompyuterdagi QR-kodni telefoningiz bilan tasdiqlaysiz.',
+    qrPasswordHint: 'Parol baribir o‘rnatiladi: telefonda bir marta login va parol bilan kirilgan bo‘lishi kerak. QR orqali kirish hisob tasdiqlangandan keyin ishlaydi.',
+    doneQr: 'Hisobingiz tasdiqlangach, kompyuterdagi QR-kodni telefoningiz bilan tasdiqlab kirasiz (telefonda bir marta login va parol bilan kiring).',
+  },
 
   // ── Ro'yxatdan o'tish arizalari, administrator (TZ 4.2.2) ───────────────
 }

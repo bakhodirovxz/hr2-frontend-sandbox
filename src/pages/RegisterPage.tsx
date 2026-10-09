@@ -1,7 +1,7 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, CheckCircle2, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, QrCode, Trash2, Upload } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
@@ -27,6 +27,7 @@ import {
   MASKS,
   useRegisterOptions,
   useSubmitRegistration,
+  type AuthMethod,
   type RegistrationOption,
   type RegistrationPayload,
 } from '@/features/registration/useRegistration'
@@ -74,6 +75,8 @@ const EMPTY = {
   claimed_branch_id: '',
   claimed_department_id: '',
   claimed_job_position_id: '',
+  /** TZ 4.2.2 · 1894 «Указать путь авторизации через QR Code». */
+  auth_method: 'password' as AuthMethod,
 }
 
 type FormState = typeof EMPTY
@@ -238,6 +241,7 @@ export function RegisterPage() {
       claimed_branch_id: numOrNull(form.claimed_branch_id),
       claimed_department_id: numOrNull(form.claimed_department_id),
       claimed_job_position_id: numOrNull(form.claimed_job_position_id),
+      auth_method: form.auth_method,
     }
 
     try {
@@ -260,7 +264,9 @@ export function RegisterPage() {
           <CheckCircle2 size={56} className="text-success" />
           <h2 className="mt-5 text-2xl font-bold text-fg">{t('register.doneTitle')}</h2>
           <p className="mt-2 text-sm leading-relaxed text-fg-muted">{t('register.doneText')}</p>
-          <p className="mt-2 text-sm leading-relaxed text-fg-muted">{t('authx.qrNote')}</p>
+          <p className="mt-2 text-sm leading-relaxed text-fg-muted">
+            {form.auth_method === 'qr' ? t('regAuth.doneQr') : t('authx.qrNote')}
+          </p>
           <Link to="/login" className="mt-6">
             <Button size="lg">{t('register.toLogin')}</Button>
           </Link>
@@ -433,6 +439,12 @@ export function RegisterPage() {
             <Field label={t('authx.userType')} wide>
               <Input value={t('authx.userTypeIndividual')} readOnly aria-readonly="true" className="cursor-default opacity-75" />
             </Field>
+            <AuthMethodChoice
+              value={form.auth_method}
+              onChange={set('auth_method')}
+              available={(options.data?.auth_methods ?? []).map((m) => m.code)}
+              requiresPassword={!!options.data?.auth_methods?.find((m) => m.code === 'qr')?.requires_password}
+            />
             <Field label={t('register.username')} required>
               <Input
                 value={form.username}
@@ -566,6 +578,65 @@ export function RegisterPage() {
         </Link>
       </p>
     </Shell>
+  )
+}
+
+/**
+ * TZ 4.2.2 · 1894 — how the account will sign in. Both methods set a password:
+ * the QR on the computer is confirmed by a phone that signed in with the
+ * password once (`GET /auth/register/options` → `requires_password`).
+ */
+function AuthMethodChoice({
+  value,
+  onChange,
+  available,
+  requiresPassword,
+}: {
+  value: AuthMethod
+  onChange: (v: AuthMethod) => void
+  available: string[]
+  requiresPassword: boolean
+}) {
+  const { t } = useTranslation()
+  const all: { code: AuthMethod; icon: React.ReactNode; label: string; note: string }[] = [
+    { code: 'password', icon: <KeyRound size={18} />, label: t('regAuth.password'), note: t('regAuth.passwordNote') },
+    { code: 'qr', icon: <QrCode size={18} />, label: t('regAuth.qr'), note: t('regAuth.qrNote') },
+  ]
+  // An older server without the list offers only the password.
+  const methods = available.length ? all.filter((m) => available.includes(m.code)) : all.slice(0, 1)
+  if (methods.length < 2) return null
+  return (
+    <fieldset className="m-0 min-w-0 border-0 p-0 sm:col-span-2">
+      <legend className="mb-1.5 block text-sm font-medium text-fg">{t('regAuth.label')}</legend>
+      <div role="radiogroup" aria-label={t('regAuth.label')} className="grid gap-2 sm:grid-cols-2">
+        {methods.map((m) => {
+          const on = value === m.code
+          return (
+            <button
+              key={m.code}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(m.code)}
+              className={cn(
+                'flex items-start gap-3 rounded-inner border p-3 text-left transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                on ? 'border-brand/60 bg-brand-soft' : 'border-line bg-surface hover:border-brand/30',
+              )}
+            >
+              <span className={cn('mt-0.5 shrink-0', on ? 'text-brand-strong' : 'text-fg-subtle')}>{m.icon}</span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-fg">{m.label}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-fg-muted">{m.note}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      {value === 'qr' && requiresPassword && (
+        <p className="mt-1.5 text-xs text-fg-subtle">{t('regAuth.qrPasswordHint')}</p>
+      )}
+    </fieldset>
   )
 }
 

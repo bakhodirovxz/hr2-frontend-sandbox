@@ -27,6 +27,8 @@ export interface NotificationLike {
   medical_checkup_id?: number | null
   work_leave_id?: number | null
   service_request_id?: number | null
+  /** Read only for `background_job`: the job id is in the text («/jobs/12/download»). */
+  description?: string | null
 }
 
 /** Where clicking this notification should go, or null when nowhere sensible. */
@@ -100,6 +102,13 @@ export function resolveNotificationUrl(n: NotificationLike): string | null {
   // The daily «Sizni kutmoqda» digest summarises the dashboard's pending
   // items — the dashboard is where they are acted on.
   if (type === 'pending_action_digest') return '/'
+  // TZ A4 919: «Audit jurnali eksporti tayyor … /jobs/{id}/download» — the
+  // journal opens the job's panel with the download button (the raw API path
+  // in the text is not a page).
+  if (type === 'background_job') {
+    const id = /\/jobs\/(\d+)/.exec(n.description ?? '')?.[1]
+    return id ? `/audit-logs?job=${id}` : '/audit-logs'
+  }
 
   return null
 }
@@ -202,6 +211,7 @@ const TITLE_KEYS: Record<string, string> = {
   zoom_decision: 'notif.zoomDecision',
   zoom_organizer_changed: 'notif.zoomOrganizer',
   pending_action_digest: 'notif.digest',
+  background_job: 'notif.backgroundJob',
 }
 
 /** Prefix fallbacks, so an unknown type still names its module. */
