@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/ui/Spinner'
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, MailCheck, QrCode, User as UserIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { Button } from '@/components/ui/Button'
 import { LogoMark } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -27,6 +28,7 @@ import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { publicClient } from '@/api/client'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
+import i18n from 'i18next'
 import { Modal } from '@/components/ui/Modal'
 import { Field } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
@@ -79,6 +81,14 @@ export function LoginPage() {
       }
       navigate(redirectTo, { replace: true })
     } catch (err) {
+      // TZ U1 · 772: hisob noto'g'ri urinishlardan keyin vaqtincha bloklangan —
+      // qachongacha ekanini foydalanuvchining O'Z vaqtida ko'rsatamiz.
+      if (errorCode(err) === 'account_locked') {
+        const until = errorParams(err).until
+        const when = typeof until === 'string' && dayjs(until).isValid() ? dayjs(until).format('DD.MM.YYYY HH:mm') : null
+        setError(when ? t('authx.lockedUntil', { time: when }) : t('authx.locked'))
+        return
+      }
       setError(errorMessage(err, t('login.wrongCredentials')))
     }
   }
@@ -321,7 +331,7 @@ export function LoginPage() {
               onClick={() => setForgotOpen(true)}
               className="text-xs font-medium text-brand-strong hover:underline"
             >
-              {t('login.forgotLink')}
+              {t('authx.forgotLink')}
             </button>
           </div>
 
@@ -343,33 +353,42 @@ export function LoginPage() {
 }
 
 /**
- * "I forgot my password" — the address is all the server is given, and the
- * answer is deliberately the same whether the account exists or not, so this
- * screen can never be used to find out who has an account.
+ * «Parolni unutdingizmi?» — TZ U3 (796–818). Login YOKI elektron pochta
+ * qabul qilinadi (`POST /auth/forgot-password {identifier}`); havola hisobdagi
+ * pochtaga yuboriladi. TZ 818 bo'yicha topilmagan hisob (404
+ * `account_not_found`), pochtasiz hisob (422 `no_email_on_account`) va
+ * cheklov (429) haqida server xabari ko'rsatiladi.
  */
 function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [identifier, setIdentifier] = useState('')
+  const [sent, setSent] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     if (!open) return
-    setEmail('')
-    setSent(false)
+    setIdentifier('')
+    setSent('')
     setErr('')
   }, [open])
 
   const submit = async () => {
-    if (!email.trim()) return setErr(t('login.forgotEmailRequired'))
+    if (!identifier.trim()) return setErr(t('authx.forgotRequired'))
     setBusy(true)
     setErr('')
     try {
-      await publicClient.post('auth/forgot-password', { email: email.trim() })
-      setSent(true)
+      const { data } = await publicClient.post<{ message?: string }>('auth/forgot-password', { identifier: identifier.trim() })
+      setSent(i18nServerText(data?.message) || t('authx.forgotSent'))
     } catch (e) {
-      setErr(errorMessage(e, t('login.forgotFailed')))
+      const code = errorCode(e)
+      setErr(
+        code === 'account_not_found'
+          ? t('authx.forgotNotFound')
+          : code === 'no_email_on_account'
+            ? t('authx.forgotNoEmail')
+            : errorMessage(e, t('login.forgotFailed')),
+      )
     } finally {
       setBusy(false)
     }
@@ -380,7 +399,7 @@ function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => 
       open={open}
       onClose={onClose}
       title={t('login.forgotTitle')}
-      description={sent ? undefined : t('login.forgotDesc')}
+      description={sent ? undefined : t('authx.forgotDesc')}
       size="sm"
       footer={
         sent ? (
@@ -396,21 +415,25 @@ function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => 
       {sent ? (
         <div className="flex items-start gap-2.5 rounded-inner border border-success/30 bg-success-soft px-3 py-3">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
-          <p className="text-[13px] text-fg">{t('login.forgotSent')}</p>
+          <p className="text-[13px] text-fg">{sent}</p>
         </div>
       ) : (
-        <Field label={t('login.email')} required>
+        <Field label={t('authx.forgotIdentifier')} required>
           <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="email@uzgidro.uz"
-            autoComplete="email"
+            placeholder={t('authx.forgotIdentifier')}
+            autoComplete="username"
           />
         </Field>
       )}
-      {err && <p className="mt-3 text-xs text-danger">{err}</p>}
+      {err && <p role="alert" className="mt-3 text-xs text-danger">{err}</p>}
     </Modal>
   )
+}
+
+/** Server xabari o'zbekcha; boshqa tilda — o'zimizning tarjima. */
+function i18nServerText(msg?: string): string {
+  return i18n.language === 'uz' && msg ? msg : ''
 }

@@ -20,14 +20,20 @@ import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
 import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
-import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
-import { useBranches } from '@/hooks/useBranches'
-import { formatAppDate } from '@/lib/format'
+import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
+import { useRoles } from '@/features/users/useUserAdmin'
 import {
+  useRegisterOptions,
   useRegistrationOps,
   useRegistrations,
+  type RegistrationOption,
   type RegistrationRow,
 } from '@/features/registration/useRegistration'
+
+const fmtDate = (d?: string | null) => (d ? dayjs(d).format('DD.MM.YYYY') : null)
+const fmtDateTime = (d?: string | null) => (d ? inTashkent(d).format('DD.MM.YYYY HH:mm') : '—')
+const toOptions = (list: RegistrationOption[]) => list.map((o) => ({ value: String(o.id), label: o.name }))
 
 /**
  * Ro'yxatdan o'tish arizalari (administrator) — TZ 4.2.2.
@@ -103,6 +109,12 @@ export function RegistrationsPage() {
       cell: (r) => <span className="text-sm text-fg-muted">{r.phone_number || '—'}</span>,
     },
     {
+      key: 'submitted',
+      header: t('account.regSubmitted'),
+      cell: (r) => <span className="tabnum text-xs text-fg-muted">{fmtDateTime(r.created_at)}</span>,
+      sortValue: (r) => r.created_at ?? '',
+    },
+    {
       key: 'status',
       header: t('registrations.colStatus'),
       cell: (r) => (
@@ -122,7 +134,7 @@ export function RegistrationsPage() {
             header: t('registrations.colReviewed'),
             cell: (r: RegistrationRow) => (
               <span className="text-xs text-fg-muted">
-                {r.reviewed_at ? `${formatAppDate(r.reviewed_at)} · ${r.reviewed_by_name ?? ''}` : '—'}
+                {r.reviewed_at ? `${fmtDateTime(r.reviewed_at)} · ${r.reviewed_by_name ?? ''}` : '—'}
               </span>
             ),
           },
@@ -231,21 +243,24 @@ function RegistrationDetail({
 }) {
   const { t } = useTranslation()
   const { approve, reject } = useRegistrationOps()
-  const { branches } = useBranches()
+  // Tashkilot / bo'lim / lavozim — ochiq forma bilan bir xil ro'yxat
+  // (`/auth/register/options`, bo'lim va lavozimda `parent_id` = tashkilot).
+  const options = useRegisterOptions()
+  const roles = useRoles()
   const [mode, setMode] = useState<'view' | 'approve' | 'reject'>('view')
   const [branchId, setBranchId] = useState(String(row.claimed_branch_id ?? ''))
   const [departmentId, setDepartmentId] = useState(String(row.claimed_department_id ?? ''))
   const [positionId, setPositionId] = useState(String(row.claimed_job_position_id ?? ''))
+  const [roleId, setRoleId] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
-  /**
-   * Read the reference lists for the branch being ASSIGNED, not the one the
-   * admin happens to be viewing. Reading the viewed branch let the admin pick a
-   * department from branch A while approving into branch B, and the approval
-   * died on `department_branch_mismatch` with no hint of which field was wrong.
-   */
-  const deptOptions = useDepartmentOptions(branchId ? Number(branchId) : null)
-  const posOptions = useJobPositionOptions(branchId ? Number(branchId) : null)
+  /** Bo'lim va lavozim — TAYINLANAYOTGAN tashkilotniki (boshqa tashkilot
+   *  bo'limi bilan tasdiqlash `department_branch_mismatch` bilan qulardi). */
+  const deptOptions = toOptions((options.data?.departments ?? []).filter((d) => String(d.parent_id ?? '') === branchId))
+  const posOptions = toOptions((options.data?.job_positions ?? []).filter((d) => String(d.parent_id ?? '') === branchId))
+  const roleOptions = (roles.data ?? [])
+    .filter((r) => r.code !== 'guest')
+    .map((r) => ({ value: String(r.id), label: r.name }))
 
   const doApprove = async () => {
     if (!branchId) {
@@ -259,6 +274,7 @@ function RegistrationDetail({
         organization_branch_id: Number(branchId),
         department_id: departmentId ? Number(departmentId) : null,
         job_position_id: positionId ? Number(positionId) : null,
+        role_id: roleId ? Number(roleId) : null,
       })
       onDone(t('registrations.approved'))
     } catch (e) {
@@ -346,7 +362,9 @@ function RegistrationDetail({
             <Row label={t('register.username')} value={row.username} />
             <Row label={t('register.email')} value={row.email} />
             <Row label={t('register.phone')} value={row.phone_number} />
-            <Row label={t('register.birthDate')} value={row.birth_date ? formatAppDate(row.birth_date) : null} />
+            <Row label={t('account.regFullName')} value={row.full_name} />
+            <Row label={t('authx.userType')} value={row.user_type === 'individual' || !row.user_type ? t('authx.userTypeIndividual') : row.user_type} />
+            <Row label={t('register.birthDate')} value={fmtDate(row.birth_date)} />
             <Row
               label={t('register.gender')}
               value={row.gender === 1 ? t('register.male') : row.gender === 2 ? t('register.female') : null}
@@ -357,11 +375,11 @@ function RegistrationDetail({
             <Row label={t('register.passportIssuedBy')} value={row.passport_issued_by} />
             <Row
               label={t('register.passportIssueDate')}
-              value={row.passport_issue_date ? formatAppDate(row.passport_issue_date) : null}
+              value={fmtDate(row.passport_issue_date)}
             />
             <Row
               label={t('register.passportExpiryDate')}
-              value={row.passport_expiry_date ? formatAppDate(row.passport_expiry_date) : null}
+              value={fmtDate(row.passport_expiry_date)}
             />
             <Row label={t('register.birthPlace')} value={row.birth_place} />
             <Row label={t('register.birthCountry')} value={row.birth_country_name} />
@@ -398,7 +416,7 @@ function RegistrationDetail({
                 setDepartmentId('')
                 setPositionId('')
               }}
-              options={branches.map((b) => ({ value: String(b.id), label: b.name || `#${b.id}` }))}
+              options={toOptions(options.data?.branches ?? [])}
               placeholder={t('register.notSelected')}
             />
           </Field>
@@ -416,7 +434,17 @@ function RegistrationDetail({
               value={positionId}
               onChange={setPositionId}
               options={posOptions}
+              disabled={!branchId}
               placeholder={t('register.notSelected')}
+            />
+          </Field>
+          <Field label={t('account.regRole')} hint={t('account.regRoleHint')}>
+            <Combobox
+              value={roleId}
+              onChange={setRoleId}
+              options={roleOptions}
+              loading={roles.isLoading}
+              placeholder={t('account.regRoleAuto')}
             />
           </Field>
           <FormError>{error}</FormError>
