@@ -51,6 +51,11 @@ const AttendancePage = page(() => import('@/pages/AttendancePage'), 'AttendanceP
 const HolidaysPage = page(() => import('@/pages/HolidaysPage'), 'HolidaysPage')
 const TabelSettingsPage = page(() => import('@/pages/TabelSettingsPage'), 'TabelSettingsPage')
 const StatisticsPage = page(() => import('@/pages/StatisticsPage'), 'StatisticsPage')
+const VacanciesPage = page(() => import('@/pages/VacanciesPage'), 'VacanciesPage')
+const ContactsPage = page(() => import('@/pages/ContactsPage'), 'ContactsPage')
+const SitemapPage = page(() => import('@/pages/SitemapPage'), 'SitemapPage')
+const SearchPage = page(() => import('@/pages/SearchPage'), 'SearchPage')
+const QrApprovePage = page(() => import('@/pages/QrApprovePage'), 'QrApprovePage')
 
 export function App() {
   return (
@@ -106,6 +111,15 @@ export function App() {
                       <Route path="/timesheet-settings" element={<TabelSettingsPage />} />
                       {/* 4.2.11, R1, R2 */}
                       <Route path="/statistics" element={<StatisticsPage />} />
+                      {/* 4.2.10, V3 — hamma, mehmon ham (qobiq mehmonni shu yerga yo'naltiradi) */}
+                      <Route path="/vacancies" element={<VacanciesPage />} />
+                      {/* GEN-6, 442 — pastki panel */}
+                      <Route path="/contacts" element={<ContactsPage />} />
+                      <Route path="/sitemap" element={<SitemapPage />} />
+                      {/* 1840, 1867, GEN-8 — mehmonga yopiq (navConfig `notGuest`) */}
+                      <Route path="/search" element={<SearchPage />} />
+                      {/* 4.2.3 — QR orqali kirishni telefonda tasdiqlash */}
+                      <Route path="/qr-approve" element={<QrApprovePage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                   </Route>

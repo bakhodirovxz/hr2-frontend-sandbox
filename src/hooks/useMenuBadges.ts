@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '@/api/http'
+import { isGuest } from '@/auth/permissions'
+import { useAuthStore } from '@/store/authStore'
 
 /** Opt out of the axios interceptor's automatic branch stamp. */
 const NO_BRANCH = { organization_branch_id: null }
@@ -25,7 +27,12 @@ const KEY_TO_PATH: Record<string, string> = {
 
 /** The raw counter map — one query, shared by the menu and the bell. */
 function useMenuBadgeQuery() {
+  // Mehmon (TZ 4.2.2) uchun yo'l server oq ro'yxatida yo'q — har sahifada 403
+  // berardi; uning menyusida hisoblagich ham yo'q, qo'ng'iroqcha ro'yxatdan sanaydi.
+  const user = useAuthStore((s) => s.user)
   return useQuery({
+    // `auth/me` kelmaguncha ham kutiladi — qobiq bir kadr user=null bilan chiziladi.
+    enabled: !!user && !isGuest(user),
     queryKey: ['menu-badges'],
     // The counts are org-wide for the signed-in person, not per selected
     // branch — sending the header branch would hide work in the other ones.

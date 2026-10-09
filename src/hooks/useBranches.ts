@@ -7,10 +7,16 @@ import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import * as roles from '@/auth/roles'
 import { findExecutiveBranchId } from '@/auth/branchHelpers'
+import { rememberGuest } from '@/api/bootPrefetch'
 
 /** Loads organization branches and keeps the branch store populated. */
 export function useBranches() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  // Mehmonga filiallar ro'yxati yopiq (server 403) va kerak emas: uning
+  // sahifalari (vakansiyalar, xizmatlar) filialga bog'lanmagan. `auth/me`
+  // kelmaguncha (user null) so'ralmaydi — aks holda mehmonda ham ketardi.
+  const user = useAuthStore((s) => s.user)
+  const guest = roles.isGuest(user)
   const setBranches = useBranchStore((s) => s.setBranches)
 
   const query = useQuery({
@@ -27,7 +33,7 @@ export function useBranches() {
     // settings blobs nothing in the header reads: 26.5 KB → 2.9 KB on every
     // hard load, for every user.
     queryFn: () => apiGet<ListResponse<OrganizationBranch>>(ORGANIZATION_BRANCHES, { slim: true }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!user && !guest,
     staleTime: 10 * 60_000,
   })
 
@@ -36,6 +42,11 @@ export function useBranches() {
   useEffect(() => {
     if (branches.length > 0) setBranches(branches)
   }, [branches, setBranches])
+
+  // Keyingi qattiq yuklashda `bootPrefetch` mehmonga filiallarni so'ramasin.
+  useEffect(() => {
+    if (user) rememberGuest(guest)
+  }, [user, guest])
 
   return { ...query, branches }
 }

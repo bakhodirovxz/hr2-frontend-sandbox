@@ -39,7 +39,11 @@ export function useSiteInfo() {
 export function useUpdateSiteInfo() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Omit<SiteInfo, 'visits'>) => apiPut<SiteInfo>('site/info', body),
+    // Butun tizim ma'lumoti — shapkadagi filial unga qo'shilmaydi.
+    mutationFn: (body: Omit<SiteInfo, 'visits'>) =>
+      apiPut<SiteInfo>('site/info', body, { params: { _no_branch_inject: true } }),
+    // Xatoni chaqiruvchi shaklda ko'rsatadi (kontaktlar sahifasi).
+    meta: { silent: true },
     onSuccess: (data) => qc.setQueryData(KEY, data),
   })
 }
