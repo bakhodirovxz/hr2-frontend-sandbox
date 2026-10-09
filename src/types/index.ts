@@ -215,6 +215,8 @@ export interface User {
   must_change_password?: boolean
   /** Boshlang'ich parol hali almashtirilmagan (eslatma, majburiy emas). */
   default_password?: boolean
+  /** TZ U2 — harakatsizlikda chiqish muddati, daqiqa (0 — o'chirilgan). */
+  idle_timeout_minutes?: number
   /** Ikki bosqichli kirish (kod emailga). */
   two_factor_enabled?: boolean
   master_admin?: unknown

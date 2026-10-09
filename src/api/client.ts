@@ -11,6 +11,7 @@ import { getSelectedBranchId } from '@/store/branchStore'
 import { domain, joinApiUrl } from './apiBase'
 import { trackClientError, trackSearch } from '@/lib/pageTracker'
 import { errorCode } from './errorMessage'
+import { setLogoutReason } from '@/features/auth/logoutReason'
 
 export { domain, joinApiUrl }
 
@@ -176,6 +177,9 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
+      // TZ U2: server sessiyani harakatsizlik sababli yopgan — kirish sahifasi
+      // sababini aytsin (refresh ham rad etiladi va forceLogout ishlaydi).
+      if (errorCode(error) === 'session_idle_timeout') setLogoutReason('idle')
       if (original._retry) {
         forceLogout()
         return Promise.reject(error)

@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore'
 import { LABEL_CLS, control, CONTROL_PAD } from '@/components/ui/control'
 import { cn } from '@/lib/cn'
 import type { QrTokens } from '@/features/auth/QrLoginPanel'
+import { takeLogoutReason } from '@/features/auth/logoutReason'
 
 /**
  * ⚠️ LAZY. `LoginPage` is the one page kept EAGER in the entry chunk (it is the
@@ -53,6 +54,8 @@ export function LoginPage() {
   /** 2FA yoqilgan hisob: parol to'g'ri bo'lsa server kod yuboradi. */
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null)
   const [code, setCode] = useState('')
+  /** TZ U2 — harakatsizlik sababli chiqarilgan bo'lsa, bir marta aytiladi. */
+  const [idleNotice] = useState(() => takeLogoutReason() === 'idle')
 
   const from = (location.state as { from?: Location } | null)?.from
   const redirectTo = from ? `${from.pathname}${from.search || ''}` : '/'
@@ -274,6 +277,11 @@ export function LoginPage() {
             </div>
           ) : (
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            {idleNotice && !error && (
+              <div role="status" className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-fg">
+                {t('authx.idleLoggedOut')}
+              </div>
+            )}
             <div>
               <label className={LABEL_CLS}>{t('login.loginLabel')}</label>
               <div className={cn(control({ size: 'lg', focusWithin: true }), CONTROL_PAD.plain, 'flex items-center gap-2')}>

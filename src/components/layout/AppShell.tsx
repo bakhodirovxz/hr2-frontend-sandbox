@@ -11,6 +11,7 @@ import { Navigate } from 'react-router-dom'
 import { useBranches, useBranchInit } from '@/hooks/useBranches'
 import { useMenuBadges } from '@/hooks/useMenuBadges'
 import { PasswordGate } from '@/features/auth/PasswordGate'
+import { IdleGuard } from '@/features/auth/IdleGuard'
 import { BackgroundDecor } from './BackgroundDecor'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -186,6 +187,7 @@ export function AppShell() {
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       {/* TZ U1: vaqtinchalik parol almashtirilmaguncha qobiq yopiq. */}
       <PasswordGate />
+      <IdleGuard />
     </div>
   )
 }

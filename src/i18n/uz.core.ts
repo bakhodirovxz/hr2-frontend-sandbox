@@ -1070,6 +1070,10 @@ const core = {
     lockedUntil:
       'Noto‘g‘ri urinishlar ko‘pligi sababli hisob vaqtincha bloklangan — {{time}} gacha. Parolni tiklang yoki administratorga murojaat qiling.',
     backToLogin: 'Login sahifasiga qaytish',
+    idleTitle: 'Sessiya tugamoqda',
+    idleBody: 'Uzoq vaqt harakat bo‘lmadi. {{n}} soniyadan keyin tizimdan avtomatik chiqasiz.',
+    idleStay: 'Ishni davom ettirish',
+    idleLoggedOut: 'Uzoq vaqt harakat bo‘lmagani uchun tizimdan avtomatik chiqdingiz. Qaytadan kiring.',
     stepDocs: 'Hujjat va foto',
     stepAccount: 'Hisob va tashkilot',
     stepOf: '{{n}}-bosqich / {{total}}',

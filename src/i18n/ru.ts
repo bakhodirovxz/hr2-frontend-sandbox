@@ -6464,6 +6464,10 @@ const ru: Record<string, string> = {
   'Harakatsizlikda chiqish (daqiqa)': 'Выход при бездействии (минут)',
   'Shuncha daqiqa harakatsiz qolgan sessiya yopiladi; 0 — o‘chirilgan': 'Сессия закрывается после стольких минут бездействия; 0 — отключено',
   'Xavfsizlik siyosati saqlandi': 'Политика безопасности сохранена',
+  'Sessiya tugamoqda': 'Сессия завершается',
+  'Uzoq vaqt harakat bo‘lmadi. {{n}} soniyadan keyin tizimdan avtomatik chiqasiz.': 'Долгое время не было активности. Через {{n}} с будет выполнен автоматический выход из системы.',
+  'Ishni davom ettirish': 'Продолжить работу',
+  'Uzoq vaqt harakat bo‘lmagani uchun tizimdan avtomatik chiqdingiz. Qaytadan kiring.': 'Выполнен автоматический выход из-за длительного бездействия. Войдите снова.',
 }
 
 export default ru
