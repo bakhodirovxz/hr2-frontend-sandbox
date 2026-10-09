@@ -15,6 +15,30 @@ import type { ListResponse, OrganizationBranch, User } from '@/types'
  */
 const BOOT_STALE = 5 * 60_000
 
+/**
+ * Oxirgi kirgan hisob mehmonmi (TZ 4.2.2). Filiallar ro'yxati mehmonga yopiq
+ * (server 403), lekin tokenda hisob turi yo'q — shuning uchun `auth/me` ni
+ * kutmasdan parallel so'rash uchun oldingi sessiyadagi tur eslab qolinadi.
+ */
+const GUEST_FLAG = 'hrm_last_user_guest'
+
+export function rememberGuest(guest: boolean): void {
+  try {
+    if (guest) localStorage.setItem(GUEST_FLAG, '1')
+    else localStorage.removeItem(GUEST_FLAG)
+  } catch {
+    /* storage yopiq — faqat bitta ortiqcha so'rov */
+  }
+}
+
+function lastUserWasGuest(): boolean {
+  try {
+    return localStorage.getItem(GUEST_FLAG) === '1'
+  } catch {
+    return false
+  }
+}
+
 /** Qobiq keshlari to'ldirilganda (yoki so'rovlar boshlanganda) hal bo'ladi. */
 export let bootReady: Promise<void> = Promise.resolve()
 
@@ -28,6 +52,10 @@ export function primeBootQueries(): void {
     queryFn: () => apiGet<User>(USER_INFO),
     staleTime: BOOT_STALE,
   })
+  if (lastUserWasGuest()) {
+    bootReady = me.then(() => undefined)
+    return
+  }
   void queryClient.prefetchQuery({
     queryKey: ['organization-branches', 'slim'],
     queryFn: () => apiGet<ListResponse<OrganizationBranch>>(ORGANIZATION_BRANCHES, { slim: true }),
