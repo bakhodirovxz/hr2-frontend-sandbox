@@ -25,11 +25,10 @@ import { DayDetailModal } from '@/features/attendance/DayDetailModal'
 import { formatDayRange, useMonthEvents } from '@/features/attendance/useDayEvents'
 import { useMonthDocuments } from '@/features/attendance/useDayDocuments'
 import { CAL_COLOR, CAL_LABEL, LEGEND_STATUSES, mapCalStatus } from '@/features/attendance/attendanceStatus'
-import { useMyScorecard } from '@/features/kpi/useKpi'
+import { percentTone, useScorecard } from '@/features/kpi/api'
 import { useAuthStore } from '@/store/authStore'
 import { leaveStatusKey, type LeaveRequest } from '@/features/leave/useLeave'
 import { StatusPill } from '@/features/dashboard/nocturne/rows'
-import { kpiOutcome, OUTCOME_TEXT } from '@/features/kpi/outcome'
 
 /* ── KPI ─────────────────────────────────────────────────────────────────── */
 
@@ -40,6 +39,14 @@ import { kpiOutcome, OUTCOME_TEXT } from '@/features/kpi/outcome'
  * narrower — "how is this employee doing" — so it shows the result and the
  * indicators behind it and stops there.
  */
+const PCT_TEXT: Record<string, string> = {
+  success: 'text-success',
+  info: 'text-info',
+  warning: 'text-warning',
+  danger: 'text-danger',
+  neutral: 'text-fg-muted',
+}
+
 export function ProfileKpiTab({ employeeId }: { employeeId: number }) {
   const { t } = useTranslation()
   /* ⚠️ KPI IS BRANCH-BOUND (`/me` reports `kpi_enabled`). Asking for a
@@ -47,7 +54,7 @@ export function ProfileKpiTab({ employeeId }: { employeeId: number }) {
      answer 403 — the tab already handled it gracefully, but it fired a request
      on every open that was guaranteed to fail and to log an error. */
   const kpiOff = useAuthStore((st) => st.user?.kpi_enabled) === false
-  const { scorecard, loading, denied } = useMyScorecard(kpiOff ? null : employeeId, null)
+  const { scorecard, loading, denied } = useScorecard(employeeId, null, !kpiOff)
 
   if (kpiOff)
     return (
@@ -79,7 +86,7 @@ export function ProfileKpiTab({ employeeId }: { employeeId: number }) {
           <p
             className={cn(
               'tabnum text-[34px] font-bold leading-none',
-              pct == null ? 'text-fg-subtle' : OUTCOME_TEXT[kpiOutcome(pct, scorecard?.penalty_points)],
+              pct == null ? 'text-fg-subtle' : PCT_TEXT[percentTone(pct)],
             )}
           >
             {pct == null ? '—' : `${Math.round(pct)}%`}

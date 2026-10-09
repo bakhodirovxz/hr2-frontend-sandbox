@@ -1,612 +1,608 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FormError } from '@/components/ui/FormError'
-import { CalendarPlus, Copy, Download, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
-import { ActionMenu } from '@/components/ui/ActionMenu'
-import { FilterToggle } from '@/components/data/FilterToggle'
-import { useEffect, useRef, useState } from 'react'
 import dayjs from 'dayjs'
-import { Avatar } from '@/components/ui/Avatar'
+import { CalendarPlus, CheckCircle2, Copy, Download, PlayCircle, Plus, RotateCcw, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Combobox } from '@/components/ui/Combobox'
-import { Select } from '@/components/ui/Select'
-import { Pagination } from '@/components/data/Pagination'
-import { useListParams } from '@/hooks/useListParams'
-import { SearchInput } from '@/components/data/SearchInput'
 import { DateInput } from '@/components/ui/DateInput'
-import { isInvalidRange } from '@/lib/dateRange'
-import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
-import { cn } from '@/lib/cn'
-import { formatPeriod, isPenalty } from './useKpi'
-import { useIndicators, useKpiEntries, useKpiAdminMutations } from './useKpiAdmin'
-import { useKpiOps } from './useKpiOps'
-import { useToast } from '@/components/ui/Toast'
-import { XLSX_MIME, downloadFile } from '@/lib/download'
-import { KPI_EXPORT_ENTRIES } from '@/api/endpoints'
-import { errorMessage } from '@/api/errorMessage'
-import { TH, TD, TD_MESSAGE } from '@/components/data/tableStyles'
-import { Checkbox } from '@/components/ui/Checkbox'
-import { BulkBar } from '@/components/data/BulkBar'
-import { useConfirm } from '@/components/data/useConfirm'
-import { ConfirmDialog } from '@/components/data/ConfirmDialog'
-import { Modal } from '@/components/ui/Modal'
 import { Field } from '@/components/ui/Field'
+import { FormError } from '@/components/ui/FormError'
+import { IconButton } from '@/components/ui/IconButton'
 import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
+import { Avatar } from '@/components/ui/Avatar'
+import { useToast } from '@/components/ui/Toast'
+import { BulkBar } from '@/components/data/BulkBar'
+import { DataTable, type Column } from '@/components/data/DataTable'
+import { FilterReset } from '@/components/data/FilterReset'
+import { Pagination } from '@/components/data/Pagination'
+import { SearchInput } from '@/components/data/SearchInput'
+import { useConfirm } from '@/components/data/useConfirm'
+import { EmployeePicker } from '@/features/employees/EmployeePicker'
+import { useServerText } from '@/features/statistics/serverText'
+import { useBulkAction } from '@/hooks/useBulkAction'
+import { useListParams } from '@/hooks/useListParams'
+import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
 import { useRowSelection } from '@/hooks/useRowSelection'
-import { useEmployeeSearch } from '@/features/employees/useEmployeeSearch'
-import type { KpiEntry } from './useKpi'
+import { errorMessage } from '@/api/errorMessage'
+import { isInvalidRange } from '@/lib/dateRange'
+import { formatRange, monthTitle } from '@/lib/format'
+import { cn } from '@/lib/cn'
+import type { Employee } from '@/types'
+import {
+  exportEntries,
+  fmtDay,
+  isDoneStatus,
+  isPenalty,
+  monthRange,
+  num,
+  pct,
+  percentTone,
+  useEntries,
+  useEntry,
+  useIndicators,
+  useKpiMutations,
+  type KpiEntry,
+  type StatusAction,
+} from './api'
+import { KpiStatusMenu } from './KpiStatusMenu'
+import { useKpiAccess } from './useKpiAccess'
 
-/** Status tone: finished green, in progress blue, locked neutral. */
-const ENTRY_STATUS_TONE: Record<string, string> = {
-  D: 'bg-success-soft text-success',
-  I: 'bg-info-soft text-info',
-  N: 'bg-warning-soft text-warning',
-  locked: 'bg-surface-2 text-fg-muted',
+/** Last twelve months, newest first — the «Davr» filter (v1 `buildMonthOptions`). */
+export function useMonthOptions(count = 12) {
+  return useMemo(() => {
+    const now = dayjs().startOf('month')
+    return Array.from({ length: count }, (_, i) => {
+      const d = now.subtract(i, 'month')
+      return { value: d.format('YYYY-MM'), label: monthTitle(d) }
+    })
+  }, [count])
 }
 
-const ENTRY_STATUS_KEY: Record<string, string> = {
+const ENTRY_STATUSES = ['draft', 'N', 'I', 'D', 'locked'] as const
+const STATUS_FILTER_KEY: Record<string, string> = {
   draft: 'kpi.statusDraft',
   N: 'kpi.statusN',
   I: 'kpi.statusI',
   D: 'kpi.statusD',
   locked: 'kpi.statusLocked',
 }
-const STATUS_VALUES = ['draft', 'N', 'I', 'D', 'locked']
 
-/** Verifix "Natijalar" — every KPI entry, server-paginated and filterable. */
+export const TONE_TEXT: Record<string, string> = {
+  success: 'bg-success-soft text-success',
+  info: 'bg-info-soft text-info',
+  warning: 'bg-warning-soft text-warning',
+  danger: 'bg-danger-soft text-danger',
+  neutral: 'bg-surface-2 text-fg-muted',
+}
+
+/** «Natija» cell: a coloured %, or for a penalty row the points it takes away (TZ 2162). */
+export function ResultCell({ entry }: { entry: Pick<KpiEntry, 'indicator' | 'fact_value' | 'result_percent'> }) {
+  if (isPenalty(entry.indicator)) {
+    const f = Number(entry.fact_value ?? 0)
+    return (
+      <span className={cn('inline-block min-w-12 rounded-pill px-2 py-0.5 text-center text-[12px] font-bold tabular-nums', f > 0 ? TONE_TEXT.danger : TONE_TEXT.neutral)}>
+        {f > 0 ? `−${f}` : '0'}
+      </span>
+    )
+  }
+  return (
+    <span className={cn('inline-block min-w-12 rounded-pill px-2 py-0.5 text-center text-[12px] font-bold tabular-nums', TONE_TEXT[percentTone(entry.result_percent)])}>
+      {pct(entry.result_percent)}
+    </span>
+  )
+}
+
+/**
+ * «Natijalar» — every KPI entry (plan / fact / result / status), server-paged,
+ * filtered by name, indicator, month, department, position and status; bulk
+ * status moves and an Excel file of exactly what is filtered.
+ */
 export function KpiResultsTab({ onOpenEntry }: { onOpenEntry: (id: number) => void }) {
   const { t } = useTranslation()
-  const { search, setSearch, page, setPage, size, setSize, filters, setFilter, reset } =
-    useListParams(['indicator', 'dept', 'pos', 'st', 'from', 'to'])
-
-  const { indicators } = useIndicators()
-  /**
-   * ⚠️ THESE ARE FILTER DROPDOWNS, so they need the WHOLE reference list —
-   * they used to read `useStructure('', 1, 25, …)`, i.e. the structure
-   * MANAGEMENT screen's paged query, and therefore offered only the FIRST 25
-   * departments: in a branch with 376 of them most were unselectable. It also
-   * fetched the same rows a second time under a different queryKey than the
-   * reference hooks every other form uses (measured on /kpi: `job-positions`
-   * requested twice, once with size=25 and once with size=500).
-   */
-  const departments = useDepartmentOptions()
-  const positions = useJobPositionOptions()
-  const ops = useKpiOps()
-  const mut = useKpiAdminMutations()
+  const sx = useServerText()
   const toast = useToast()
   const confirm = useConfirm()
-  const [exporting, setExporting] = useState(false)
-  const [busy, setBusy] = useState(false)
-  /** null = closed; `{row: null}` = create. */
+  const acc = useKpiAccess()
+  const mut = useKpiMutations()
+  const bulk = useBulkAction(4)
+  const { search, setSearch, page, setPage, size, setSize, filters, setFilter, activeFilterCount, reset } = useListParams([
+    'indicator',
+    'month',
+    'dept',
+    'pos',
+    'st',
+  ])
+  const { indicators } = useIndicators()
+  const departments = useDepartmentOptions()
+  const positions = useJobPositionOptions()
+  const months = useMonthOptions()
   const [editing, setEditing] = useState<{ row: KpiEntry | null; copy?: boolean } | null>(null)
-  const [deleting, setDeleting] = useState<KpiEntry | null>(null)
+  const [exporting, setExporting] = useState(false)
 
-  const rangeInvalid = isInvalidRange(filters.from, filters.to)
-  const { entries, total, pages, loading, loadAll } = useKpiEntries(
-    {
-      search,
-      indicatorId: filters.indicator,
-      departmentId: filters.dept,
-      jobPositionId: filters.pos,
-      status: filters.st,
-      from: filters.from,
-      to: filters.to,
-      page,
-      size,
-    },
-    { enabled: !rangeInvalid },
-  )
+  const query = {
+    search,
+    indicator_id: filters.indicator,
+    department_id: filters.dept,
+    job_position_id: filters.pos,
+    status: filters.st,
+    ...monthRange(filters.month),
+  }
+  const list = useEntries({ ...query, page, size })
+  const selection = useRowSelection(list.rows, { resetKey: JSON.stringify(query) })
 
-  const activeFilters =
-    !!(filters.indicator || filters.dept || filters.pos || filters.st || filters.from || filters.to) ||
-    !!search
-  const foldedCount = [filters.indicator, filters.dept, filters.pos, filters.st, filters.from || filters.to].filter(Boolean).length
-  const [filtersOpen, setFiltersOpen] = useState(() => foldedCount > 0)
+  const canAdd = acc.may('kpi_list', 'add')
+  const canEdit = acc.may('kpi_list', 'edit')
+  const canDelete = acc.may('kpi_list', 'delete')
+  const statusAllowed = (a: StatusAction) => acc.may('employee_performance', `kpi_${a}`)
 
-  // Statuses of rows ticked through «select all N» that are not on this page:
-  // the per-row status action is derived from the row's CURRENT status.
-  const offPageStatus = useRef(new Map<number, string | null | undefined>())
-  const selection = useRowSelection(entries as (KpiEntry & { id: number })[], {
-    total,
-    loadAllIds: () =>
-      loadAll().then((rows) => {
-        offPageStatus.current = new Map(rows.map((r) => [r.id, r.status]))
-        return rows.map((r) => r.id)
-      }),
-    resetKey: JSON.stringify([search, filters.indicator, filters.dept, filters.pos, filters.st, filters.from, filters.to]),
-  })
-
-  const run = async (p: Promise<unknown>, msg: string) => {
-    setBusy(true)
+  const setStatus = async (id: number, action: StatusAction) => {
     try {
-      await p
-      mut.invalidate()
-      toast.ok(msg)
+      await mut.entryStatus.mutateAsync({ id, action })
+      toast.ok(t('kpi.statusChanged'))
     } catch (e) {
       toast.error(errorMessage(e, t('common.actionFailed')))
-    } finally {
-      setBusy(false)
     }
   }
 
-  /**
-   * Ommaviy status — HAR QATOR ALOHIDA. `entries/{id}/status` bir yozuvni
-   * oladi (varaqalardagi `bulk-status` dan farqli); shu bois qaysilari
-   * o'tmaganini SANAB, jimgina "bajarildi" demaymiz.
-   */
-  const bulkStatus = async (next: string) => {
+  const bulkStatus = async (action: StatusAction) => {
     const ids = selection.selectedIds
-    if (ids.length === 0) return
     if (!(await confirm({ kind: 'status', count: ids.length }))) return
-    setBusy(true)
-    let ok = 0
-    for (const id of ids) {
-      const row = entries.find((e) => e.id === id)
-      const current = row ? row.status : offPageStatus.current.get(id)
-      try {
-        await ops.setEntryStatus.mutateAsync({ id, current, status: next })
-        ok += 1
-      } catch {
-        /* keyingisiga o'tamiz — sabab har qatorda boshqa bo'lishi mumkin */
-      }
-    }
-    mut.invalidate()
+    const failed = await bulk.run(ids, (id) => mut.entryStatus.mutateAsync({ id, action }))
     selection.clear()
-    setBusy(false)
-    if (ok === ids.length) toast.ok(t('kpi.bulkEntriesDone', { count: ok }))
-    else toast.info(t('kpi.bulkPartial', { changed: ok, total: ids.length }))
+    if (failed.length) toast.info(t('kpi.bulkPartial', { changed: ids.length - failed.length, total: ids.length }))
+    else toast.ok(t('kpi.bulkEntriesDone', { count: ids.length }))
   }
+
+  const remove = async (row: KpiEntry) => {
+    if (!(await confirm({ kind: 'delete', subject: sx(row.indicator?.name) }))) return
+    try {
+      await mut.deleteEntry.mutateAsync(row.id)
+      toast.ok(t('common.deleted'))
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.actionFailed')))
+    }
+  }
+
+  const generate = async () => {
+    if (!(await confirm({ kind: 'action', title: t('kpi.generateEntries'), description: t('kpi.generateEntriesHint') }))) return
+    try {
+      const r = await mut.generateMonthEntries.mutateAsync()
+      toast.ok(t('kpi.generatedEntries', { created: r?.created ?? 0, skipped: r?.skipped ?? 0 }))
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.actionFailed')))
+    }
+  }
+
+  const columns: Column<KpiEntry>[] = [
+    {
+      key: 'indicator',
+      header: t('kpi.colIndicator'),
+      skeleton: 'w-56',
+      className: 'max-w-[22rem]',
+      cell: (e) => (
+        <span className="line-clamp-2 text-[13px] text-fg" title={sx(e.indicator?.name)}>
+          {isPenalty(e.indicator) && <span className="mr-1 font-bold text-danger">{t('kpi.penaltyMark')}</span>}
+          {sx(e.indicator?.name) || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'employee',
+      header: t('kpi.colEmployee'),
+      skeleton: 'w-40',
+      sortValue: (e) => e.employee?.legal_name ?? '',
+      cell: (e) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <Avatar src={e.employee?.photo_thumb_path} fallbackSrc={e.employee?.photo_path} name={e.employee?.legal_name} size={28} />
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-fg">{e.employee?.legal_name ?? '—'}</span>
+            {e.department_name && <span className="block truncate text-[11.5px] text-fg-subtle">{e.department_name}</span>}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'period',
+      header: t('kpi.colPeriod'),
+      skeleton: 'w-28',
+      className: 'whitespace-nowrap tabular-nums text-fg-muted',
+      cell: (e) => formatRange(e.period_start, e.period_end),
+    },
+    {
+      key: 'plan',
+      header: t('kpi.colPlan'),
+      headerClassName: 'text-right',
+      className: 'text-right tabular-nums',
+      skeleton: 'w-10',
+      sortValue: (e) => e.plan_value ?? 0,
+      cell: (e) => num(e.plan_value),
+    },
+    {
+      key: 'fact',
+      header: t('kpi.colFact'),
+      headerClassName: 'text-right',
+      className: 'text-right tabular-nums',
+      skeleton: 'w-10',
+      sortValue: (e) => e.fact_value ?? 0,
+      cell: (e) => num(e.fact_value),
+    },
+    {
+      key: 'result',
+      header: t('kpi.colResult'),
+      headerClassName: 'text-center',
+      className: 'text-center',
+      skeleton: 'w-12',
+      sortValue: (e) => e.result_percent ?? -1,
+      cell: (e) => <ResultCell entry={e} />,
+    },
+    {
+      key: 'status',
+      header: t('kpi.colStatus'),
+      skeleton: 'w-20',
+      cell: (e) => (
+        <KpiStatusMenu
+          status={e.status}
+          onAction={acc.manager ? (a) => setStatus(e.id, a) : undefined}
+          allowed={statusAllowed}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'whitespace-nowrap text-right',
+      cell: (e) => (
+        <span className="inline-flex gap-0.5">
+          {canEdit && (acc.master || !isDoneStatus(e.status)) && (
+            <IconButton size="sm" label={t('kpi.editEntry')} onClick={() => setEditing({ row: e })}>
+              <Pencil size={14} />
+            </IconButton>
+          )}
+          {canAdd && (
+            <IconButton size="sm" label={t('kpi.copy')} onClick={() => setEditing({ row: e, copy: true })}>
+              <Copy size={14} />
+            </IconButton>
+          )}
+          {canDelete && (acc.master || !isDoneStatus(e.status)) && (
+            <IconButton size="sm" label={t('common.delete')} onClick={() => remove(e)}>
+              <Trash2 size={14} />
+            </IconButton>
+          )}
+        </span>
+      ),
+    },
+  ]
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
-        {/* Debounced — this used to fire /kpi/entries on every keystroke. */}
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder={t('kpi.resultsSearch')}
-          className="w-64 max-w-full"
+    <Card className="flex flex-col overflow-hidden">
+      <div className="flex flex-col gap-2.5 border-b border-line p-4 lg:flex-row lg:flex-wrap lg:items-center">
+        <SearchInput value={search} onChange={setSearch} placeholder={t('kpi.searchEmployee')} className="flex-1 lg:max-w-xs" />
+        <Combobox
+          value={filters.indicator}
+          onChange={(v) => setFilter('indicator', v)}
+          options={indicators.map((i) => ({ value: String(i.id), label: sx(i.name) || `#${i.id}` }))}
+          placeholder={t('kpi.allIndicators')}
+          className="w-full lg:w-64"
         />
-        {/* Six narrowing controls fold behind «Filtrlar» (redesign 2026-09-24);
-            the badge counts the ones in effect. */}
-        <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={foldedCount} />
-        {activeFilters && (
-          <Button variant="ghost" size="sm" onClick={reset}>
-            {t('kpi.reset')}
+        <Combobox
+          value={filters.month}
+          onChange={(v) => setFilter('month', v)}
+          options={months}
+          placeholder={t('kpi.allPeriods')}
+          className="w-full lg:w-44"
+        />
+        <Combobox
+          value={filters.dept}
+          onChange={(v) => setFilter('dept', v)}
+          options={departments}
+          placeholder={t('kpi.allDepartments')}
+          className="w-full lg:w-52"
+        />
+        <Combobox
+          value={filters.pos}
+          onChange={(v) => setFilter('pos', v)}
+          options={positions}
+          placeholder={t('kpi.allPositions')}
+          className="w-full lg:w-52"
+        />
+        <Combobox
+          value={filters.st}
+          onChange={(v) => setFilter('st', v)}
+          options={ENTRY_STATUSES.map((s) => ({ value: s, label: t(STATUS_FILTER_KEY[s] as never) }))}
+          placeholder={t('kpi.allStatuses')}
+          className="w-full lg:w-44"
+        />
+        <FilterReset count={activeFilterCount} onReset={reset} />
+        <div className="flex flex-wrap gap-2 lg:ml-auto">
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<Download size={14} />}
+            loading={exporting}
+            onClick={async () => {
+              setExporting(true)
+              try {
+                await exportEntries(query)
+              } catch (e) {
+                toast.error(errorMessage(e, t('kpi.exportFailed')))
+              } finally {
+                setExporting(false)
+              }
+            }}
+          >
+            Excel
           </Button>
-        )}
-
-        {/* The monthly run and the export — both were only in v1. */}
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button size="sm" leftIcon={<Plus size={14} />} onClick={() => setEditing({ row: null })}>
-            {t('kpi.newEntry')}
-          </Button>
-          <ActionMenu
-            label={t('staff.more')}
-            icon={<MoreHorizontal size={14} />}
-            width={300}
-            items={[
-              {
-                key: 'gen',
-                label: t('kpi.generateEntries'),
-                icon: <CalendarPlus size={14} />,
-                loading: ops.generateMonthEntries.isPending,
-                onClick: async () => {
-                  if (!(await confirm({ kind: 'action', confirmLabel: t('kpi.generateEntries') }))) return
-                  try {
-                    const r = await ops.generateMonthEntries.mutateAsync()
-                    toast.ok(t('kpi.generatedCount', { count: r?.created ?? 0 }))
-                  } catch (e) {
-                    toast.error(errorMessage(e, t('kpi.generateFailed')))
-                  }
-                },
-              },
-              {
-                key: 'excel',
-                label: 'Excel',
-                icon: <Download size={14} />,
-                loading: exporting,
-                onClick: async () => {
-                  setExporting(true)
-                  try {
-                    await downloadFile({
-                      url: KPI_EXPORT_ENTRIES,
-                      mime: XLSX_MIME,
-                      filename: `KPI_natijalar_${dayjs().format('DD.MM.YYYY')}.xlsx`,
-                      params: {
-                        search: search || undefined,
-                        indicator_id: filters.indicator || undefined,
-                        department_id: filters.dept || undefined,
-                        job_position_id: filters.pos || undefined,
-                        status: filters.st || undefined,
-                        // The PERIOD travels too: the export takes the list's aliases.
-                        from: filters.from || undefined,
-                        to: filters.to || undefined,
-                      },
-                    })
-                    toast.ok(t('kpi.exported'))
-                  } catch (e) {
-                    toast.error(errorMessage(e, t('kpi.exportFailed')))
-                  } finally {
-                    setExporting(false)
-                  }
-                },
-              },
-            ]}
-          />
+          {acc.manager && (
+            <Button size="sm" variant="secondary" leftIcon={<CalendarPlus size={14} />} loading={mut.generateMonthEntries.isPending} onClick={generate}>
+              {t('kpi.generateEntries')}
+            </Button>
+          )}
+          {canAdd && (
+            <Button size="sm" leftIcon={<Plus size={14} />} onClick={() => setEditing({ row: null })}>
+              {t('kpi.newEntry')}
+            </Button>
+          )}
         </div>
-
-        {filtersOpen && (
-          <div className="grid w-full grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-            <Combobox
-              value={filters.indicator}
-              onChange={(v) => setFilter('indicator', v)}
-              placeholder={t('kpi.filterIndicator')}
-              options={indicators.map((i) => ({ value: String(i.id), label: i.name ?? '' }))}
-            />
-            <Combobox value={filters.dept} onChange={(v) => setFilter('dept', v)} placeholder={t('kpi.filterDepartment')} options={departments} />
-            <Combobox value={filters.pos} onChange={(v) => setFilter('pos', v)} placeholder={t('kpi.filterPosition')} options={positions} />
-            <Select
-              value={filters.st}
-              onChange={(e) => setFilter('st', e.target.value)}
-              // A placeholder OPTION is not a label — the select needs its own name.
-              aria-label={t('kpi.filterStatus')}
-              placeholder={t('kpi.filterStatus')}
-              options={STATUS_VALUES.map((s) => ({ value: s, label: t(ENTRY_STATUS_KEY[s] as never) }))}
-            />
-            {/* One flex item, so the pair never splits across rows. */}
-            <div className="flex items-center gap-2">
-              <DateInput value={filters.from} onChange={(v) => setFilter('from', v)} aria-label={t('kpi.filterFrom')} className="w-36" invalid={rangeInvalid} />
-              <span className="text-fg-subtle">—</span>
-              <DateInput value={filters.to} onChange={(v) => setFilter('to', v)} aria-label={t('kpi.filterTo')} className="w-36" invalid={rangeInvalid} />
-            </div>
-            {rangeInvalid && <p role="alert" className="w-full text-xs text-danger">{t('list.invalidRange')}</p>}
-          </div>
-        )}
       </div>
 
-      <div className="scroll-thin overflow-x-auto">
-        <table className="w-full border-collapse text-left" style={{ minWidth: 860 }}>
-          <thead>
-            <tr className="border-b border-line text-[11.5px] font-semibold text-fg-muted">
-              <th className={cn(TH, 'w-9')}>
-                <Checkbox
-                  checked={selection.allOnPageSelected}
-                  indeterminate={selection.someOnPageSelected}
-                  onChange={selection.toggleAllOnPage}
-                  srLabel={t('list.selectAllOnPage')}
-                />
-              </th>
-              <th className={TH}>{t('kpi.colEmployee')}</th>
-              <th className={TH}>{t('kpi.colIndicator')}</th>
-              <th className={TH}>{t('kpi.colPeriod')}</th>
-              <th className={cn(TH, "text-right")}>{t('kpi.colPlan')}</th>
-              <th className={cn(TH, "text-right")}>{t('kpi.colFact')}</th>
-              <th className={cn(TH, "text-right")}>{t('kpi.colResult')}</th>
-              <th className={TH}>{t('kpi.colStatus')}</th>
-              <th className={TH} aria-label={t('kpi.okrColActions')} />
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className={TD_MESSAGE}>
-                  …
-                </td>
-              </tr>
-            ) : entries.length === 0 ? (
-              <tr>
-                <td colSpan={9} className={TD_MESSAGE}>
-                  {t('kpi.resultsEmpty')}
-                </td>
-              </tr>
-            ) : (
-              entries.map((e) => {
-                const penalty = isPenalty(e)
-                return (
-                  <tr
-                    key={e.id}
-                    onClick={() => onOpenEntry(e.id)}
-                    className="cursor-pointer border-b border-line text-sm transition-colors last:border-0 hover:bg-surface-2"
-                  >
-                    <td className={TD} onClick={(ev) => ev.stopPropagation()}>
-                      <Checkbox
-                        checked={selection.isSelected(e.id)}
-                        onChange={() => selection.toggle(e.id)}
-                        srLabel={e.employee?.legal_name ?? String(e.id)}
-                      />
-                    </td>
-                    <td className={TD}>
-                      <div className="flex items-center gap-2">
-                        <Avatar src={e.employee?.photo_thumb_path} name={e.employee?.legal_name} size={28} />
-                        <span className="truncate font-medium text-fg">
-                          {e.employee?.legal_name ?? '—'}
-                        </span>
-                      </div>
-                    </td>
-                    {/* Indicator names run to 200 characters («Xodimning oylik
-                        ish-rejasining aniq maqsadli…»): unclamped they made
-                        every row 165 px tall on a desktop and 500 px on a
-                        phone. Two lines here, the full text on hover. */}
-                    <td className={cn(TD, 'max-w-[320px]', penalty ? 'text-danger' : 'text-fg-muted')} title={e.indicator?.name ?? undefined}>
-                      <span className="line-clamp-1">
-                        {penalty && <span className="mr-1 font-bold">{t('kpi.penalty')} −</span>}
-                        {e.indicator?.name ?? '—'}
-                      </span>
-                    </td>
-                    <td className={cn(TD, "text-fg-subtle")}>
-                      {formatPeriod(e.period_start?.slice(0, 7))}
-                    </td>
-                    <td className={cn(TD, "text-right tabular-nums text-fg-muted")}>{e.plan_value ?? 0}</td>
-                    <td className={cn(TD, "text-right tabular-nums text-fg-muted")}>{e.fact_value ?? 0}</td>
-                    <td
-                      className={cn(TD, 'text-right font-semibold tabular-nums', penalty ? 'text-danger' : 'text-fg')}
-                    >
-                      <span className="flex items-center justify-end gap-2">
-                        {!penalty && (
-                          <span className="h-1.5 w-14 overflow-hidden rounded-pill bg-fg/[0.07]">
-                            <span
-                              className={cn('block h-full rounded-pill', (e.result_percent ?? 0) >= 80 ? 'bg-[#22C55E]' : (e.result_percent ?? 0) >= 50 ? 'bg-[#F5A524]' : 'bg-[#E5484D]')}
-                              style={{ width: `${Math.max(0, Math.min(100, e.result_percent ?? 0))}%` }}
-                            />
-                          </span>
-                        )}
-                        {Math.round(e.result_percent ?? 0)}%
-                      </span>
-                    </td>
-                    <td className={TD}>
-                      <span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold', ENTRY_STATUS_TONE[e.status ?? 'draft'] ?? 'bg-surface-2 text-fg-muted')}>
-                        {t((ENTRY_STATUS_KEY[e.status ?? 'draft'] ?? 'kpi.statusDraft') as never)}
-                      </span>
-                    </td>
-                    <td className={TD} onClick={(ev) => ev.stopPropagation()}>
-                      <span className="flex gap-1">
-                        <Button size="icon" variant="ghost" aria-label={t('common.edit')} onClick={() => setEditing({ row: e })}>
-                          <Pencil size={14} />
-                        </Button>
-                        {/* Nusxalash — o'tgan davrning qatorini qayta yozmaslik uchun. */}
-                        <Button size="icon" variant="ghost" aria-label={t('kpi.okrCopy')} onClick={() => setEditing({ row: e, copy: true })}>
-                          <Copy size={14} />
-                        </Button>
-                        <Button size="icon" variant="ghost" aria-label={t('common.delete')} onClick={() => setDeleting(e)}>
-                          <Trash2 size={14} className="text-danger" />
-                        </Button>
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 border-t border-line p-3">
-        <span className="text-sm text-fg-muted">{t('kpi.resultsTotal', { count: total })}</span>
-        <Pagination page={page} pages={pages} size={size} total={total} onPage={setPage} onSize={setSize} />
-      </div>
-
-      <BulkBar
-        count={selection.count}
-        onClear={selection.clear}
-        total={selection.total}
-        onSelectAll={selection.selectAllMatching}
-        selectingAll={selection.selectingAll}
-      >
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => bulkStatus('I')}>
-          {t('kpi.bulkInProgress')}
-        </Button>
-        <Button size="sm" disabled={busy} onClick={() => bulkStatus('D')}>
-          {t('kpi.bulkFinalize')}
-        </Button>
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => bulkStatus('N')}>
-          {t('kpi.bulkToNew')}
-        </Button>
-      </BulkBar>
-
-      <EntryModal
-        state={editing}
-        indicators={indicators as { id: number; name?: string | null }[]}
-        onClose={() => setEditing(null)}
-        onSaved={(msg) => {
-          setEditing(null)
-          mut.invalidate()
-          toast.ok(msg)
-        }}
+      <DataTable
+        tableId="kpi-entries"
+        rows={list.rows}
+        columns={columns}
+        loading={list.loading}
+        error={list.error}
+        onRetry={list.refetch}
+        selection={acc.manager ? selection : undefined}
+        onRowClick={(e) => onOpenEntry(e.id)}
+        emptyTitle={t('kpi.entriesEmpty')}
+        filtered={activeFilterCount > 0}
+        emptyAction={<FilterReset count={activeFilterCount} onReset={reset} />}
+        minWidth={1080}
       />
+      <Pagination page={page} size={size} total={list.total} pages={list.pages} onPage={setPage} onSize={setSize} loading={list.fetching} />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onClose={() => setDeleting(null)}
-        onConfirm={async () => {
-          const row = deleting
-          setDeleting(null)
-          if (row) await run(mut.removeEntry.mutateAsync(row.id), t('kpi.entryDeleted'))
-        }}
-        danger
-        title={t('kpi.deleteEntryTitle')}
-        description={deleting?.indicator?.name ?? ''}
-        confirmLabel={t('common.delete')}
-      />
+      {acc.manager && (
+        <BulkBar count={selection.count} onClear={selection.clear} progress={bulk.progress}>
+          {(['set_in_progress', 'set_done', 'clear_in_progress'] as const)
+            .filter(statusAllowed)
+            .map((a) => (
+              <Button key={a} size="sm" variant={a === 'set_done' ? 'primary' : 'secondary'} disabled={bulk.progress.running} onClick={() => bulkStatus(a)}
+                leftIcon={a === 'set_done' ? <CheckCircle2 size={14} /> : a === 'set_in_progress' ? <PlayCircle size={14} /> : <RotateCcw size={14} />}
+              >
+                {t(a === 'set_done' ? 'kpi.bulkDone' : a === 'set_in_progress' ? 'kpi.bulkInProgress' : 'kpi.bulkToNew')}
+              </Button>
+            ))}
+        </BulkBar>
+      )}
+
+      <EntryModal value={editing} onClose={() => setEditing(null)} />
     </Card>
   )
 }
 
 /**
- * Bitta KPI yozuvi — yaratish, tahrirlash yoki NUSXALASH.
- *
- * ⚠️ Server tahrirda indikator/xodim/davrni O'ZGARTIRMAYDI (`KpiEntryUpdate`
- * ularni umuman olmaydi) — shu bois tahrirda o'sha maydonlar qulflanadi.
- * Nusxalash esa YANGI yozuv: hammasi ochiq, fakt esa noldan boshlanadi.
+ * Create / copy / edit one entry (v1 `EntryDrawer`). Editing changes plan,
+ * fact and note only — the status moves through its own menu (N ↔ I ↔ D).
  */
-function EntryModal({
-  state,
-  indicators,
-  onClose,
-  onSaved,
-}: {
-  state: { row: KpiEntry | null; copy?: boolean } | null
-  indicators: { id: number; name?: string | null }[]
-  onClose: () => void
-  onSaved: (msg: string) => void
-}) {
+export function EntryModal({ value, onClose }: { value: { row: KpiEntry | null; copy?: boolean } | null; onClose: () => void }) {
   const { t } = useTranslation()
-  const mut = useKpiAdminMutations()
-  const row = state?.row ?? null
-  const isEdit = !!row && !state?.copy
-  const [form, setForm] = useState({
-    indicator_id: '',
-    employee_id: '',
-    employee_name: '',
-    period_start: '',
-    period_end: '',
-    plan_value: '0',
-    fact_value: '0',
-    note: '',
-  })
-  const [empQuery, setEmpQuery] = useState('')
-  const { employees } = useEmployeeSearch(null, !isEdit && empQuery.trim().length > 0, empQuery)
-  const [error, setError] = useState<string | null>(null)
+  const sx = useServerText()
+  const toast = useToast()
+  const mut = useKpiMutations()
+  const { indicators } = useIndicators({}, !!value && (!value.row || !!value.copy))
+  const open = !!value
+  const row = value?.row ?? null
+  const editing = !!row && !value?.copy
+  const [form, setForm] = useState({ indicator_id: '', period_start: '', period_end: '', plan: '0', fact: '0', note: '' })
+  const [employee, setEmployee] = useState<Employee | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!state) return
-    setError(null)
-    setEmpQuery('')
-    const startOfMonth = dayjs().startOf('month')
+    if (!open) return
+    setError('')
     setForm({
-      indicator_id: row?.indicator_id ? String(row.indicator_id) : '',
-      employee_id: row?.employee_id ? String(row.employee_id) : '',
-      employee_name: row?.employee?.legal_name ?? '',
-      period_start: row?.period_start?.slice(0, 10) ?? startOfMonth.format('YYYY-MM-DD'),
-      period_end: row?.period_end?.slice(0, 10) ?? startOfMonth.endOf('month').format('YYYY-MM-DD'),
-      plan_value: String(row?.plan_value ?? 0),
-      // A copy starts the fact at zero — the point is a fresh period, not a
-      // duplicate of last month's result.
-      fact_value: state.copy ? '0' : String(row?.fact_value ?? 0),
+      indicator_id: row ? String(row.indicator_id ?? row.indicator?.id ?? '') : '',
+      period_start: row?.period_start ?? '',
+      period_end: row?.period_end ?? '',
+      plan: row ? String(row.plan_value ?? 0) : '0',
+      fact: row && !value?.copy ? String(row.fact_value ?? 0) : '0',
       note: row?.note ?? '',
     })
-  }, [state, row])
+    setEmployee(row?.employee ? ({ id: row.employee.id, legal_name: row.employee.legal_name } as Employee) : null)
+  }, [open, row, value?.copy])
+
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const invalidRange = isInvalidRange(form.period_start, form.period_end)
 
   const submit = async () => {
-    setError(null)
-    if (!form.indicator_id) return setError(t('kpi.entryIndicatorRequired'))
-    if (!isEdit && !form.employee_id) return setError(t('kpi.entryEmployeeRequired'))
+    const plan = Number(form.plan)
+    const fact = Number(form.fact)
+    if (!Number.isFinite(plan) || !Number.isFinite(fact)) return setError(t('kpi.numberRequired'))
     try {
-      if (isEdit) {
-        // Only what changed: a plan/fact the server received is stored as a
-        // MANUAL value, so re-sending the displayed «0» on an untouched entry
-        // turned a formula-driven plan into a manual 0 (audit 2026-09-21).
-        const plan = Number(form.plan_value) || 0
-        const fact = Number(form.fact_value) || 0
-        await mut.updateEntry.mutateAsync({
-          id: row!.id,
-          body: {
-            ...(plan !== (Number(row!.plan_value) || 0) ? { plan_value: plan } : {}),
-            ...(fact !== (Number(row!.fact_value) || 0) ? { fact_value: fact } : {}),
-            note: form.note.trim() || null,
-          },
-        })
+      if (editing) {
+        await mut.updateEntry.mutateAsync({ id: row!.id, body: { plan_value: plan, fact_value: fact, note: form.note.trim() || null } })
+        toast.ok(t('kpi.entrySaved'))
       } else {
+        if (!form.indicator_id) return setError(t('kpi.indicatorRequired'))
+        if (!employee) return setError(t('kpi.employeeRequired'))
+        if (!form.period_start || !form.period_end) return setError(t('kpi.periodRequired'))
+        if (invalidRange) return setError(t('list.invalidRange'))
         await mut.createEntry.mutateAsync({
           indicator_id: Number(form.indicator_id),
-          employee_id: Number(form.employee_id),
+          employee_id: employee.id,
           period_start: form.period_start,
           period_end: form.period_end,
-          plan_value: Number(form.plan_value) || 0,
-          fact_value: Number(form.fact_value) || 0,
+          plan_value: plan,
+          fact_value: fact,
           note: form.note.trim() || null,
         })
+        toast.ok(t('kpi.entryCreated'))
       }
-      onSaved(t('kpi.saved'))
+      onClose()
     } catch (e) {
       setError(errorMessage(e, t('common.actionFailed')))
     }
   }
 
-  const saving = mut.createEntry.isPending || mut.updateEntry.isPending
-
   return (
     <Modal
-      open={!!state}
+      open={open}
       onClose={onClose}
-      title={isEdit ? t('kpi.editEntry') : t('kpi.newEntry')}
+      placement="right"
+      size="md"
+      title={editing ? t('kpi.editEntry') : t('kpi.newEntry')}
+      description={editing ? sx(row?.indicator?.name) : undefined}
       footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={saving}>{t('common.cancel')}</Button>
-          <Button onClick={submit} loading={saving}>{t('common.save')}</Button>
-        </div>
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={submit} loading={mut.createEntry.isPending || mut.updateEntry.isPending}>
+            {t('common.save')}
+          </Button>
+        </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t('kpi.colIndicator')} required wide>
-          <Combobox
-            value={form.indicator_id}
-            onChange={(v) => setForm((f) => ({ ...f, indicator_id: v }))}
-            options={indicators.map((i) => ({ value: String(i.id), label: i.name ?? `#${i.id}` }))}
-            placeholder={t('t2.pick')}
-            disabled={isEdit}
-          />
-        </Field>
-        <Field label={t('kpi.colEmployee')} required wide>
-          {isEdit ? (
-            <Input value={form.employee_name} disabled />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {form.employee_name && (
-                <span className="text-[13px] text-fg">{form.employee_name}</span>
-              )}
-              <Input
-                value={empQuery}
-                onChange={(e) => setEmpQuery(e.target.value)}
-                placeholder={t('common.search')}
+        {editing ? (
+          <div className="rounded-lg border border-line bg-surface-2/50 p-3 text-[13px] sm:col-span-2">
+            <p className="font-medium text-fg">{row?.employee?.legal_name ?? '—'}</p>
+            <p className="text-fg-muted">{fmtDay(row?.period_start)} — {fmtDay(row?.period_end)}</p>
+          </div>
+        ) : (
+          <>
+            <Field label={t('kpi.colIndicator')} required wide>
+              <Combobox
+                value={form.indicator_id}
+                onChange={(v) => set('indicator_id', v)}
+                options={indicators.map((i) => ({ value: String(i.id), label: sx(i.name) || `#${i.id}` }))}
+                placeholder={t('kpi.pickIndicator')}
+                className="w-full"
               />
-              {empQuery.trim() && employees.length > 0 && (
-                <div className="max-h-40 overflow-auto rounded-lg border border-line">
-                  {employees.map((emp) => (
-                    <button
-                      key={emp.id}
-                      type="button"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2"
-                      onClick={() => {
-                        setForm((f) => ({ ...f, employee_id: String(emp.id), employee_name: emp.legal_name ?? '' }))
-                        setEmpQuery('')
-                      }}
-                    >
-                      <Avatar src={emp.photo_path} name={emp.legal_name ?? '?'} size={24} />
-                      <span className="truncate">{emp.legal_name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </Field>
-        <Field label={t('kpi.periodFrom')}>
-          <DateInput
-            value={form.period_start}
-            onChange={(v) => setForm((f) => ({ ...f, period_start: v }))}
-            disabled={isEdit}
-          />
-        </Field>
-        <Field label={t('kpi.periodTo')}>
-          <DateInput
-            value={form.period_end}
-            onChange={(v) => setForm((f) => ({ ...f, period_end: v }))}
-            disabled={isEdit}
-          />
-        </Field>
-        <Field label={t('kpi.colPlan')}>
-          <Input type="number" value={form.plan_value} onChange={(e) => setForm((f) => ({ ...f, plan_value: e.target.value }))} />
+            </Field>
+            <Field label={t('kpi.colEmployee')} required wide>
+              <EmployeePicker value={employee} onChange={setEmployee} />
+            </Field>
+            <Field label={t('kpi.periodStart')} required>
+              <DateInput value={form.period_start} onChange={(v) => set('period_start', v)} invalid={invalidRange} aria-label={t('kpi.periodStart')} />
+            </Field>
+            <Field label={t('kpi.periodEnd')} required>
+              <DateInput value={form.period_end} onChange={(v) => set('period_end', v)} min={form.period_start || undefined} invalid={invalidRange} aria-label={t('kpi.periodEnd')} />
+            </Field>
+          </>
+        )}
+        <Field label={t('kpi.planLabel')}>
+          <Input type="number" inputMode="decimal" value={form.plan} onChange={(e) => set('plan', e.target.value)} />
         </Field>
         <Field label={t('kpi.colFact')}>
-          <Input type="number" value={form.fact_value} onChange={(e) => setForm((f) => ({ ...f, fact_value: e.target.value }))} />
+          <Input type="number" inputMode="decimal" value={form.fact} onChange={(e) => set('fact', e.target.value)} autoFocus={editing} />
         </Field>
-        <Field label={t('kpi.reviewNote')} wide>
-          <Textarea rows={2} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
+        <Field label={t('kpi.note')} wide>
+          <Textarea rows={3} value={form.note} onChange={(e) => set('note', e.target.value)} placeholder={t('kpi.notePlaceholder')} />
         </Field>
       </div>
-      <FormError className="mt-3">{error}</FormError>
+      <FormError className="mt-3 text-xs">{error}</FormError>
     </Modal>
+  )
+}
+
+/**
+ * One entry on its own — the deep link of a notification (`?entry=`). The
+ * person, the period, plan / fact / result and the status; a manager can edit
+ * it from here and move its status.
+ */
+export function EntryDetailModal({ id, onClose }: { id: number | null; onClose: () => void }) {
+  const { t } = useTranslation()
+  const sx = useServerText()
+  const toast = useToast()
+  const acc = useKpiAccess()
+  const mut = useKpiMutations()
+  const { entry, loading, error } = useEntry(id)
+  const [editing, setEditing] = useState(false)
+
+  if (editing && entry) return <EntryModal value={{ row: entry }} onClose={() => setEditing(false)} />
+
+  const ind = entry?.indicator
+  return (
+    <Modal
+      open={id != null}
+      onClose={onClose}
+      placement="right"
+      size="md"
+      title={t('kpi.entryTitle')}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+          {entry && acc.may('kpi_list', 'edit') && (acc.master || !isDoneStatus(entry.status)) && (
+            <Button leftIcon={<Pencil size={14} />} onClick={() => setEditing(true)}>
+              {t('kpi.editEntry')}
+            </Button>
+          )}
+        </>
+      }
+    >
+      {loading ? (
+        <p className="py-10 text-center text-sm text-fg-subtle">{t('common.loading')}</p>
+      ) : error || !entry ? (
+        <p className="py-10 text-center text-sm text-danger">{errorMessage(error, t('kpi.entryNotFound'))}</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <p className="text-[14px] font-semibold leading-snug text-fg">
+            {isPenalty(ind) && <span className="mr-1 text-danger">{t('kpi.penaltyMark')}</span>}
+            {sx(ind?.name)}
+          </p>
+          <div className="flex items-center gap-3">
+            <Avatar src={entry.employee?.photo_thumb_path} fallbackSrc={entry.employee?.photo_path} name={entry.employee?.legal_name} size={40} />
+            <div className="min-w-0">
+              <p className="truncate font-medium text-fg">{entry.employee?.legal_name ?? '—'}</p>
+              <p className="truncate text-[12px] text-fg-subtle">{entry.department_name ?? ''}</p>
+            </div>
+          </div>
+          <dl className="grid grid-cols-2 gap-3 text-[13px]">
+            <Stat label={t('kpi.colPeriod')} value={`${fmtDay(entry.period_start)} — ${fmtDay(entry.period_end)}`} wide />
+            <Stat label={t('kpi.colPlan')} value={num(entry.plan_value)} />
+            <Stat label={t('kpi.colFact')} value={num(entry.fact_value)} />
+            <Stat label={t('kpi.colResult')} value={<ResultCell entry={entry} />} />
+            <Stat
+              label={t('kpi.colStatus')}
+              value={
+                <KpiStatusMenu
+                  status={entry.status}
+                  onAction={
+                    acc.manager
+                      ? async (a) => {
+                          try {
+                            await mut.entryStatus.mutateAsync({ id: entry.id, action: a })
+                            toast.ok(t('kpi.statusChanged'))
+                          } catch (e) {
+                            toast.error(errorMessage(e, t('common.actionFailed')))
+                          }
+                        }
+                      : undefined
+                  }
+                  allowed={(a) => acc.may('employee_performance', `kpi_${a}`)}
+                />
+              }
+            />
+            {ind?.group_name && <Stat label={t('kpi.colGroup')} value={sx(ind.group_name)} wide />}
+            {entry.note && <Stat label={t('kpi.note')} value={entry.note} wide />}
+          </dl>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function Stat({ label, value, wide }: { label: string; value: ReactNode; wide?: boolean }) {
+  return (
+    <div className={cn('rounded-lg border border-line bg-surface-2/40 px-3 py-2', wide && 'col-span-2')}>
+      <dt className="text-[11.5px] text-fg-subtle">{label}</dt>
+      <dd className="mt-0.5 text-fg">{value}</dd>
+    </div>
   )
 }
