@@ -6443,6 +6443,27 @@ const ru: Record<string, string> = {
   'Mulkchilik shakli (kod)': 'Форма собственности (код)',
   'Viloyat (kod)': 'Область (код)',
   'Tuman (kod)': 'Район (код)',
+  // ── Foydalanuvchilar: blok, sessiyalar, xavfsizlik siyosati ──
+  'Bloklangan: {{at}} gacha': 'Заблокирован до {{at}}',
+  'Noto‘g‘ri urinishlar ko‘pligi sababli hisob {{at}} gacha bloklangan': 'Учётная запись заблокирована до {{at}} из-за большого числа неудачных попыток',
+  'Blokdan chiqarish': 'Разблокировать',
+  'Hisob blokdan chiqarildi': 'Учётная запись разблокирована',
+  'Sessiyalar': 'Сессии',
+  'Faol sessiyalar — {{name}}': 'Активные сессии — {{name}}',
+  'Foydalanuvchi tizimga kirgan qurilmalar. Sessiyani yopsangiz, u qayta kirishi kerak bo‘ladi.': 'Устройства, с которых пользователь вошёл в систему. После закрытия сессии ему нужно будет войти заново.',
+  'Faol sessiya yo‘q': 'Активных сессий нет',
+  'oxirgi faollik: {{at}}': 'последняя активность: {{at}}',
+  'Barcha sessiyalarni yopish': 'Завершить все сессии',
+  '{{name}} tizimdan chiqariladi. Davom etasizmi?': '{{name}} будет выведен из системы. Продолжить?',
+  'Yopilgan sessiyalar: {{count}}': 'Завершено сессий: {{count}}',
+  'Xavfsizlik siyosati': 'Политика безопасности',
+  'Hisobni bloklash va harakatsizlikda avtomatik chiqish (TZ U1, U2)': 'Блокировка учётной записи и автоматический выход при бездействии (ТЗ U1, U2)',
+  'Bloklashgacha noto‘g‘ri urinishlar': 'Неудачных попыток до блокировки',
+  'Ketma-ket shuncha noto‘g‘ri paroldan keyin hisob bloklanadi (3–20)': 'После стольких неверных паролей подряд учётная запись блокируется (3–20)',
+  'Blok muddati (daqiqa)': 'Срок блокировки (минут)',
+  'Harakatsizlikda chiqish (daqiqa)': 'Выход при бездействии (минут)',
+  'Shuncha daqiqa harakatsiz qolgan sessiya yopiladi; 0 — o‘chirilgan': 'Сессия закрывается после стольких минут бездействия; 0 — отключено',
+  'Xavfsizlik siyosati saqlandi': 'Политика безопасности сохранена',
 }
 
 export default ru

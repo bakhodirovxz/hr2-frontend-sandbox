@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, Pencil, Plus, Power, PowerOff, Trash2 } from 'lucide-react'
+import { KeyRound, LockOpen, MonitorSmartphone, Pencil, Plus, Power, PowerOff, ShieldCheck, Trash2 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
@@ -17,11 +17,13 @@ import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
 import { useBranches } from '@/hooks/useBranches'
 import { useAuthStore } from '@/store/authStore'
-import { can, canAccessSystemAdmin, isBranchAdmin } from '@/auth/permissions'
+import { can, canAccessSystemAdmin, isBranchAdmin, isSiteMasterAdmin } from '@/auth/permissions'
 import { inTashkent } from '@/lib/format'
 import { UserDrawer } from '@/features/users/UserDrawer'
 import { SetPasswordModal } from '@/features/users/SetPasswordModal'
-import { useRoles, useUserList, useUserMutations, type UserAdminRow } from '@/features/users/useUserAdmin'
+import { isLocked, useRoles, useUserList, useUserMutations, type UserAdminRow } from '@/features/users/useUserAdmin'
+import { UserSessionsModal } from '@/features/users/UserSessionsModal'
+import { SecurityPolicyModal } from '@/features/users/SecurityPolicyModal'
 
 const FILTER_KEYS = ['role', 'active', 'branch'] as const
 const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
@@ -63,7 +65,9 @@ export function UsersPage() {
   })
   const roles = useRoles()
   const { branches } = useBranches()
-  const { setActive, remove } = useUserMutations()
+  const { setActive, remove, unlock } = useUserMutations()
+  const [sessionsTarget, setSessionsTarget] = useState<UserAdminRow | null>(null)
+  const [policyOpen, setPolicyOpen] = useState(false)
 
   const [drawer, setDrawer] = useState<{ open: boolean; initial: UserAdminRow | null }>({ open: false, initial: null })
   const [pwTarget, setPwTarget] = useState<UserAdminRow | null>(null)
@@ -97,6 +101,19 @@ export function UsersPage() {
     try {
       await setActive.mutateAsync({ id: u.id, active: !u.is_active })
       toast.ok(u.is_active ? t('userAdmin.blocked') : t('userAdmin.activated'))
+    } catch (err) {
+      toast.error(errorMessage(err, t('common.actionFailed')))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** TZ U1 772 — xato urinishlar bloki muddatidan oldin ochiladi. */
+  const doUnlock = async (u: UserAdminRow) => {
+    setBusyId(u.id)
+    try {
+      await unlock.mutateAsync(u.id)
+      toast.ok(t('userAdmin.unlocked'))
     } catch (err) {
       toast.error(errorMessage(err, t('common.actionFailed')))
     } finally {
@@ -165,9 +182,16 @@ export function UsersPage() {
       header: t('userAdmin.status'),
       skeleton: 'w-20',
       cell: (u) => (
-        <Badge tone={u.is_active ? 'success' : 'danger'} dot>
-          {u.is_active ? t('userAdmin.active') : t('userAdmin.blockedState')}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone={u.is_active ? 'success' : 'danger'} dot>
+            {u.is_active ? t('userAdmin.active') : t('userAdmin.blockedState')}
+          </Badge>
+          {isLocked(u) && (
+            <Badge tone="warning" title={t('userAdmin.lockedHint', { at: fmtDateTime(u.locked_until) })}>
+              {t('userAdmin.lockedBadge', { at: fmtDateTime(u.locked_until) })}
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -181,7 +205,7 @@ export function UsersPage() {
       key: 'actions',
       header: '',
       label: t('userAdmin.actions'),
-      headerClassName: 'w-40',
+      headerClassName: 'w-48',
       className: 'pr-4',
       skeleton: 'w-24',
       lockVisible: true,
@@ -197,6 +221,26 @@ export function UsersPage() {
                 </IconButton>
                 <IconButton size="sm" label={`${t('userAdmin.setPassword')}: ${u.username}`} onClick={() => setPwTarget(u)}>
                   <KeyRound size={15} />
+                </IconButton>
+                {isLocked(u) && (
+                  <IconButton
+                    size="sm"
+                    label={`${t('userAdmin.unlock')}: ${u.username}`}
+                    disabled={busy}
+                    className={DISABLED}
+                    onClick={() => void doUnlock(u)}
+                  >
+                    <LockOpen size={15} />
+                  </IconButton>
+                )}
+                <IconButton
+                  size="sm"
+                  label={`${t('userAdmin.sessions')}: ${u.username}`}
+                  disabled={isSelf}
+                  className={DISABLED}
+                  onClick={() => setSessionsTarget(u)}
+                >
+                  <MonitorSmartphone size={15} />
                 </IconButton>
                 <IconButton
                   size="sm"
@@ -232,10 +276,19 @@ export function UsersPage() {
         title={t('userAdmin.title')}
         subtitle={t('userAdmin.subtitle')}
         actions={
-          canEdit ? (
-            <Button leftIcon={<Plus size={16} />} onClick={() => setDrawer({ open: true, initial: null })}>
-              {t('userAdmin.createTitle')}
-            </Button>
+          canEdit || isSiteMasterAdmin(me) ? (
+            <>
+              {isSiteMasterAdmin(me) && (
+                <Button variant="secondary" leftIcon={<ShieldCheck size={16} />} onClick={() => setPolicyOpen(true)}>
+                  {t('userAdmin.policyTitle')}
+                </Button>
+              )}
+              {canEdit && (
+                <Button leftIcon={<Plus size={16} />} onClick={() => setDrawer({ open: true, initial: null })}>
+                  {t('userAdmin.createTitle')}
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
@@ -310,6 +363,8 @@ export function UsersPage() {
         onClose={() => setDrawer({ open: false, initial: null })}
       />
       <SetPasswordModal target={pwTarget} onClose={() => setPwTarget(null)} />
+      <UserSessionsModal target={sessionsTarget} onClose={() => setSessionsTarget(null)} />
+      <SecurityPolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
     </PageContainer>
   )
 }

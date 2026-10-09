@@ -34,6 +34,19 @@ export function inTashkent(input?: Dayjs | string | null) {
 }
 
 /**
+ * Server UTC'da yozgan ZONASIZ vaqt (`datetime.utcnow()` — sessiyalar,
+ * `created_at` server_default'lari sandbox bazasida) — Toshkent vaqtida matn.
+ * Ofsetli qiymat esa o'z ofseti bilan o'qiladi. Turniket `happen_time` kabi
+ * mahalliy zonasiz vaqtlar uchun EMAS — ular uchun `inTashkent`.
+ */
+export function inUtc(v?: string | null, withTime = true): string {
+  if (!v) return '—'
+  const iso = HAS_OFFSET.test(v) ? v : `${v}Z`
+  const d = dayjs(iso)
+  return d.isValid() ? d.utcOffset(TASHKENT_OFFSET_MIN).format(withTime ? 'DD.MM.YYYY HH:mm' : 'DD.MM.YYYY') : '—'
+}
+
+/**
  * Month and weekday names, cached PER LANGUAGE.
  *
  * ⚠️ `i18n.t(key, {returnObjects: true})` WALKS THE RESOURCE TREE AND RETURNS A

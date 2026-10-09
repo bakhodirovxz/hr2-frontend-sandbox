@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/api/http'
 import { MODULES, PERMISSION_LEVELS, type ModuleCode, type PermissionLevel } from '@/auth/permissions'
 
 /**
@@ -36,6 +36,32 @@ export interface UserAdminRow {
   effective_permissions?: Record<string, string>
   created_at?: string | null
   last_login_at?: string | null
+  /** TZ U1 772 — ketma-ket noto'g'ri urinishlar va blok muddati. */
+  failed_login_count?: number
+  locked_until?: string | null
+}
+
+/** Xato urinishlar sababli hozir bloklanganmi (muddat hali o'tmagan). */
+export function isLocked(u: Pick<UserAdminRow, 'locked_until'>): boolean {
+  return !!u.locked_until && new Date(u.locked_until).getTime() > Date.now()
+}
+
+/** TZ U2 789 — foydalanuvchi sessiyasi (qurilma, IP, oxirgi faollik). */
+export interface UserSessionRow {
+  id: number
+  device_name?: string | null
+  device_type?: string | null
+  ip_address?: string | null
+  user_agent?: string | null
+  last_active?: string | null
+  created_at?: string | null
+}
+
+/** TZ U1/U2 — xavfsizlik siyosati (`/system/settings/security`). */
+export interface SecurityPolicy {
+  lockout_max_failures: number
+  lockout_minutes: number
+  idle_timeout_minutes: number
 }
 
 export interface RoleRow {
@@ -171,6 +197,20 @@ export function useUserMutations() {
       mutationFn: (id: number) => apiDelete(`${USERS}/${id}`, NO_INJECT_CFG),
       onSuccess: invalidate,
     }),
+    unlock: useMutation({
+      meta,
+      mutationFn: (id: number) => apiPost<UserAdminRow>(`${USERS}/${id}/unlock`, undefined, NO_INJECT_CFG),
+      onSuccess: invalidate,
+    }),
+    revokeSessions: useMutation({
+      meta,
+      mutationFn: ({ id, sessionId }: { id: number; sessionId?: number }) =>
+        apiPost<{ revoked: number }>(`${USERS}/${id}/sessions/revoke`, undefined, {
+          ...NO_INJECT_CFG,
+          params: { ...(NO_INJECT_CFG.params ?? {}), session_id: sessionId },
+        }),
+      onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: [USERS, 'sessions', v.id] }),
+    }),
     setPermissions: useMutation({
       meta,
       mutationFn: ({ id, permissions }: { id: number; permissions: PermissionMap }) =>
@@ -247,4 +287,35 @@ export function useRoleMutations() {
       onSuccess: invalidate,
     }),
   }
+}
+
+/** TZ U2 789 — foydalanuvchining faol sessiyalari (administrator uchun). */
+export function useUserSessions(id: number | null) {
+  return useQuery({
+    queryKey: [USERS, 'sessions', id],
+    queryFn: () => apiGet<UserSessionRow[]>(`${USERS}/${id}/sessions`, NO_INJECT),
+    enabled: id != null,
+  })
+}
+
+const SECURITY = 'system/settings/security'
+
+/** TZ U1/U2 — bloklash chegarasi va harakatsizlik tayм-auti (bosh administrator). */
+export function useSecurityPolicy(enabled: boolean) {
+  const qc = useQueryClient()
+  const query = useQuery({
+    queryKey: ['system-settings', 'security'],
+    queryFn: () => apiGet<SecurityPolicy>(SECURITY),
+    enabled,
+  })
+  const save = useMutation({
+    meta: { silent: true },
+    mutationFn: (body: SecurityPolicy) => apiPut<SecurityPolicy>(SECURITY, body),
+    onSuccess: (data) => {
+      qc.setQueryData(['system-settings', 'security'], data)
+      // `/auth/me` dagi idle_timeout_minutes ham yangilansin.
+      qc.invalidateQueries({ queryKey: ['auth', 'me'] })
+    },
+  })
+  return { query, save }
 }
