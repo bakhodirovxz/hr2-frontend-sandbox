@@ -35,14 +35,10 @@ export function useEmployeeOptions(
     // lowest-razryad thirteen from every agreer/approver picker. The server
     // caps a page at 500, so the list is walked page by page.
     queryFn: () =>
-      // `employees/picker`: the same branch query as `/employees`, but only
-      // what an option draws — 653 KB → ~110 KB for the largest branch.
+      // `employees/options`: PII'siz yengil qator, chaqiruvchining o'z
+      // darajasida (hr-backend-sandbox `EmployeeService.picker_options_query`).
       fetchAllPages<Employee>(EMPLOYEES_PICKER, {
         organization_branch_id: branchId || undefined,
-        include_multi_org: false,
-        sort_by_razryad: true,
-        is_head_department: headsOnly || undefined,
-        supervisor_id: supervisorId || undefined,
       }),
     enabled: enabled && !!branchId,
   })

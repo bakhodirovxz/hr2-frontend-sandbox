@@ -8,8 +8,10 @@ import type { SelectOption } from '@/components/ui/Select'
  */
 export function employeeSubLabel(emp?: Employee | null, fallback = ''): string {
   if (!emp) return fallback
+  // `employees/options` qatori lavozimni `job_position_name` deb beradi.
+  const optionName = (emp as { job_position_name?: string | null }).job_position_name
   const jobPos =
-    (typeof emp.job_position === 'object' ? emp.job_position?.name : emp.job_position) || ''
+    optionName || (typeof emp.job_position === 'object' ? emp.job_position?.name : emp.job_position) || ''
   if (emp.is_head_department) {
     return jobPos ? `Bo‘lim boshlig‘i | ${jobPos}` : 'Bo‘lim boshlig‘i'
   }

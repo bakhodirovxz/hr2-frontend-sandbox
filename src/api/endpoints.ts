@@ -70,7 +70,8 @@ export const HOLIDAYS_LIST = 'holidays'
 // Phone directory
 export const PHONE_DIRECTORY = 'employees/phone-directory'
 /** Branch employees in picker form (name, position, department, photo). */
-export const EMPLOYEES_PICKER = 'employees/picker'
+/** PII'siz yengil ro'yxat (tanlagichlar uchun) — `Page[EmployeeOption]`. */
+export const EMPLOYEES_PICKER = 'employees/options'
 
 // Audit log
 export const AUDIT_LOGS = 'audit-logs'
