@@ -121,6 +121,8 @@ const core = {
     use_agreement_flow: 'Bildirgi/ariza imzolanmaydi — kelishuv orqali o‘tadi',
     use_send_to_registry: 'Hujjat «Ro‘yxatga yuborish» orqali jo‘natiladi',
     validation: 'Amalni bajarib bo‘lmadi',
+    vacancy_not_open: 'Vakansiya yopiq — ariza qabul qilinmaydi',
+    vacancy_paused: 'Vakansiya vaqtincha to‘xtatilgan — ariza qabul qilinmaydi',
     vehicle_busy: 'Mashina bu sanalarda band',
     vehicle_in_use: 'Bu yozuv ishlatilmoqda — o‘chirib bo‘lmaydi',
     vehicle_inactive: 'Mashina xizmatda emas',

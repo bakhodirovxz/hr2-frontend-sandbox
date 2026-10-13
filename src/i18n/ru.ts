@@ -7212,6 +7212,8 @@ const ru: Record<string, string> = {
   '«{{module}}» moduli barcha foydalanuvchilar uchun yana ochiladi.': 'Модуль «{{module}}» снова станет доступен всем пользователям.',
   'Modul blokdan chiqarildi': 'Модуль разблокирован',
   'Xizmatlarni to‘xtatish (API, fon navbati, rejalashtiruvchi)': 'Остановка служб (API, фоновая очередь, планировщик)',
+  'Vakansiya yopiq — ariza qabul qilinmaydi': 'Вакансия закрыта — заявки не принимаются',
+  'Vakansiya vaqtincha to‘xtatilgan — ariza qabul qilinmaydi': 'Вакансия временно приостановлена — заявки не принимаются',
 }
 
 export default ru
