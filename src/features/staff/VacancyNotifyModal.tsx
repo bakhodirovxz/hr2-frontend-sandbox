@@ -6,7 +6,7 @@ import { FormError } from '@/components/ui/FormError'
 import { errorMessage, errorParams } from '@/api/errorMessage'
 import { EmployeePicker } from '@/features/employees/EmployeePicker'
 import { useServerText } from '@/features/statistics/serverText'
-import { inTashkent } from '@/lib/format'
+import { inWallClock } from '@/lib/format'
 import { useSaveVacancyNotifySettings, useVacancyNotifySettings } from './useStaffPositions'
 
 const ORG_WIDE = 'org'
@@ -105,7 +105,7 @@ export function VacancyNotifyModal({ open, onClose }: { open: boolean; onClose: 
   }
 
   const lastSent = data?.last_sent_at
-    ? inTashkent(String(data.last_sent_at).length === 13 ? `${data.last_sent_at}:00` : data.last_sent_at).format('DD.MM.YYYY HH:mm')
+    ? inWallClock(String(data.last_sent_at).length === 13 ? `${data.last_sent_at}:00` : data.last_sent_at).format('DD.MM.YYYY HH:mm')
     : null
 
   return (

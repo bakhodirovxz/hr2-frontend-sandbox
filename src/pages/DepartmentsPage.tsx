@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -175,7 +175,7 @@ export function DepartmentsPage() {
       className: 'tabular-nums text-fg-muted',
       skeleton: 'w-20',
       sortValue: (d) => d.created_at ?? null,
-      cell: (d) => (d.created_at ? dayjs(d.created_at).format('DD.MM.YYYY') : '—'),
+      cell: (d) => (d.created_at ? inTashkent(d.created_at).format('DD.MM.YYYY') : '—'),
     },
     {
       key: 'actions',

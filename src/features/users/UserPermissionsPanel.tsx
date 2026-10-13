@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RotateCcw, Save, UserCog } from 'lucide-react'
+import { AlertTriangle, RotateCcw, Save, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Combobox } from '@/components/ui/Combobox'
@@ -20,6 +20,14 @@ import {
   type PermissionMap,
   type RoleRow,
 } from './useUserAdmin'
+import {
+  PermissionConflictPanel,
+  conflictFromError,
+  conflictModules,
+  usePermissionValidation,
+  type ConflictReport,
+  type PermissionFix,
+} from './PermissionConflicts'
 
 /**
  * «Foydalanuvchi ruxsatlari» (TZ A2): tanlangan foydalanuvchining roldan
@@ -55,8 +63,17 @@ export function UserPermissionsPanel({
   const { setPermissions } = useUserMutations()
 
   const original = useMemo(() => normalizePerms(user?.permissions), [user])
-  const [extra, setExtra] = useState<PermissionMap>({})
-  useEffect(() => setExtra(original), [original])
+  const [extra, setExtraState] = useState<PermissionMap>({})
+  /** TZ A2 869: the 409 of the last save — the panel then offers «Baribir saqlash». */
+  const [refused, setRefused] = useState<ConflictReport | null>(null)
+  const setExtra = (next: PermissionMap | ((x: PermissionMap) => PermissionMap)) => {
+    setRefused(null)
+    setExtraState(next)
+  }
+  useEffect(() => {
+    setRefused(null)
+    setExtraState(original)
+  }, [original])
 
   /*
    * «Roldan» ustuni — shaxsiy darajasiz nima olishi: rol + backend qo'shadigan
@@ -75,6 +92,27 @@ export function UserPermissionsPanel({
   const isSelf = !!user && user.id === meId
   const editable = canEdit && !isSelf
 
+  // Only the personal levels are checked (the server counts only conflicts
+  // they take part in — an old one inside the role does not block).
+  const live = usePermissionValidation(extra, { userId: user?.id, enabled: editable && !!user })
+  const report = refused ?? live.report
+  const marked = conflictModules(report)
+  const applyFix = (fix: PermissionFix) =>
+    setExtra((x) => ({ ...x, [fix.module]: fix.level as PermissionLevel }))
+  /** «Hammasini qo'llash»: personal levels only where the resolved matrix differs. */
+  const applyAll = () => {
+    if (!report) return
+    setExtra((x) => {
+      const next = { ...x }
+      for (const m of modules) {
+        const want = report.resolved_permissions[m]
+        const now = x[m] ?? inherited[m] ?? 'none'
+        if (want && want !== now) next[m] = want as PermissionLevel
+      }
+      return next
+    })
+  }
+
   const options = useMemo(() => {
     const rows = found.data?.items ?? []
     const opts = rows.map((u) => ({
@@ -92,13 +130,16 @@ export function UserPermissionsPanel({
     return opts
   }, [found.data, user])
 
-  const save = async () => {
+  const save = async (force = false) => {
     if (!user) return
     try {
-      await setPermissions.mutateAsync({ id: user.id, permissions: extra })
+      await setPermissions.mutateAsync({ id: user.id, permissions: extra, force })
+      setRefused(null)
       toast.ok(t('common.saved'))
     } catch (err) {
-      toast.error(errorMessage(err, t('common.actionFailed')))
+      const conflict = conflictFromError(err)
+      if (conflict) setRefused(conflict)
+      else toast.error(errorMessage(err, t('common.actionFailed')))
     }
   }
 
@@ -161,6 +202,17 @@ export function UserPermissionsPanel({
               </div>
             )}
           </div>
+          {editable && report?.conflicts.length ? (
+            <div className="border-b border-line p-3">
+              <PermissionConflictPanel
+                report={report}
+                onFix={applyFix}
+                onFixAll={applyAll}
+                disabled={setPermissions.isPending}
+                force={refused ? { onForce: () => void save(true), pending: setPermissions.isPending } : null}
+              />
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-sm">
               <caption className="sr-only">{t('roleAdmin.tabUsers')}</caption>
@@ -178,7 +230,14 @@ export function UserPermissionsPanel({
                   const own: LevelChoice = extra[m] ?? 'inherit'
                   return (
                     <tr key={m} className="border-t border-line">
-                      <td className={TD}>{moduleLabel(m)}</td>
+                      <td className={TD}>
+                        <span className="inline-flex items-center gap-1.5">
+                          {moduleLabel(m)}
+                          {editable && marked.has(m) && (
+                            <AlertTriangle size={13} className="text-warning" aria-label={t('permConflict.rowMark')} />
+                          )}
+                        </span>
+                      </td>
                       <td className={TD}>
                         <LevelChip level={inh} />
                       </td>

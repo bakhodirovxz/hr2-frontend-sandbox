@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FormError } from '@/components/ui/FormError'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, ShieldQuestion, XCircle } from 'lucide-react'
+import { AuthMethodBadge, useAuthMethodLabel } from '@/features/registration/AuthMethodBadge'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
@@ -99,6 +100,12 @@ export function RegistrationsPage() {
         ),
     },
     {
+      // TZ 4.2.2 · 1894 — the sign-in method the applicant chose.
+      key: 'auth',
+      header: t('regAuth.col'),
+      cell: (r) => <AuthMethodBadge method={r.auth_method} />,
+    },
+    {
       key: 'pinfl',
       header: t('registrations.colPinfl'),
       cell: (r) => <span className="font-mono text-xs text-fg-muted">{r.pinfl || '—'}</span>,
@@ -193,7 +200,7 @@ export function RegistrationsPage() {
           emptyAction={<FilterReset count={search ? 1 : 0} onReset={() => setSearch('')} />}
           emptyTitle={t('registrations.empty')}
           emptyDescription={t('registrations.emptyHint')}
-          minWidth={980}
+          minWidth={1080}
         />
         <Pagination
           page={page}
@@ -242,6 +249,7 @@ function RegistrationDetail({
   onError: (e: unknown) => void
 }) {
   const { t } = useTranslation()
+  const authLabel = useAuthMethodLabel()
   const { approve, reject } = useRegistrationOps()
   // Tashkilot / bo'lim / lavozim — ochiq forma bilan bir xil ro'yxat
   // (`/auth/register/options`, bo'lim va lavozimda `parent_id` = tashkilot).
@@ -364,6 +372,7 @@ function RegistrationDetail({
             <Row label={t('register.phone')} value={row.phone_number} />
             <Row label={t('account.regFullName')} value={row.full_name} />
             <Row label={t('authx.userType')} value={row.user_type === 'individual' || !row.user_type ? t('authx.userTypeIndividual') : row.user_type} />
+            <Row label={t('regAuth.label')} value={authLabel(row.auth_method)} />
             <Row label={t('register.birthDate')} value={fmtDate(row.birth_date)} />
             <Row
               label={t('register.gender')}

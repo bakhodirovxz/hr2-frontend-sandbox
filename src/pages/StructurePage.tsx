@@ -18,7 +18,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { DEPARTMENTS_LIST } from '@/api/endpoints'
 import { canWriteOrg } from '@/auth/permissions'
 import { downloadFile } from '@/lib/download'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, inTashkent } from '@/lib/format'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import { DepartmentCardModal, type CardTab } from '@/features/structure/DepartmentCardModal'
@@ -289,7 +289,7 @@ function AsOfDepartmentModal({
             {node.raw.closed_at && (
               <div>
                 <dt className="text-[12px] text-fg-muted">{t('orgAdmin.closedBadge')}</dt>
-                <dd className="text-fg">{dayjs(node.raw.closed_at).format('DD.MM.YYYY')}</dd>
+                <dd className="text-fg">{inTashkent(node.raw.closed_at).format('DD.MM.YYYY')}</dd>
               </div>
             )}
           </dl>
