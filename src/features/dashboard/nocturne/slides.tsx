@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Building2 } from 'lucide-react'
 import { formatTime } from '@/features/dashboard/attendance'
 import type { StatusCounts } from '@/features/dashboard/attendance'
@@ -117,7 +118,7 @@ export function NewsFace({ news }: { news: NewsPost[] }) {
             <span className="truncate text-[13px] font-semibold text-fg">{n.title ?? '—'}</span>
             {n.created_at && (
               <span className="shrink-0 text-[11px] text-fg-subtle">
-                {dayjs(n.created_at).format('DD.MM.YYYY')}
+                {inTashkent(n.created_at).format('DD.MM.YYYY')}
               </span>
             )}
           </div>

@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import dayjs from 'dayjs'
 import {
   AlertTriangle,
   CalendarClock,
@@ -41,7 +40,7 @@ import { useAuthStore } from '@/store/authStore'
 import { apiDelete, apiGet, apiPost, apiPut } from '@/api/http'
 import { errorCode, errorMessage } from '@/api/errorMessage'
 import { downloadFile } from '@/lib/download'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, inTashkent } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { LABEL_CLS } from '@/components/ui/control'
 import { RestoreWizard, type RestoreTarget } from '@/features/system/RestoreWizard'
@@ -125,7 +124,7 @@ function BackupsPageInner() {
       await downloadFile({
         url: BACKUP_DOWNLOAD(b.id),
         params: NB,
-        filename: b.file_name || `backup-${b.id}-${dayjs(b.started_at).format('YYYYMMDD-HHmm')}.dump`,
+        filename: b.file_name || `backup-${b.id}-${inTashkent(b.started_at).format('YYYYMMDD-HHmm')}.dump`,
       })
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status
@@ -145,7 +144,7 @@ function BackupsPageInner() {
         <>
           {b.started_at ? formatDateTime(b.started_at) : '—'}
           {b.finished_at && (
-            <span className="block text-[11.5px] text-fg-subtle">→ {dayjs(b.finished_at).format('HH:mm:ss')}</span>
+            <span className="block text-[11.5px] text-fg-subtle">→ {inTashkent(b.finished_at).format('HH:mm:ss')}</span>
           )}
         </>
       ),

@@ -5,6 +5,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, MailCheck, QrCode, User as UserIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { LogoMark } from '@/components/layout/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -14,7 +15,7 @@ import { useAuthStore } from '@/store/authStore'
 import { LABEL_CLS, control, CONTROL_PAD } from '@/components/ui/control'
 import { cn } from '@/lib/cn'
 import type { QrTokens } from '@/features/auth/QrLoginPanel'
-import { takeLogoutReason } from '@/features/auth/logoutReason'
+import { clearLogoutReason, peekLogoutReason } from '@/features/auth/logoutReason'
 
 /**
  * ⚠️ LAZY. `LoginPage` is the one page kept EAGER in the entry chunk (it is the
@@ -55,7 +56,8 @@ export function LoginPage() {
   const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null)
   const [code, setCode] = useState('')
   /** TZ U2 — harakatsizlik sababli chiqarilgan bo'lsa, bir marta aytiladi. */
-  const [idleNotice] = useState(() => takeLogoutReason() === 'idle')
+  const [idleNotice] = useState(() => peekLogoutReason() === 'idle')
+  useEffect(() => clearLogoutReason(), [])
 
   const from = (location.state as { from?: Location } | null)?.from
   const redirectTo = from ? `${from.pathname}${from.search || ''}` : '/'
@@ -88,7 +90,7 @@ export function LoginPage() {
       // qachongacha ekanini foydalanuvchining O'Z vaqtida ko'rsatamiz.
       if (errorCode(err) === 'account_locked') {
         const until = errorParams(err).until
-        const when = typeof until === 'string' && dayjs(until).isValid() ? dayjs(until).format('DD.MM.YYYY HH:mm') : null
+        const when = typeof until === 'string' && dayjs(until).isValid() ? inTashkent(until).format('DD.MM.YYYY HH:mm') : null
         setError(when ? t('authx.lockedUntil', { time: when }) : t('authx.locked'))
         return
       }
