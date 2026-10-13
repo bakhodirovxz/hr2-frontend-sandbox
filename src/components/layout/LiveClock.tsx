@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { dayMonth } from '@/lib/format'
+import { dayMonth, inTashkent } from '@/lib/format'
 import { useTranslation } from 'react-i18next'
-import dayjs from 'dayjs'
 
 /**
  * The gate clock.
@@ -10,13 +9,16 @@ import dayjs from 'dayjs'
  * and the date sits under it in the muted voice. Seconds run because this is a
  * board people watch a turnstile through — but they are set at the same size
  * as the rest, tabular, so a digit changing every second never shifts the row.
+ *
+ * Toshkent vaqti — brauzer zonasi emas: ro'yxatlardagi vaqtlar ham Toshkentda
+ * (`inTashkent`), UTC'dagi kompyuterda soat 5 soat farq qilardi.
  */
 export function LiveClock() {
   const { t } = useTranslation()
   const weekdays = t('date.weekdays', { returnObjects: true })
-  const [now, setNow] = useState(() => dayjs())
+  const [now, setNow] = useState(() => inTashkent())
   useEffect(() => {
-    const id = setInterval(() => setNow(dayjs()), 1000)
+    const id = setInterval(() => setNow(inTashkent()), 1000)
     return () => clearInterval(id)
   }, [])
   return (
