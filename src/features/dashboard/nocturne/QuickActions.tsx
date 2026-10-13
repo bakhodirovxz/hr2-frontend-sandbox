@@ -112,7 +112,7 @@ export function QuickActionsFace({ kind }: { kind: 'hr' | 'employee' }) {
           left a gap under the tiles or cut the third row in half. */}
       <div
         ref={gridRef}
-        className="scroll-thin grid min-h-0 flex-1 gap-2 overflow-y-auto pr-0.5"
+        className="scroll-thin grid min-h-0 flex-1 gap-1.5 overflow-y-auto pr-0.5"
         style={{
           gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${rows}, minmax(64px, 1fr))`,
@@ -126,12 +126,12 @@ export function QuickActionsFace({ kind }: { kind: 'hr' | 'employee' }) {
               key={i.path}
               to={i.path}
               {...tipProps(label, [[t('dashboard.quick.open'), '']])}
-              className="group flex min-h-0 flex-col items-center justify-center gap-1 rounded-inner bg-fg/[0.04] px-0.5 py-1.5 text-center transition-[transform,background] hover:-translate-y-0.5 hover:bg-brand-soft"
+              className="group flex min-h-0 flex-col items-center justify-center gap-1 rounded-inner bg-fg/[0.04] px-0 py-1.5 text-center transition-[transform,background] hover:-translate-y-0.5 hover:bg-brand-soft"
             >
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.7)] transition-transform group-hover:scale-105">
                 <Icon size={15} />
               </span>
-              <span className="line-clamp-2 w-full break-words text-[11px] font-semibold tracking-tight leading-[1.15] text-fg">{label}</span>
+              <span className="line-clamp-2 w-full min-w-0 text-[11px] font-semibold tracking-[-0.035em] leading-[1.15] text-fg [overflow-wrap:normal]">{label}</span>
             </Link>
           )
         })}

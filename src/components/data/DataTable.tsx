@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode, useRef, useState } from 'react'
+import { useEffect, useMemo, type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Lock, RotateCcw, Settings2 } from 'lucide-react'
@@ -249,12 +249,32 @@ export function DataTable<T extends { id: number }>({
   // other screen and this one can never drift apart again.
   const cell = density === 'compact' ? TD_COMPACT : TD
 
+  // The empty/error state sits in one cell that spans the whole table, and the
+  // table is `minWidth` wide (960px on /services). On a phone the centred text
+  // therefore landed off-screen to the right, leaving only the header. Pin the
+  // state to the left edge of the scroll box at the box's own width instead.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [boxW, setBoxW] = useState<number | null>(null)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setBoxW(el.clientWidth))
+    ro.observe(el)
+    setBoxW(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+  const stateBox = (node: ReactNode) => (
+    <div className="sticky left-0" style={boxW ? { width: boxW } : undefined}>
+      {node}
+    </div>
+  )
+
   return (
     // Capped at the screen height so the header row is ALWAYS sticky: on a
     // page whose card was not height-bound (most of them) the box grew with
     // its rows, the page scrolled instead, and the header scrolled away with
     // it. Full-height layouts (flex-1 min-h-0) are bounded before the cap.
-    <div className="scroll-thin min-h-0 max-h-[calc(100dvh-9rem)] flex-1 overflow-auto">
+    <div ref={scrollRef} className="scroll-thin min-h-0 max-h-[calc(100dvh-9rem)] flex-1 overflow-auto">
       <table className="w-full border-collapse text-left" style={{ minWidth }}>
         <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_rgb(var(--border))]">
           <tr className="border-b border-line text-[12px] font-semibold text-fg-muted">
@@ -410,7 +430,7 @@ export function DataTable<T extends { id: number }>({
           ) : error ? (
             <tr>
               <td colSpan={colCount}>
-                <EmptyState
+                {stateBox(<EmptyState
                   icon={
                     isModuleBlocked(error) ? (
                       <Lock size={22} className="text-warning" />
@@ -427,17 +447,17 @@ export function DataTable<T extends { id: number }>({
                       </Button>
                     ) : undefined
                   }
-                />
+                />)}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
               <td colSpan={colCount}>
-                <EmptyState
+                {stateBox(<EmptyState
                   title={filtered ? t('list.noResultsFiltered') : emptyTitle}
                   description={filtered ? t('list.noResultsFilteredHint') : emptyDescription}
                   action={emptyAction}
-                />
+                />)}
               </td>
             </tr>
           ) : (

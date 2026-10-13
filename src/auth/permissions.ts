@@ -184,6 +184,24 @@ export function canManageEmployee(
 }
 
 /**
+ * Xodim KARTASINI (GET /employees/{id}) ocha oladimi — serverdagi
+ * `assert_can_read_employee_card` bilan bir xil: kadr/rahbariyat/admin — ha
+ * (filial ko'lamini server o'zi cheklaydi); oddiy xodim — faqat o'zining kartasi,
+ * «Kadrlar hisobi» o'qish huquqi berilgan bo'lsa tashkilotdagilar, bo'lim
+ * boshlig'i — o'z bo'limi va bevosita bo'ysunuvchilari. Qolganlarida server
+ * 403 `employee_card_forbidden` qaytaradi — ro'yxatda havola bo'lmasin.
+ */
+export function canOpenEmployeeCard(
+  user: U,
+  employee: { id: number; supervisor_id?: number | null; department_id?: number | null },
+): boolean {
+  if (!isPlainEmployee(user)) return true
+  if (employee.id === user?.employee?.id) return true
+  if (readsOrg(user, 'employees')) return true
+  return canManageEmployee(user, employee)
+}
+
+/**
  * «Barcha filiallar» ko'rinishiga o'ta oladimi — o'qish ko'lami global
  * (master, rahbariyat, markaziy kadr). Backend `own_branch_ids: null` beradi.
  */

@@ -21,7 +21,8 @@ import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
 import { useAuthStore } from '@/store/authStore'
-import { canManageEmployee, canManageEmployees, canWrite, canWriteOrg, isLineManager, isSiteMasterAdmin, readsOrg } from '@/auth/permissions'
+import { cn } from '@/lib/cn'
+import { canManageEmployee, canOpenEmployeeCard, canManageEmployees, canWrite, canWriteOrg, isLineManager, isSiteMasterAdmin, readsOrg } from '@/auth/permissions'
 import { ArchivedTable } from '@/features/employees/ArchivedTable'
 import { ArchiveEmployeeModal } from '@/features/employees/ArchiveEmployeeModal'
 import { ArchiveSettingsModal } from '@/features/employees/ArchiveSettingsModal'
@@ -124,15 +125,28 @@ export function EmployeesPage() {
     )
   }
 
-  const nameCell = (r: { id: number; legal_name?: string | null; photo_path?: string | null; photo_thumb_path?: string | null }, sub?: string | null) => (
-    <Link to={`/employees/${r.id}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-3 rounded-inner outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <Avatar src={r.photo_thumb_path} fallbackSrc={r.photo_path} name={r.legal_name} size={34} />
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] font-semibold text-fg hover:underline">{r.legal_name || t('common.unknown')}</span>
-        <span className="block truncate text-[11px] text-fg-muted">{sub || '—'}</span>
-      </span>
-    </Link>
-  )
+  const openable = (r: { id: number; department_id?: number | null; supervisor_id?: number | null }) => canOpenEmployeeCard(user, r)
+
+  const nameCell = (r: { id: number; legal_name?: string | null; photo_path?: string | null; photo_thumb_path?: string | null; department_id?: number | null; supervisor_id?: number | null }, sub?: string | null) => {
+    const body = (
+      <>
+        <Avatar src={r.photo_thumb_path} fallbackSrc={r.photo_path} name={r.legal_name} size={34} />
+        <span className="min-w-0">
+          <span className={cn('block truncate text-[13px] font-semibold text-fg', openable(r) && 'hover:underline')}>{r.legal_name || t('common.unknown')}</span>
+          <span className="block truncate text-[11px] text-fg-muted">{sub || '—'}</span>
+        </span>
+      </>
+    )
+    // A colleague whose card the server would refuse (403 employee_card_forbidden)
+    // is shown as plain text, not as a link to an error page.
+    return openable(r) ? (
+      <Link to={`/employees/${r.id}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-3 rounded-inner outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {body}
+      </Link>
+    ) : (
+      <div className="flex items-center gap-3">{body}</div>
+    )
+  }
 
   const kpiColumns: Column<EmployeeKpiRow>[] = [
     { key: 'n', header: '#', headerClassName: 'w-10', className: 'text-fg-subtle tabular-nums', cell: (_r, i) => (page - 1) * size + i + 1 },
@@ -299,7 +313,8 @@ export function EmployeesPage() {
                 loading={plainList.isLoading}
                 error={plainList.error}
                 onRetry={() => void plainList.refetch()}
-                onRowClick={(r) => navigate(`/employees/${r.id}`)}
+                onRowClick={(r) => { if (openable(r)) navigate(`/employees/${r.id}`) }}
+                rowClassName={(r) => (openable(r) ? '' : '!cursor-default')}
                 emptyTitle={t('personnel.list.empty')}
                 filtered={filterCount > 0}
                 emptyAction={filterReset}

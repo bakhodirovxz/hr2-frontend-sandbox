@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { foldIncludes, searchFold } from '@/lib/searchFold'
 import { useTranslation } from 'react-i18next'
 import { Building2, Check, ChevronDown, Layers, Search, Users, X } from 'lucide-react'
@@ -63,20 +63,39 @@ export function BranchSelector() {
     setSearch('')
   }
 
+  const chipRef = useRef<HTMLDivElement>(null)
+  const [chipNarrow, setChipNarrow] = useState(false)
+  useEffect(() => {
+    const el = chipRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setChipNarrow(el.clientWidth < 80))
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
+
   // Only one branch and can't switch scope — show a static chip, no dropdown.
   const isStatic = !canSwitchScope && allowedBranches.length <= 1
 
   if (isStatic) {
     return (
-      <div className="flex h-control min-w-0 max-w-branch items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm">
-        <Building2 size={16} className="text-brand" />
+      <div
+        ref={chipRef}
+        // In low-vision mode (big controls) a 390px header leaves this chip a
+        // few pixels: only its border and half an icon showed up as a stray
+        // «•» beside the burger. When there is no room for the name, draw nothing.
+        className={cn(
+          'flex h-control min-w-0 max-w-branch items-center gap-2 overflow-hidden rounded-lg border border-line bg-surface px-3 text-sm',
+          chipNarrow && 'invisible',
+        )}
+      >
+        <Building2 size={16} className="shrink-0 text-brand" />
         <span className="min-w-0 truncate font-medium text-fg">{label}</span>
       </div>
     )
   }
 
   return (
-    <div className="relative min-w-0 flex-1 max-w-branch">
+    <div ref={chipRef} className={cn('relative min-w-0 flex-1 max-w-branch overflow-hidden', chipNarrow && 'invisible')}>
       <button
         ref={btnRef}
         type="button"
@@ -86,7 +105,7 @@ export function BranchSelector() {
         aria-label={`${t('header.selectBranch')}: ${label}`}
         title={label}
         className={cn(
-          'flex h-control w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 text-sm transition-colors sm:px-3',
+          'flex h-control w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg border px-2.5 text-sm transition-colors sm:px-3',
           open ? 'border-brand bg-brand-soft' : 'border-line bg-surface hover:bg-surface-2',
         )}
       >

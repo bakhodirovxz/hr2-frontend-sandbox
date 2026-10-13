@@ -102,14 +102,16 @@ export function CarouselPanel({
       {/* B board head: the slide's own icon + title, the dots and the arrows on
           one line. The old eyebrow printed the same «BO'LIM» on all three
           windows and said nothing. */}
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3.5">
+      <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3.5 [container-type:inline-size]">
         <h2 className="m-0 flex min-w-0 items-center gap-2.5 text-[15px] font-bold text-fg">
           {active.icon && <ToneTile icon={active.icon} size={30} />}
-          <span className="line-clamp-2 min-w-0 leading-tight" title={active.title}>{active.title}</span>
+          <span className="line-clamp-2 min-w-0 hyphens-auto leading-tight" title={active.title}>{active.title}</span>
         </h2>
         {count > 1 && (
           <div className="flex shrink-0 items-center gap-1.5">
-            <div className="mr-1 flex gap-1">
+            {/* The dots repeat what the arrows do: on a narrow panel they gave way to a
+                clipped Russian title («опаздываю…»). */}
+            <div className="mr-1 flex gap-1 [@container(max-width:340px)]:hidden">
               {slides.map((s, i) => (
                 <button
                   key={s.key}

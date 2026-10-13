@@ -313,7 +313,7 @@ export function AttendancePage() {
         }
       />
 
-      <Card className="flex h-[calc(100dvh-11rem)] min-h-[32rem] flex-col overflow-hidden">
+      <Card className="flex h-auto flex-col sm:h-[calc(100dvh-11rem)] sm:min-h-[32rem] overflow-hidden">
         <div className="flex flex-col gap-2.5 border-b border-line p-4 xl:flex-row xl:flex-wrap xl:items-center">
           <SearchInput
             value={search}
