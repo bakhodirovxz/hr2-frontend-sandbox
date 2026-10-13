@@ -126,12 +126,12 @@ export function QuickActionsFace({ kind }: { kind: 'hr' | 'employee' }) {
               key={i.path}
               to={i.path}
               {...tipProps(label, [[t('dashboard.quick.open'), '']])}
-              className="group flex min-h-0 flex-col items-center justify-center gap-1 rounded-inner bg-fg/[0.04] px-1.5 py-1.5 text-center transition-[transform,background] hover:-translate-y-0.5 hover:bg-brand-soft"
+              className="group flex min-h-0 flex-col items-center justify-center gap-1 rounded-inner bg-fg/[0.04] px-0.5 py-1.5 text-center transition-[transform,background] hover:-translate-y-0.5 hover:bg-brand-soft"
             >
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.7)] transition-transform group-hover:scale-105">
                 <Icon size={15} />
               </span>
-              <span className="line-clamp-2 w-full break-words text-[11px] font-semibold leading-[1.15] text-fg">{label}</span>
+              <span className="line-clamp-2 w-full break-words text-[11px] font-semibold tracking-tight leading-[1.15] text-fg">{label}</span>
             </Link>
           )
         })}

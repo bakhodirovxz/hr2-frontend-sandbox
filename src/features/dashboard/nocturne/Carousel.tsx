@@ -105,7 +105,7 @@ export function CarouselPanel({
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3.5">
         <h2 className="m-0 flex min-w-0 items-center gap-2.5 text-[15px] font-bold text-fg">
           {active.icon && <ToneTile icon={active.icon} size={30} />}
-          <span className="truncate">{active.title}</span>
+          <span className="line-clamp-2 min-w-0 leading-tight" title={active.title}>{active.title}</span>
         </h2>
         {count > 1 && (
           <div className="flex shrink-0 items-center gap-1.5">

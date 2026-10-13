@@ -397,7 +397,7 @@ export function StaffPositionsPage() {
         ) : (
           <>
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-              <SearchInput value={search} onChange={setSearch} placeholder={t('staff.searchPlaceholder')} className="w-full max-w-[260px]" />
+              <SearchInput value={search} onChange={setSearch} placeholder={t('staff.searchPlaceholder')} className="w-full max-w-[320px]" />
               <Select
                 value={filters.dept}
                 onChange={(e) => setFilter('dept', e.target.value)}

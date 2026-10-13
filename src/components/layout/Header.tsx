@@ -67,7 +67,7 @@ export function Header({ onOpenNav, onFeedback }: HeaderProps) {
           <a
             href={telHref(site.support_phone)}
             title={t('site.supportPhone')}
-            className="hidden items-center gap-1.5 rounded-inner px-2 py-1 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg xl:inline-flex"
+            className="hidden items-center gap-1.5 rounded-inner px-2 py-1 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg 2xl:inline-flex"
           >
             <Phone size={14} aria-hidden />
             <span className="tabnum">{site.support_phone}</span>

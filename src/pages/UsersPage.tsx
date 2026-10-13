@@ -146,7 +146,7 @@ export function UsersPage() {
       key: 'username',
       header: t('userAdmin.login'),
       skeleton: 'w-28',
-      cell: (u) => <span className="block max-w-[14rem] break-all font-semibold text-fg">{u.username}</span>,
+      cell: (u) => <span className="block min-w-[9rem] max-w-[12rem] break-all font-semibold text-fg">{u.username}</span>,
     },
     {
       key: 'full_name',
@@ -158,8 +158,14 @@ export function UsersPage() {
       key: 'email',
       header: t('userAdmin.email'),
       skeleton: 'w-40',
-      className: 'text-fg-muted',
-      cell: (u) => u.email || '—',
+      // 1280 px da (TZ asosiy ruxsat) amallar ustuni siqilib ko'rinmay qolardi.
+      headerClassName: 'hidden 2xl:table-cell',
+      className: 'hidden text-fg-muted 2xl:table-cell',
+      cell: (u) => (
+        <span className="block max-w-[14rem] truncate" title={u.email || undefined}>
+          {u.email || '—'}
+        </span>
+      ),
     },
     {
       key: 'role',
@@ -207,7 +213,7 @@ export function UsersPage() {
       key: 'actions',
       header: '',
       label: t('userAdmin.actions'),
-      headerClassName: 'w-48',
+      headerClassName: 'w-40',
       className: 'pr-4',
       skeleton: 'w-24',
       lockVisible: true,
