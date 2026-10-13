@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '@/api/http'
 import { AUDIT_LOGS } from '@/api/endpoints'
@@ -165,4 +166,84 @@ export function useAuditActors(branchId: number | null) {
     staleTime: 5 * 60_000,
     meta: { silent: true },
   })
+}
+
+/**
+ * TZ A4 919 «Автоматическое обновление журнала — запускается при включённом
+ * режиме мониторинга в реальном времени. Система периодически обновляет
+ * список событий».
+ *
+ * Every 5 s (only while the tab is visible) `GET /audit-logs?after_id=N` with
+ * the SAME filters asks for rows newer than the newest one on screen; they are
+ * prepended to page 1 and stay marked as `fresh` for a few seconds. When the
+ * base list itself reloads (or the filters change) the prepended rows are
+ * dropped — the reloaded page already contains them.
+ */
+export function useAuditLive(
+  filters: AuditFilters,
+  baseRows: AuditLog[],
+  { active, ready, onOverflow }: { active: boolean; ready: boolean; onOverflow: () => void },
+) {
+  const params = auditParams(filters)
+  const paramsKey = JSON.stringify(params)
+  const [liveRows, setLiveRows] = useState<AuditLog[]>([])
+  const [fresh, setFresh] = useState<Set<number>>(() => new Set())
+  const [lastPoll, setLastPoll] = useState<Date | null>(null)
+
+  // Filters changed, the base page reloaded or the mode went off — start over.
+  const baseTop = baseRows.length ? Math.max(...baseRows.map((r) => r.id)) : 0
+  useEffect(() => {
+    setLiveRows((prev) => (prev.length ? [] : prev))
+  }, [paramsKey, baseTop, active])
+
+  const maxId = useRef<number | null>(null)
+  const ids = [...baseRows, ...liveRows].map((r) => r.id)
+  maxId.current = ready ? (ids.length ? Math.max(...ids) : 0) : null
+
+  const overflow = useRef(onOverflow)
+  overflow.current = onOverflow
+
+  useEffect(() => {
+    if (!active) return
+    let stopped = false
+    const tick = async () => {
+      const after = maxId.current
+      if (after == null || document.visibilityState !== 'visible') return
+      try {
+        const page = await apiGet<Page<AuditLog>>(AUDIT_LOGS, { page: 1, size: 100, ...params, after_id: after })
+        if (stopped) return
+        setLastPoll(new Date())
+        const items = (page.items ?? []).filter((r) => r.id > after)
+        if (!items.length) return
+        if ((page.total ?? items.length) > items.length) {
+          // More arrived than one request carries — reload the page instead
+          // of leaving a hole between the old and the new rows.
+          overflow.current()
+          return
+        }
+        items.sort((a, b) => b.id - a.id)
+        setLiveRows((prev) => [...items, ...prev].slice(0, 200))
+        setFresh((prev) => new Set([...prev, ...items.map((r) => r.id)]))
+        window.setTimeout(() => {
+          setFresh((prev) => {
+            const next = new Set(prev)
+            for (const r of items) next.delete(r.id)
+            return next
+          })
+        }, 4000)
+      } catch {
+        // A failed poll is retried on the next tick; the list itself shows errors.
+      }
+    }
+    const timer = window.setInterval(() => void tick(), 5000)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, paramsKey])
+
+  const baseIds = new Set(baseRows.map((r) => r.id))
+  const extra = active ? liveRows.filter((r) => !baseIds.has(r.id)) : []
+  return { rows: extra.length ? [...extra, ...baseRows] : baseRows, added: extra.length, fresh, lastPoll }
 }

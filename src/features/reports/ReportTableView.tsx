@@ -347,7 +347,7 @@ export function ReportTableView({ table, onDrill, maxHeight }: Props) {
         </div>
       )}
       <p className="text-[11px] text-fg-subtle">
-        {t('reports.h.generated_at')}: {dayjs(table.generated_at).format('DD.MM.YYYY HH:mm')} · {t('reports.rowCount', { count: table.body_rows })}
+        {t('reports.h.generated_at')}: {inTashkent(table.generated_at).format('DD.MM.YYYY HH:mm')} · {t('reports.rowCount', { count: table.body_rows })}
       </p>
     </div>
   )
