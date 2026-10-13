@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Pencil, Plus, Sparkles, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import { Copy, ExternalLink, GitBranch, Pencil, Plus, Sparkles, Trash2, TrendingDown, TrendingUp, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -40,6 +40,8 @@ import {
 } from './api'
 import { IntervalManager, PERIOD_KEY, PERIOD_TYPES } from './KpiIntervals'
 import { useKpiAccess } from './useKpiAccess'
+import { CascadeModal, IndicatorImportModal } from './IndicatorTools'
+import { AdminSupportSettingsCard } from './PositionGroupControls'
 
 const UNITS = ['%', 'son', "so'm", 'soat', 'kun'] as const
 const unitOf = (i?: KpiIndicator | null) => i?.unit || i?.measure || '%'
@@ -84,6 +86,8 @@ export function KpiIndicatorsTab() {
   const departments = useDepartmentOptions()
   const groups = useGroupNames(indicators)
   const [editing, setEditing] = useState<{ row: KpiIndicator | null; copy?: boolean; scope?: 'department' | 'branch'; dept?: string } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [cascading, setCascading] = useState<KpiIndicator | null>(null)
 
   const canAdd = acc.may('indicator_type_list', 'add')
   const canEdit = acc.may('indicator_type_list', 'edit')
@@ -218,6 +222,12 @@ export function KpiIndicatorsTab() {
               <Copy size={14} />
             </IconButton>
           )}
+          {/* K1 · 1356 «Каскадирование KPI» — a central indicator already covers everyone. */}
+          {canEdit && i.scope !== 'global' && (
+            <IconButton size="sm" label={t('kpiExt.cascadeAction')} onClick={() => setCascading(i)}>
+              <GitBranch size={14} />
+            </IconButton>
+          )}
           {canDelete && (
             <IconButton size="sm" label={t('common.delete')} onClick={() => removeOne(i)}>
               <Trash2 size={14} />
@@ -257,6 +267,11 @@ export function KpiIndicatorsTab() {
           {acc.master && (
             <Button size="sm" variant="secondary" leftIcon={<Sparkles size={14} />} loading={mut.seedDefaultIndicators.isPending} onClick={seed}>
               {t('kpi.seedDefaults')}
+            </Button>
+          )}
+          {canAdd && (
+            <Button size="sm" variant="secondary" leftIcon={<Upload size={14} />} onClick={() => setImporting(true)}>
+              {t('kpiExt.importAction')}
             </Button>
           )}
           {canAdd && (
@@ -319,13 +334,26 @@ export function KpiIndicatorsTab() {
 
       <IntervalManager />
 
+      {acc.master && <AdminSupportSettingsCard />}
+
       <BulkBar count={selected.length} onClear={() => { selGeneral.clear(); selDept.clear() }} progress={bulk.progress}>
         <Button size="sm" variant="danger" leftIcon={<Trash2 size={14} />} disabled={bulk.progress.running} onClick={bulkDelete}>
           {t('common.delete')}
         </Button>
       </BulkBar>
 
-      <IndicatorModal value={editing} groups={groups} departments={departments} onClose={() => setEditing(null)} />
+      <IndicatorModal
+        value={editing}
+        groups={groups}
+        departments={departments}
+        onClose={() => setEditing(null)}
+        onOpenExisting={(id) => {
+          const found = indicators.find((x) => x.id === id)
+          if (found) setEditing({ row: found })
+        }}
+      />
+      <IndicatorImportModal open={importing} onClose={() => setImporting(false)} />
+      <CascadeModal indicator={cascading} departments={departments} onClose={() => setCascading(null)} />
     </div>
   )
 }
@@ -342,11 +370,14 @@ function IndicatorModal({
   groups,
   departments,
   onClose,
+  onOpenExisting,
 }: {
   value: { row: KpiIndicator | null; copy?: boolean; scope?: 'department' | 'branch'; dept?: string } | null
   groups: string[]
   departments: { value: string; label: string }[]
   onClose: () => void
+  /** K1 · 1356: the 409 `kpi_name_exists` names the indicator that already has this name. */
+  onOpenExisting: (id: number) => void
 }) {
   const { t, i18n } = useTranslation()
   const sx = useServerText()
@@ -377,10 +408,12 @@ function IndicatorModal({
   const [assignees, setAssignees] = useState<KpiAssignees>(normalizeAssignees(null))
   const [people, setPeople] = useState<PickedPerson[]>([])
   const [errors, setErrors] = useState<FieldErrors>({})
+  const [existingId, setExistingId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!value) return
     setErrors({})
+    setExistingId(null)
     const s = (v?: number | null) => (v == null ? '' : String(v))
     setForm(
       row
@@ -413,6 +446,7 @@ function IndicatorModal({
   const set = (k: keyof typeof form, v: string | boolean) => {
     setForm((f) => ({ ...f, [k]: v }))
     setErrors((e) => ({ ...e, [k]: undefined, form: undefined }))
+    if (k === 'name') setExistingId(null)
   }
 
   const submit = async () => {
@@ -469,6 +503,12 @@ function IndicatorModal({
       toast.ok(t('kpi.indicatorSaved'))
       onClose()
     } catch (e) {
+      // K1 · 1356 «Показатель с таким наименованием существует» — on the name, with a way to the other one.
+      if (errorCode(e) === 'kpi_name_exists') {
+        const id = Number(errorParams(e).existing_id)
+        setExistingId(Number.isFinite(id) && id > 0 && id !== row?.id ? id : null)
+        return setErrors({ name: t('kpiExt.nameExists') })
+      }
       // Server field errors (`params.fields`) go under their own field.
       const fields = errorParams(e).fields
       if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
@@ -499,8 +539,15 @@ function IndicatorModal({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('kpi.colName')} required error={errors.name} wide>
-          <Textarea rows={2} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={t('kpi.namePlaceholder')} />
+          <Textarea rows={2} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={t('kpi.namePlaceholder')} invalid={!!errors.name} />
         </Field>
+        {existingId != null && (
+          <div className="-mt-2 sm:col-span-2">
+            <Button size="sm" variant="ghost" leftIcon={<ExternalLink size={13} />} onClick={() => onOpenExisting(existingId)}>
+              {t('kpiExt.openExisting')}
+            </Button>
+          </div>
+        )}
         {!editing && (
           <>
             <Field label={t('kpi.forWhom')} wide={form.scope !== 'department'}>

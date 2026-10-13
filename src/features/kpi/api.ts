@@ -59,6 +59,16 @@ export const KPI = {
   generateMonthEntries: 'kpi/generate-current-month-entries',
   generateMonthScorecards: 'kpi/generate-current-month',
   seedDefaultIndicators: 'kpi/seed-default-indicators',
+  // TZ 4.2.8 · 426 and the K1/K3 «Возможные расширения»
+  positionGroups: 'kpi/position-groups',
+  settings: 'system/settings/kpi',
+  importTemplate: 'kpi/indicators/import-template',
+  importIndicators: 'kpi/indicators/import',
+  indicatorCascade: (id: number) => `kpi/indicators/${id}/cascade`,
+  reportsCompare: 'kpi/reports/compare',
+  reportSend: (id: number) => `kpi/reports/${id}/send`,
+  reportTemplates: 'kpi/report-templates',
+  reportTemplate: (id: number) => `kpi/report-templates/${id}`,
 } as const
 
 // ─── Wire types (schemas/kpi.py) ──────────────────────────────────────────────
@@ -246,6 +256,7 @@ export interface KpiReport {
     period_type?: string | null
     group_by?: ReportGroupBy
     sort?: string | null
+    position_group?: string | null
     [k: string]: unknown
   } | null
   row_count?: number | null
@@ -265,6 +276,7 @@ export interface KpiReportInput {
   indicator_ids?: number[]
   group_by?: ReportGroupBy
   sort?: string
+  position_group?: 'admin_support'
 }
 
 export interface KpiReportData {
@@ -417,9 +429,12 @@ export interface EntryFilters {
   status?: string
   from?: string
   to?: string
+  /** TZ 4.2.8 · 426 — `admin_support` narrows to the admin / support staff. */
+  position_group?: string
 }
 
 const entryParams = (f: EntryFilters) => ({
+  position_group: f.position_group || undefined,
   search: f.search?.trim() || undefined,
   indicator_id: f.indicator_id || undefined,
   employee_id: f.employee_id || undefined,
@@ -474,9 +489,11 @@ export interface PerformanceFilters {
   search?: string
   department_id?: string
   status?: string
+  position_group?: string
 }
 
 const perfParams = (f: PerformanceFilters) => ({
+  position_group: f.position_group || undefined,
   interval_id: f.interval_id || undefined,
   search: f.search?.trim() || undefined,
   department_id: f.department_id || undefined,

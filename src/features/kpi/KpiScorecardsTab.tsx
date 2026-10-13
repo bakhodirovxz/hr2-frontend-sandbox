@@ -39,6 +39,7 @@ import { KpiStatusMenu } from './KpiStatusMenu'
 import { PerformanceDrawer } from './PerformanceDrawer'
 import { TONE_TEXT } from './KpiResultsTab'
 import { useKpiAccess } from './useKpiAccess'
+import { PositionGroupFilter } from './PositionGroupControls'
 
 const PERF_STATUSES = ['N', 'I', 'D'] as const
 
@@ -60,6 +61,7 @@ export function KpiScorecardsTab() {
     'iv',
     'sdept',
     'sst',
+    'spg',
   ])
   const { intervals } = useIntervals()
   const departments = useDepartmentOptions()
@@ -77,7 +79,7 @@ export function KpiScorecardsTab() {
   }, [filters.iv, intervals, setFilter])
 
   const intervalId = filters.iv ? Number(filters.iv) : null
-  const query = { interval_id: filters.iv, search, department_id: filters.sdept, status: filters.sst }
+  const query = { interval_id: filters.iv, search, department_id: filters.sdept, status: filters.sst, position_group: filters.spg }
   const list = usePerformances({ ...query, page, size }, !!filters.iv)
   const selection = useRowSelection(list.rows, { resetKey: JSON.stringify(query) })
 
@@ -273,6 +275,7 @@ export function KpiScorecardsTab() {
           placeholder={t('kpi.allStatuses')}
           className="w-full lg:w-40"
         />
+        <PositionGroupFilter value={filters.spg} onChange={(v) => setFilter('spg', v)} />
         <FilterReset count={activeFilterCount - (filters.iv ? 1 : 0)} onReset={() => { reset(); }} />
         <div className="flex flex-wrap gap-2 lg:ml-auto">
           <Button

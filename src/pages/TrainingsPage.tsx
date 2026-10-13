@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleDashed, Clock, Download, GraduationCap, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleDashed, Clock, Download, GraduationCap, Paperclip, Pencil, Plus, Target, Trash2 } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -42,7 +42,8 @@ import {
   useTrainings,
   type Training,
 } from '@/features/trainings/useTrainings'
-import { errorMessage } from '@/api/errorMessage'
+import { errorCode, errorMessage } from '@/api/errorMessage'
+import { usePlanIndicators } from '@/features/workplan/useWorkPlan'
 import { downloadFile } from '@/lib/download'
 import { isInvalidRange } from '@/lib/dateRange'
 import { formatNumber } from '@/lib/format'
@@ -139,6 +140,15 @@ export function TrainingsPage() {
         <span className="flex min-w-0 max-w-[22rem] flex-col">
           <span className="line-clamp-2 font-medium text-fg">{r.program_name}</span>
           <span className="truncate text-[12px] text-fg-subtle">{[r.provider || '—', typeLabel(r)].join(' · ')}</span>
+          {r.kpi_indicator_id != null && (
+            <span
+              className={cn('mt-0.5 flex items-center gap-1 text-[12px]', r.kpi_entry_id ? 'text-brand' : 'text-fg-subtle')}
+              title={r.kpi_entry_id ? t('kpiExt.trainingCounts') : t('kpiExt.trainingNotCounting')}
+            >
+              <Target size={11} className="shrink-0" />
+              <span className="truncate">{r.kpi_indicator_name || `#${r.kpi_indicator_id}`}</span>
+            </span>
+          )}
         </span>
       ),
     },
@@ -351,6 +361,7 @@ const EMPTY_FORM = {
   certificate_number: '',
   certificate_expires_at: '',
   note: '',
+  kpi_indicator_id: '',
 }
 type Form = typeof EMPTY_FORM
 
@@ -391,6 +402,7 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
             certificate_number: row.certificate_number ?? '',
             certificate_expires_at: row.certificate_expires_at ?? '',
             note: row.note ?? '',
+            kpi_indicator_id: row.kpi_indicator_id ? String(row.kpi_indicator_id) : '',
           }
         : EMPTY_FORM,
     )
@@ -398,6 +410,17 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
 
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const completed = form.status === 'completed'
+  // K4 · 1442 «Привязка к KPI» — only where the KPI module is on.
+  const kpiOn = !!useAuthStore((s) => s.user?.kpi_enabled)
+  const indicators = usePlanIndicators(open && kpiOn)
+  const indicatorOptions = [
+    ...indicators
+      .filter((i) => !(i as { is_justification?: boolean }).is_justification && (i.is_active !== false || String(i.id) === form.kpi_indicator_id))
+      .map((i) => ({ value: String(i.id), label: i.name, subLabel: i.measure ?? undefined })),
+    ...(row?.kpi_indicator_id && !indicators.some((i) => i.id === row.kpi_indicator_id)
+      ? [{ value: String(row.kpi_indicator_id), label: row.kpi_indicator_name || `#${row.kpi_indicator_id}` }]
+      : []),
+  ]
 
   const uploadAfter = async (id: number) => {
     if (!file) return
@@ -429,6 +452,7 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
       certificate_number: form.certificate_number.trim() || null,
       certificate_expires_at: form.certificate_expires_at || null,
       note: form.note.trim() || null,
+      ...(kpiOn || row?.kpi_indicator_id ? { kpi_indicator_id: form.kpi_indicator_id ? Number(form.kpi_indicator_id) : null } : {}),
     }
     try {
       if (row) {
@@ -447,7 +471,7 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
       }
       onClose()
     } catch (e) {
-      setError(errorMessage(e, t('common.actionFailed')))
+      setError(errorCode(e) === 'training_kpi_indicator_invalid' ? t('kpiExt.trainingIndicatorInvalid') : errorMessage(e, t('common.actionFailed')))
     }
   }
 
@@ -553,6 +577,16 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
         {!group && (
           <Field label={t('trainings.fileField')} wide>
             <CertificateFileField file={file} onChange={setFile} current={row} disabled={readOnly} />
+          </Field>
+        )}
+        {(kpiOn || !!row?.kpi_indicator_id) && (
+          <Field label={t('kpiExt.trainingIndicator')} hint={t('kpiExt.trainingIndicatorHint')} wide>
+            <Combobox
+              value={form.kpi_indicator_id}
+              onChange={(v) => set('kpi_indicator_id', v)}
+              options={indicatorOptions}
+              placeholder={t('workPlan.kpiIndicatorNone')}
+            />
           </Field>
         )}
         <Field label={t('trainings.note')} wide>

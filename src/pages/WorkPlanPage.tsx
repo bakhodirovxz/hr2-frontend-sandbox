@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { CalendarDays, CheckCircle2, CircleDashed, List, ListChecks, Loader, Pencil, Plus, Target, Trash2, XCircle } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Check, CheckCircle2, CircleDashed, Copy, Inbox, List, ListChecks, ListTree, Loader, Pencil, Plus, Send, ShieldAlert, Target, Trash2, Undo2, XCircle } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -24,6 +24,19 @@ import { Pagination } from '@/components/data/Pagination'
 import { useListParams } from '@/hooks/useListParams'
 import { useDepartmentOptions } from '@/hooks/useReferenceData'
 import { useEmployeeSearch } from '@/features/employees/useEmployeeSearch'
+import { useConfirm } from '@/components/data/useConfirm'
+import {
+  ApprovalBadge,
+  ApprovalModal,
+  CopyPlanModal,
+  SubtaskTree,
+  TreeToggle,
+  approvalOf,
+  buildTree,
+  flattenTree,
+  useApprovalRights,
+  type ApprovalAction,
+} from '@/features/workplan/WorkPlanExtras'
 import { useBranchStore } from '@/store/branchStore'
 import { useAuthStore } from '@/store/authStore'
 import { canWrite as canWriteModule } from '@/auth/permissions'
@@ -36,10 +49,12 @@ import {
   priorityOf,
   usePlanEmployee,
   usePlanIndicators,
+  useWorkPlanApprovals,
   useWorkPlanCalendar,
   useWorkPlanMeta,
   useWorkPlanMutations,
   useWorkPlans,
+  MAX_TASK_DEPTH,
   type OverlapTask,
   type Priority,
   type WorkPlan,
@@ -65,7 +80,9 @@ const dmy = (v?: string | null) => (v ? dayjs(v).format('DD.MM.YYYY') : '—')
 /** The longest window a period type allows — the server checks the same (422). */
 const MAX_DAYS: Record<string, number> = { month: 31, quarter: 92, year: 366 }
 
-const FILTER_KEYS = ['view', 'scale', 'at', 'emp', 'dept', 'priority', 'status', 'from', 'to'] as const
+const FILTER_KEYS = ['view', 'scale', 'at', 'emp', 'dept', 'priority', 'status', 'from', 'to', 'tab', 'ap'] as const
+/** What the PlanModal shows: a task, a new task, or a new subtask of `parent`. */
+type ModalValue = WorkPlan | 'new' | { parent: WorkPlan } | null
 const NARROWING = ['emp', 'dept', 'priority', 'status', 'from', 'to'] as const
 
 /**
@@ -116,15 +133,33 @@ export function WorkPlanPage() {
   const shown = useMemo(() => (status ? list.rows.filter((r) => r.status === status) : list.rows), [list.rows, status])
   const totalWeight = shown.reduce((a, r) => a + (r.weight ?? 0), 0)
   const [sort, setSort] = useState<SortState | null>(null)
-  const pages = Math.max(1, Math.ceil(shown.length / size))
+  const tree = useMemo(() => buildTree(shown), [shown])
+  const pages = Math.max(1, Math.ceil(tree.roots.length / size))
+  // Filled once the page's rows are known (below); the title cell reads it while rendering.
+  const levels = { current: new Map<number, { level: number; hasKids: boolean }>() }
 
   const departments = useDepartmentOptions(branchId)
   const [empQuery, setEmpQuery] = useState('')
   const empSearch = useEmployeeSearch(branchId, true, empQuery)
 
-  const [editing, setEditing] = useState<WorkPlan | 'new' | null>(null)
+  const [editing, setEditing] = useState<ModalValue>(null)
   const [deleting, setDeleting] = useState<WorkPlan | null>(null)
+  const [approval, setApproval] = useState<ApprovalAction | null>(null)
+  const [copying, setCopying] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set())
+  const toggle = (id: number) =>
+    setCollapsed((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
   const mut = useWorkPlanMutations()
+  const rights = useApprovalRights()
+  // K2 · 1385 «Согласование плана»: the approver's inbox — anyone with an employee card may be named.
+  const hasEmployee = !!user?.employee?.id
+  const tab = filters.tab === 'approvals' && hasEmployee ? 'approvals' : 'plan'
+  const pendingMine = useWorkPlanApprovals('submitted', hasEmployee)
 
   // The date range belongs to the list; the calendar has its own period.
   const narrowCount = NARROWING.filter((k) => filters[k] && (view === 'list' || (k !== 'from' && k !== 'to'))).length
@@ -137,12 +172,33 @@ export function WorkPlanPage() {
       key: 'title',
       header: t('workPlan.colTitle'),
       sortValue: (r) => r.title ?? '',
-      cell: (r) => (
-        <div className="min-w-0 max-w-[22rem]">
-          <p className="truncate font-semibold text-fg">{r.title || '—'}</p>
-          {r.description && <p className="mt-0.5 line-clamp-2 text-[12px] text-fg-subtle">{r.description}</p>}
-        </div>
-      ),
+      cell: (r) => {
+        const node = levels.current.get(r.id)
+        const level = node?.level ?? 0
+        return (
+          <div className="flex min-w-0 max-w-[26rem] items-start gap-1" style={{ paddingLeft: level * 20 }}>
+            {node?.hasKids ? (
+              <TreeToggle open={!collapsed.has(r.id)} onToggle={() => toggle(r.id)} className="-ml-1 mt-[-3px]" />
+            ) : level > 0 ? (
+              <span aria-hidden className="mt-[3px] w-5 shrink-0 text-center text-fg-subtle">└</span>
+            ) : null}
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-fg">{r.title || '—'}</p>
+              {r.description && <p className="mt-0.5 line-clamp-2 text-[12px] text-fg-subtle">{r.description}</p>}
+              {(r.children_count ?? 0) > 0 && (
+                <span className="mt-0.5 inline-flex items-center gap-1 text-[11.5px] text-fg-subtle">
+                  <ListTree size={11} /> {t('kpiExt.subtasksN', { count: r.children_count ?? 0 })}
+                </span>
+              )}
+              {r.inspection_finding_id != null && (
+                <span className="mt-0.5 flex items-center gap-1 text-[11.5px] text-warning">
+                  <ShieldAlert size={11} /> {t('kpiExt.correctiveTask')}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      },
     },
     {
       key: 'target',
@@ -183,19 +239,36 @@ export function WorkPlanPage() {
       sortValue: (r) => r.status ?? '',
       cell: (r) => <Badge tone={TONE[r.status ?? ''] ?? 'neutral'}>{r.status ? statusLabel(r.status) : '—'}</Badge>,
     },
-    ...(canWrite
+    {
+      key: 'approval',
+      header: t('kpiExt.colApproval'),
+      sortValue: (r) => approvalOf(r),
+      cell: (r) => <ApprovalBadge row={r} />,
+    },
+    ...(canWrite || hasEmployee
       ? [
           {
             key: 'actions',
             header: '',
             cell: (r: WorkPlan) => (
               <div className="flex justify-end gap-1">
+                <PlanActions
+                  row={r}
+                  canWrite={canWrite}
+                  rights={rights}
+                  onApproval={setApproval}
+                  onSubtask={(p) => setEditing({ parent: p })}
+                />
+                {canWrite && (
+                  <>
                 <IconButton size="sm" label={t('common.edit')} onClick={(e) => { e.stopPropagation(); setEditing(r) }}>
                   <Pencil size={15} />
                 </IconButton>
                 <IconButton size="sm" label={t('common.delete')} onClick={(e) => { e.stopPropagation(); setDeleting(r) }}>
                   <Trash2 size={15} className="text-danger" />
                 </IconButton>
+                  </>
+                )}
               </div>
             ),
           } as Column<WorkPlan>,
@@ -203,17 +276,20 @@ export function WorkPlanPage() {
       : []),
   ]
 
-  // Paged on the client, so the WHOLE list is sorted before it is cut.
+  // Paged on the client, so the WHOLE list is sorted before it is cut. The
+  // pages hold root tasks; their subtasks follow them (K2 · 1385 «иерархия задач»).
   const sortCol = sort ? columns.find((c) => c.key === sort.key) : undefined
-  const sorted = sortCol?.sortValue
-    ? [...shown].sort((a, b) => {
+  const sortFn = sortCol?.sortValue
+    ? (a: WorkPlan, b: WorkPlan) => {
         const x = sortCol.sortValue!(a) ?? ''
         const y = sortCol.sortValue!(b) ?? ''
         const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))
         return sort!.dir === 'asc' ? c : -c
-      })
-    : shown
-  const pageRows = sorted.slice((page - 1) * size, page * size)
+      }
+    : undefined
+  const pageNodes = flattenTree((sortFn ? [...tree.roots].sort(sortFn) : tree.roots).slice((page - 1) * size, page * size), tree.kids, collapsed, sortFn)
+  for (const n of pageNodes) levels.current.set(n.row.id, { level: n.level, hasKids: n.hasKids })
+  const pageRows = pageNodes.map((n) => n.row)
 
   const tiles: [string, string, ReactNode][] = [
     ['', t('workPlan.filterAll'), <ListChecks key="i" size={17} />],
@@ -225,9 +301,41 @@ export function WorkPlanPage() {
       <PageHeader
         title={t('workPlan.title')}
         subtitle={t('workPlan.subtitle')}
-        actions={canWrite ? <Button leftIcon={<Plus size={16} />} onClick={() => setEditing('new')}>{t('workPlan.create')}</Button> : undefined}
+        actions={
+          canWrite ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" leftIcon={<Copy size={15} />} onClick={() => setCopying(true)}>
+                {t('kpiExt.copyAction')}
+              </Button>
+              <Button leftIcon={<Plus size={16} />} onClick={() => setEditing('new')}>{t('workPlan.create')}</Button>
+            </div>
+          ) : undefined
+        }
       />
 
+      {hasEmployee && (
+        <div className="scroll-thin mb-4 overflow-x-auto">
+          <Segmented
+            value={tab}
+            onChange={(v) => setFilters({ tab: v === 'approvals' ? 'approvals' : null, ap: null })}
+            options={[
+              { value: 'plan', label: t('workPlan.title'), icon: <ListChecks size={14} /> },
+              { value: 'approvals', label: t('kpiExt.inboxTab'), icon: <Inbox size={14} />, count: pendingMine.rows.length || undefined },
+            ]}
+          />
+        </div>
+      )}
+
+      {tab === 'approvals' ? (
+        <ApprovalsInbox
+          status={filters.ap === 'all' ? '' : filters.ap || 'submitted'}
+          onStatus={(v) => setFilter('ap', v === 'submitted' ? '' : v || 'all')}
+          rights={rights}
+          onOpen={(r) => setEditing(r)}
+          onApproval={setApproval}
+        />
+      ) : (
+      <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Segmented
           value={view}
@@ -330,9 +438,11 @@ export function WorkPlanPage() {
               onSort={setSort}
               onRowClick={(r) => setEditing(r)}
             />
-            <Pagination page={page} pages={pages} total={shown.length} size={size} onPage={setPage} onSize={setSize} loading={list.fetching} />
+            <Pagination page={page} pages={pages} total={tree.roots.length} size={size} onPage={setPage} onSize={setSize} loading={list.fetching} />
           </Card>
         </>
+      )}
+      </>
       )}
 
       <ConfirmDialog
@@ -365,8 +475,145 @@ export function WorkPlanPage() {
           setEditing(null)
           toast.ok(t('common.saved'))
         }}
+        onOpen={setEditing}
+        onApproval={setApproval}
+        statusLabel={statusLabel}
       />
+      <ApprovalModal value={approval} onClose={() => setApproval(null)} />
+      <CopyPlanModal open={copying} onClose={() => setCopying(false)} defaults={{ emp: filters.emp, dept: filters.dept }} />
     </PageContainer>
+  )
+}
+
+type Rights = ReturnType<typeof useApprovalRights>
+
+/** Row buttons: a subtask, sending for approval, approving / returning. */
+function PlanActions({
+  row,
+  canWrite,
+  rights,
+  onApproval,
+  onSubtask,
+}: {
+  row: WorkPlan
+  canWrite: boolean
+  rights: Rights
+  onApproval: (a: ApprovalAction) => void
+  onSubtask?: (parent: WorkPlan) => void
+}) {
+  const { t } = useTranslation()
+  const stop = (fn: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation()
+    fn()
+  }
+  return (
+    <>
+      {onSubtask && canWrite && (row.depth ?? 1) < MAX_TASK_DEPTH && row.status !== 'cancelled' && (
+        <IconButton size="sm" label={t('kpiExt.addSubtask')} onClick={stop(() => onSubtask(row))}>
+          <ListTree size={15} />
+        </IconButton>
+      )}
+      {rights.canSubmit(row, canWrite) && (
+        <IconButton size="sm" label={t('kpiExt.submitAction')} onClick={stop(() => onApproval({ row, mode: 'submit' }))}>
+          <Send size={15} className="text-brand" />
+        </IconButton>
+      )}
+      {rights.canDecide(row) && (
+        <>
+          <IconButton size="sm" label={t('kpiExt.approveAction')} onClick={stop(() => onApproval({ row, mode: 'approve' }))}>
+            <Check size={15} className="text-success" />
+          </IconButton>
+          <IconButton size="sm" label={t('kpiExt.returnAction')} onClick={stop(() => onApproval({ row, mode: 'return' }))}>
+            <Undo2 size={15} className="text-danger" />
+          </IconButton>
+        </>
+      )}
+    </>
+  )
+}
+
+/** «Kelishish uchun» — the plans whose approver is me (`approver=me`). */
+function ApprovalsInbox({
+  status,
+  onStatus,
+  rights,
+  onOpen,
+  onApproval,
+}: {
+  status: string
+  onStatus: (v: string) => void
+  rights: Rights
+  onOpen: (r: WorkPlan) => void
+  onApproval: (a: ApprovalAction) => void
+}) {
+  const { t } = useTranslation()
+  const q = useWorkPlanApprovals(status, true)
+  const columns: Column<WorkPlan>[] = [
+    {
+      key: 'title',
+      header: t('workPlan.colTitle'),
+      cell: (r) => (
+        <div className="min-w-0 max-w-[24rem]">
+          <p className="truncate font-semibold text-fg">{r.title || '—'}</p>
+          {(r.children_count ?? 0) > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11.5px] text-fg-subtle">
+              <ListTree size={11} /> {t('kpiExt.subtasksN', { count: r.children_count ?? 0 })}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    { key: 'for', header: t('workPlan.colFor'), cell: (r) => <span className="text-fg">{r.employee_name || r.department_name || '—'}</span> },
+    { key: 'dates', header: t('workPlan.colDates'), cell: (r) => <span className="whitespace-nowrap tabular-nums text-fg-muted">{formatRange(r.start_date, r.end_date)}</span> },
+    { key: 'weight', header: t('workPlan.colWeight'), cell: (r) => <span className="tabular-nums">{r.weight ?? '—'}</span> },
+    {
+      key: 'approval',
+      header: t('kpiExt.colApproval'),
+      cell: (r) => (
+        <span className="flex flex-col items-start gap-0.5">
+          <ApprovalBadge row={r} />
+          {r.approval_comment && <span className="line-clamp-2 max-w-[16rem] text-[11.5px] text-fg-subtle">{r.approval_comment}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (r) => (
+        <div className="flex justify-end gap-1">
+          <PlanActions row={r} canWrite={false} rights={rights} onApproval={onApproval} />
+        </div>
+      ),
+    },
+  ]
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Segmented
+          size="sm"
+          value={status || 'all'}
+          onChange={(v) => onStatus(v === 'all' ? '' : v)}
+          options={[
+            { value: 'submitted', label: t('kpiExt.approval_submitted') },
+            { value: 'approved', label: t('kpiExt.approval_approved') },
+            { value: 'returned', label: t('kpiExt.approval_returned') },
+            { value: 'all', label: t('kpiExt.inboxAll') },
+          ]}
+        />
+      </div>
+      <Card className="overflow-hidden p-0">
+        <DataTable
+          tableId="work-plan-approvals"
+          rows={q.rows}
+          columns={columns}
+          loading={q.loading}
+          error={q.error}
+          onRetry={q.refetch}
+          emptyTitle={t('kpiExt.inboxEmpty')}
+          onRowClick={onOpen}
+        />
+      </Card>
+    </>
   )
 }
 
@@ -391,16 +638,26 @@ function PlanModal({
   defaults,
   onClose,
   onSaved,
+  onOpen,
+  onApproval,
+  statusLabel,
 }: {
-  value: WorkPlan | 'new' | null
+  value: ModalValue
   readOnly: boolean
   defaults: { start?: string; end?: string }
   onClose: () => void
   onSaved: () => void
+  /** Opens another task (a subtask) or a new subtask in this card. */
+  onOpen: (v: ModalValue) => void
+  onApproval: (a: ApprovalAction) => void
+  statusLabel: (v: string) => string
 }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
+  const rights = useApprovalRights()
   const open = !!value
-  const row = value && value !== 'new' ? value : null
+  const parent = value && typeof value === 'object' && 'parent' in value ? value.parent : null
+  const row = value && value !== 'new' && !('parent' in value) ? value : null
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const kpiOn = !!useAuthStore((s) => s.user?.kpi_enabled)
   const { periods, statuses, priorities } = useWorkPlanMeta()
@@ -434,10 +691,19 @@ function PlanModal({
             status: row.status ?? 'planned',
             priority: priorityOf(row),
           }
-        : blank(defaults),
+        : parent
+          ? {
+              ...blank({ start: parent.start_date ?? undefined, end: parent.end_date ?? undefined }),
+              employee_id: parent.employee_id ? String(parent.employee_id) : '',
+              department_id: parent.employee_id ? '' : parent.department_id ? String(parent.department_id) : '',
+              period_type: parent.period_type ?? 'month',
+              kpi_indicator_id: parent.kpi_indicator_id ? String(parent.kpi_indicator_id) : '',
+              priority: priorityOf(parent),
+            }
+          : blank(defaults),
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, row])
+  }, [open, row, parent])
 
   const set = <K extends keyof PlanForm>(k: K, v: PlanForm[K]) => setF((p) => ({ ...p, [k]: v }))
 
@@ -459,6 +725,9 @@ function PlanModal({
     if (!row && !f.employee_id && !f.department_id) return setError(t('workPlan.targetRequired'))
     if (!f.start_date || !f.end_date) return setError(t('workPlan.datesRequired'))
     if (isInvalidRange(f.start_date, f.end_date)) return setError(t('list.invalidRange'))
+    // K2 · 1385: a subtask stays inside its parent's dates (the server checks too).
+    if (parent && ((parent.start_date && f.start_date < parent.start_date) || (parent.end_date && f.end_date > parent.end_date)))
+      return setError(t('kpiExt.subtaskDates', { range: formatRange(parent.start_date, parent.end_date) }))
     if (f.weight.trim() !== '') {
       const w = Number(f.weight)
       if (!Number.isFinite(w) || w < 0 || w > 100) return setError(t('workPlan.weightRange'))
@@ -481,6 +750,15 @@ function PlanModal({
       priority: f.priority,
       ...(allowOverlap ? { allow_overlap: true } : {}),
     }
+    // K2 · 1385: editing a plan that is under approval / approved sends it back to draft.
+    if (row && ['submitted', 'approved'].includes(approvalOf(row))) {
+      const changed = (['title', 'description', 'start_date', 'end_date', 'kpi_indicator_id', 'planned_result', 'weight', 'period_type', 'priority'] as const).some(
+        (k) => String(body[k] ?? '') !== String((row as unknown as Record<string, unknown>)[k] ?? ''),
+      )
+      if (changed && !(await confirm({ kind: 'action', title: t('kpiExt.resetWarnTitle'), description: t('kpiExt.resetWarnBody') }))) return
+    }
+    // A parent's status follows its subtasks — it is not sent.
+    if (row && (row.children_count ?? 0) > 0) delete body.status
     setOverlap(null)
     try {
       if (row) await mut.update.mutateAsync({ id: row.id, body })
@@ -489,10 +767,12 @@ function PlanModal({
           ...body,
           employee_id: f.employee_id ? Number(f.employee_id) : null,
           department_id: f.department_id ? Number(f.department_id) : null,
-          organization_branch_id: branchId || null,
+          organization_branch_id: parent ? parent.organization_branch_id ?? null : branchId || null,
+          ...(parent ? { parent_id: parent.id } : {}),
         })
       onSaved()
     } catch (e) {
+      if (errorCode(e) === 'work_plan_depth_exceeded') return setError(t('kpiExt.depthExceeded', { n: MAX_TASK_DEPTH }))
       // TZ K2 · 1375: the employee's other tasks in the same window — listed,
       // and «Baribir saqlash» resends with `allow_overlap`.
       if (errorCode(e) === 'work_plan_overlap') {
@@ -511,7 +791,7 @@ function PlanModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={readOnly ? t('workPlan.viewTitle') : row ? t('workPlan.editTitle') : t('workPlan.createTitle')}
+      title={readOnly ? t('workPlan.viewTitle') : row ? t('workPlan.editTitle') : parent ? t('kpiExt.addSubtask') : t('workPlan.createTitle')}
       size="lg"
       footer={
         <div className="flex w-full flex-col gap-2.5">
@@ -546,16 +826,24 @@ function PlanModal({
         </div>
       }
     >
+      {row && <ApprovalPanel row={row} canWrite={!readOnly} rights={rights} onApproval={(a) => { onClose(); onApproval(a) }} />}
       <fieldset disabled={readOnly} className="grid min-w-0 gap-3 sm:grid-cols-2">
+        {parent && (
+          <Field label={t('kpiExt.parentTask')} wide>
+            <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">
+              «{parent.title ?? ''}» · <span className="tabular-nums text-fg-muted">{formatRange(parent.start_date, parent.end_date)}</span>
+            </p>
+          </Field>
+        )}
         <Field label={t('workPlan.colTitle')} required wide>
           <Input value={f.title} onChange={(e) => set('title', e.target.value)} />
         </Field>
         <Field label={t('workPlan.fieldDescription')} wide>
           <Textarea rows={2} value={f.description} onChange={(e) => set('description', e.target.value)} />
         </Field>
-        {row ? (
+        {row || parent ? (
           <Field label={t('workPlan.colFor')} wide>
-            <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">{row.employee_name || row.department_name || '—'}</p>
+            <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">{(row ?? parent)?.employee_name || (row ?? parent)?.department_name || '—'}</p>
           </Field>
         ) : (
           <>
@@ -606,11 +894,56 @@ function PlanModal({
         <Field label={t('workPlan.colWeight')}>
           <Input type="number" min={0} max={100} value={f.weight} onChange={(e) => set('weight', e.target.value)} />
         </Field>
-        <Field label={t('workPlan.fieldStatus')} wide>
-          <Combobox value={f.status} onChange={(v) => v && set('status', v)} options={statuses} clearable={false} />
+        <Field label={t('workPlan.fieldStatus')} hint={(row?.children_count ?? 0) > 0 ? t('kpiExt.statusDerived') : undefined} wide>
+          <Combobox value={f.status} onChange={(v) => v && set('status', v)} options={statuses} clearable={false} disabled={(row?.children_count ?? 0) > 0} />
         </Field>
       </fieldset>
+      {row && (
+        <div className="mt-3 grid">
+          <SubtaskTree parent={row} canWrite={!readOnly} statusLabel={statusLabel} onOpen={(r) => onOpen(r)} onAdd={(p) => onOpen({ parent: p })} />
+        </div>
+      )}
     </Modal>
+  )
+}
+
+/** The approval state of a task in its card, with the actions the caller may take. */
+function ApprovalPanel({ row, canWrite, rights, onApproval }: { row: WorkPlan; canWrite: boolean; rights: Rights; onApproval: (a: ApprovalAction) => void }) {
+  const { t } = useTranslation()
+  const a = approvalOf(row)
+  const locked = a === 'submitted' || a === 'approved'
+  return (
+    <div className={cn('mb-3 flex flex-col gap-2 rounded-lg border px-3 py-2.5 text-[12.5px]', locked ? 'border-info/30 bg-info-soft/40' : 'border-line bg-surface-2/50')}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold text-fg-muted">{t('kpiExt.colApproval')}:</span>
+        <ApprovalBadge row={row} />
+        {row.approver_name && <span className="text-fg-muted">· {t('kpiExt.approver')}: {row.approver_name}</span>}
+        {row.approved_at && <span className="tabular-nums text-fg-subtle">· {dmy(row.approved_at)}</span>}
+        <span className="ml-auto flex gap-1.5">
+          {rights.canSubmit(row, canWrite) && (
+            <Button size="sm" variant="secondary" leftIcon={<Send size={13} />} onClick={() => onApproval({ row, mode: 'submit' })}>
+              {t('kpiExt.submitAction')}
+            </Button>
+          )}
+          {rights.canDecide(row) && (
+            <>
+              <Button size="sm" leftIcon={<Check size={13} />} onClick={() => onApproval({ row, mode: 'approve' })}>
+                {t('kpiExt.approveAction')}
+              </Button>
+              <Button size="sm" variant="danger-ghost" leftIcon={<Undo2 size={13} />} onClick={() => onApproval({ row, mode: 'return' })}>
+                {t('kpiExt.returnAction')}
+              </Button>
+            </>
+          )}
+        </span>
+      </div>
+      {row.approval_comment && <p className="text-fg-muted">{t('kpiExt.comment')}: {row.approval_comment}</p>}
+      {locked && canWrite && (
+        <p className="flex items-center gap-1.5 text-warning">
+          <AlertTriangle size={13} className="shrink-0" /> {t('kpiExt.resetWarnBody')}
+        </p>
+      )}
+    </div>
   )
 }
 
