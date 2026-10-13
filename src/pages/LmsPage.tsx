@@ -16,7 +16,7 @@ import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { RequireRole } from '@/components/layout/RequireRole'
 import { errorMessage } from '@/api/errorMessage'
 import { formatDateTime } from '@/lib/format'
-import * as roles from '@/auth/roles'
+import { isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { useLmsLogs, useLmsMutations, useLmsSettings, type LmsSyncResult } from '@/features/system/useLms'
 
@@ -309,7 +309,7 @@ export function LmsPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   return (
-    <RequireRole allowed={roles.isSiteMasterAdmin(user)} title={t('lms.title')}>
+    <RequireRole allowed={isSiteMasterAdmin(user)} title={t('lms.title')}>
       <LmsPageInner />
     </RequireRole>
   )

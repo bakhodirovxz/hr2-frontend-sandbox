@@ -35,7 +35,7 @@ import { useToast } from '@/components/ui/Toast'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { ConfirmDialog } from '@/components/data/ConfirmDialog'
 import { RequireRole } from '@/components/layout/RequireRole'
-import * as roles from '@/auth/roles'
+import { isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { apiDelete, apiGet, apiPost, apiPut } from '@/api/http'
 import { errorCode, errorMessage } from '@/api/errorMessage'
@@ -807,7 +807,7 @@ export function BackupsPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   return (
-    <RequireRole allowed={roles.isSiteMasterAdmin(user)} title={t('backups.title')}>
+    <RequireRole allowed={isSiteMasterAdmin(user)} title={t('backups.title')}>
       <BackupsPageInner />
     </RequireRole>
   )

@@ -6,6 +6,7 @@ import { toItems, type ListResponse, type OrganizationBranch } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import * as roles from '@/auth/roles'
+import { isGuest } from '@/auth/permissions'
 import { findExecutiveBranchId } from '@/auth/branchHelpers'
 import { rememberGuest } from '@/api/bootPrefetch'
 
@@ -16,7 +17,7 @@ export function useBranches() {
   // sahifalari (vakansiyalar, xizmatlar) filialga bog'lanmagan. `auth/me`
   // kelmaguncha (user null) so'ralmaydi — aks holda mehmonda ham ketardi.
   const user = useAuthStore((s) => s.user)
-  const guest = roles.isGuest(user)
+  const guest = isGuest(user)
   const setBranches = useBranchStore((s) => s.setBranches)
 
   const query = useQuery({

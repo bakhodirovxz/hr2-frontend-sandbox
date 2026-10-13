@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadError } from '@/components/data/LoadError'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { RequireRole } from '@/components/layout/RequireRole'
-import * as roles from '@/auth/roles'
+import { isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { apiGet, apiPost } from '@/api/http'
 import { useToast } from '@/components/ui/Toast'
@@ -298,7 +298,7 @@ export function SystemHealthPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   return (
-    <RequireRole allowed={roles.isSiteMasterAdmin(user)} title={t('sysHealth.title')}>
+    <RequireRole allowed={isSiteMasterAdmin(user)} title={t('sysHealth.title')}>
       <SystemHealthPageInner />
     </RequireRole>
   )
