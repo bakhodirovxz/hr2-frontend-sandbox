@@ -99,7 +99,7 @@ export function EditConflictDialog({
     <Modal
       open={!!conflict}
       onClose={onClose}
-      size="sm"
+      size="md"
       title={t('hrExt.conflict.title')}
       footer={
         <>
