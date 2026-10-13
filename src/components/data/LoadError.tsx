@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Lock } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, isModuleBlocked } from '@/api/errorMessage'
 
 /**
  * "The request failed" — as distinct from "there is nothing here".
@@ -21,10 +21,12 @@ import { errorMessage } from '@/api/errorMessage'
  */
 export function LoadError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useTranslation()
+  // TZ E3 1729: bloklangan modul — «yuklab bo'lmadi» emas, alohida holat.
+  const blocked = isModuleBlocked(error)
   return (
     <EmptyState
-      icon={<AlertTriangle size={22} className="text-danger" />}
-      title={t('list.loadFailed')}
+      icon={blocked ? <Lock size={22} className="text-warning" /> : <AlertTriangle size={22} className="text-danger" />}
+      title={blocked ? t('sysOps.moduleBlockedTitle') : t('list.loadFailed')}
       description={errorMessage(error, t('list.loadFailedHint'))}
       action={
         onRetry ? (

@@ -1,6 +1,19 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileCheck2, FileSignature, FileText, Inbox, Paperclip, Plus, RefreshCw, User as UserIcon, UserPlus } from 'lucide-react'
+import {
+  FileCheck2,
+  FileSignature,
+  FileText,
+  Inbox,
+  Paperclip,
+  PauseCircle,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  ToggleRight,
+  User as UserIcon,
+  UserPlus,
+} from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { Avatar, Button, Card, IconButton, Select } from '@/components/ui'
 import { DataTable, type Column } from '@/components/data/DataTable'
@@ -16,16 +29,22 @@ import { isSiteMasterAdmin } from '@/auth/permissions'
 import { ServiceCreateModal } from '@/features/services/ServiceCreateModal'
 import { ServiceDetailModal } from '@/features/services/ServiceDetailModal'
 import { ServiceTemplatesPanel } from '@/features/services/ServiceTemplatesPanel'
+import { ServiceAvailabilityPanel } from '@/features/services/ServiceAvailabilityPanel'
 import { CandidateResultBadge, StatusBadge, fmtStamp } from '@/features/services/serviceUi'
 import { serviceClosedReason, serviceDescription, serviceLabel } from '@/features/services/serviceLabel'
+import { inUtc } from '@/lib/format'
 import {
   ALL_STATUSES,
   JOB_APPLICATION,
+  RESUBMIT_STATUSES,
+  canManageServiceAvailability,
   canReviewServices,
+  isTemporarilyClosed,
   useMyServiceRequests,
   useServiceCatalog,
   useServiceInbox,
   type ServiceCatalogItem,
+  type ServicePrefill,
   type ServiceRequestRow,
   type ServiceType,
 } from '@/features/services/useServices'
@@ -36,7 +55,7 @@ const SERVICE_ICON: Record<string, typeof FileCheck2> = {
   job_application: UserPlus,
 }
 
-type Tab = 'mine' | 'inbox' | 'templates'
+type Tab = 'mine' | 'inbox' | 'templates' | 'availability'
 const URL_KEYS = ['tab', 'status', 'type', 'open'] as const
 const FILTERS = ['status', 'type'] as const
 
@@ -57,13 +76,21 @@ export function ServicesPage() {
   const canReview = canReviewServices(user)
   const isMaster = isSiteMasterAdmin(user)
   const canTemplates = isMaster || canReview
+  const canAvailability = canManageServiceAvailability(user)
 
   const { catalog } = useServiceCatalog()
   const lp = useListParams(URL_KEYS)
   const { search, page, size, filters, setSearch, setPage, setSize, setFilter, setFilters } = lp
   const { count: activeFilterCount, reset } = useFilterReset(lp, FILTERS)
   const tab: Tab =
-    filters.tab === 'inbox' && canReview ? 'inbox' : filters.tab === 'templates' && canTemplates ? 'templates' : 'mine'
+    filters.tab === 'inbox' && canReview
+      ? 'inbox'
+      : filters.tab === 'templates' && canTemplates
+        ? 'templates'
+        : filters.tab === 'availability' && canAvailability
+          ? 'availability'
+          : 'mine'
+  const listTab = tab === 'mine' || tab === 'inbox'
 
   const mine = useMyServiceRequests(filters.status, page, size, tab === 'mine')
   const inbox = useServiceInbox(
@@ -77,18 +104,36 @@ export function ServicesPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createType, setCreateType] = useState<ServiceType | null>(null)
+  const [prefill, setPrefill] = useState<ServicePrefill | null>(null)
   const openCreate = (type?: ServiceType) => {
+    setPrefill(null)
     setCreateType(type ?? null)
+    setCreateOpen(true)
+  }
+  /** TZ I1 «Повторная подача»: avvalgi so'rov ma'lumoti bilan yangi forma. */
+  const resubmit = (r: ServiceRequestRow) => {
+    setPrefill({
+      fromNumber: r.number,
+      type: r.service_type as ServiceType,
+      purpose: r.purpose,
+      payload: r.payload,
+      organization_branch_id: r.service_type === JOB_APPLICATION ? r.organization_branch_id : null,
+    })
+    setCreateType(r.service_type as ServiceType)
+    openRequest(null)
     setCreateOpen(true)
   }
 
   const available = catalog.filter((c) => c.available)
-  const closed = catalog.filter((c) => !c.available)
+  // TZ I1 1610: rolga ochiq, lekin texnik ishlar uchun vaqtincha yopilgan.
+  const paused = catalog.filter((c) => isTemporarilyClosed(user, c))
+  const closed = catalog.filter((c) => !c.available && !isTemporarilyClosed(user, c))
 
   const tabs: { key: Tab; label: string; icon: typeof Inbox }[] = [
     { key: 'mine', label: t('services.tab_mine'), icon: UserIcon },
     ...(canReview ? [{ key: 'inbox' as Tab, label: t('svc.tabInbox'), icon: Inbox }] : []),
     ...(canTemplates ? [{ key: 'templates' as Tab, label: t('svc.tabTemplates'), icon: FileText }] : []),
+    ...(canAvailability ? [{ key: 'availability' as Tab, label: t('sysOps.svcTab'), icon: ToggleRight }] : []),
   ]
 
   const columns: Column<ServiceRequestRow>[] = [
@@ -155,6 +200,29 @@ export function ServicesPage() {
         </div>
       ),
     },
+    ...(tab === 'mine'
+      ? [
+          {
+            key: 'resubmit',
+            header: '',
+            label: t('sysOps.resubmit'),
+            className: 'w-[52px] text-right',
+            cell: (r: ServiceRequestRow) =>
+              RESUBMIT_STATUSES.includes(r.status) ? (
+                <IconButton
+                  size="sm"
+                  label={`${t('sysOps.resubmit')}: ${r.number}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    resubmit(r)
+                  }}
+                >
+                  <RotateCcw size={14} />
+                </IconButton>
+              ) : null,
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -171,11 +239,16 @@ export function ServicesPage() {
         }
       />
 
-      {/* ── Xizmatlar peshtaxtasi: faqat ochiq xizmatlar, yopiqlari sababi bilan ── */}
-      {available.length > 0 && (
-        <div className={cn('mb-3 grid gap-3', available.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+      {/* ── Xizmatlar peshtaxtasi: ochiq xizmatlar, vaqtincha yopilganlari sababi bilan ── */}
+      {available.length + paused.length > 0 && (
+        <div
+          className={cn('mb-3 grid gap-3', available.length + paused.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}
+        >
           {available.map((c) => (
             <ServiceTile key={c.type} item={c} onPick={() => openCreate(c.type)} />
+          ))}
+          {paused.map((c) => (
+            <PausedServiceTile key={c.type} item={c} />
           ))}
         </div>
       )}
@@ -207,7 +280,7 @@ export function ServicesPage() {
             ))}
           </div>
 
-          {tab !== 'templates' && (
+          {listTab && (
             <>
               {tab === 'inbox' && (
                 <>
@@ -245,6 +318,8 @@ export function ServicesPage() {
 
         {tab === 'templates' ? (
           <ServiceTemplatesPanel canEdit={isMaster} />
+        ) : tab === 'availability' ? (
+          <ServiceAvailabilityPanel />
         ) : (
           <>
             <DataTable
@@ -286,12 +361,18 @@ export function ServicesPage() {
         onClose={() => setCreateOpen(false)}
         catalog={catalog}
         initialType={createType}
+        prefill={prefill}
         onCreated={(id) => {
           if (tab !== 'mine') setFilters({ tab: null, status: null, type: null, q: null, open: String(id) })
           else openRequest(id)
         }}
       />
-      <ServiceDetailModal id={openId} onClose={() => openRequest(null)} fromInbox={tab === 'inbox'} />
+      <ServiceDetailModal
+        id={openId}
+        onClose={() => openRequest(null)}
+        fromInbox={tab === 'inbox'}
+        onResubmit={(r) => resubmit(r)}
+      />
     </PageContainer>
   )
 }
@@ -311,6 +392,36 @@ function ServiceTile({ item, onPick }: { item: ServiceCatalogItem; onPick: () =>
           <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted" title={desc || undefined}>
             {desc || t('services.tileAvailable')}
           </p>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+/** Vaqtincha yopilgan xizmat (TZ I1 1610): bosilmaydi, sababi va muddati ko'rinadi. */
+function PausedServiceTile({ item }: { item: ServiceCatalogItem }) {
+  const { t } = useTranslation()
+  const Icon = SERVICE_ICON[item.type] ?? FileCheck2
+  return (
+    <Card className="border-dashed p-4 opacity-90" aria-disabled>
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-inner bg-warning-soft text-warning">
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-1.5 text-[14px] font-semibold text-fg-muted">
+            {serviceLabel(item.type, item.label)}
+            <span className="inline-flex items-center gap-1 rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning">
+              <PauseCircle size={11} aria-hidden />
+              {t('sysOps.svcClosed')}
+            </span>
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted" title={item.reason || undefined}>
+            {item.reason || t('sysOps.svcClosedDefault')}
+          </p>
+          {item.unavailable_until && (
+            <p className="mt-0.5 text-[11.5px] text-fg-subtle">{t('sysOps.svcUntil', { date: inUtc(item.unavailable_until) })}</p>
+          )}
         </div>
       </div>
     </Card>

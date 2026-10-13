@@ -113,3 +113,44 @@ export function useManualMutations() {
     remove: useMutation({ mutationFn: (id: number) => apiDelete(`${MANUAL}/${id}`), onSuccess: done }),
   }
 }
+
+/** `POST /manual-attendance/bulk` chegaralari (backend `BULK_MAX_*`, `BulkIn`). */
+export const BULK_MAX_DAYS = 62
+export const BULK_MAX_CELLS = 5000
+export const BULK_MAX_EMPLOYEES = 500
+
+export interface BulkResultRow {
+  employee_id: number
+  /** Bo'sh — xodim darajasidagi rad (topilmadi / ko'lamdan tashqari): barcha kunlar. */
+  work_date?: string | null
+  ok: boolean
+  id?: number
+  status_code?: number
+  code?: string | null
+  error?: string | null
+}
+
+export interface BulkResult {
+  total: number
+  saved: number
+  failed: number
+  items: BulkResultRow[]
+}
+
+/**
+ * TZ I2 1639 «Массовое заполнение»: bir xil qiymat tanlangan xodimlar ×
+ * sanalar oralig'iga. Javob — har katak bo'yicha natija; rad etilgani
+ * boshqalarini to'xtatmaydi.
+ */
+export function useBulkManualAttendance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => apiPost<BulkResult>(`${MANUAL}/bulk`, body),
+    // Xato oynaning o'zida ko'rsatiladi (`bulk_too_large` chegaralari bilan).
+    meta: { silent: true },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [MANUAL] })
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+    },
+  })
+}

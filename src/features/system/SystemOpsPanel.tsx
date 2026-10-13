@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Clock, LifeBuoy, Lock, PlayCircle, Power, RefreshCw } from 'lucide-react'
@@ -22,6 +22,8 @@ import {
   type OpsState,
   type OpenTransaction,
 } from './systemOps'
+import { JobProgress } from './JobProgress'
+import { useJob } from './useJob'
 
 /*
  * TZ E2 «Аварийное завершение» va E3 «Восстановление» — rejim kartasi va
@@ -63,6 +65,9 @@ export function SystemOpsPanel({
   const [reason, setReason] = useState('')
   const [force, setForce] = useState(false)
   const [txAction, setTxAction] = useState<'keep' | 'rollback'>('keep')
+  /** TZ E3 1725 «индикация прогресса»: tiklash fon vazifasi sifatida. */
+  const [runJobId, setRunJobId] = useState<number | null>(null)
+  const runJob = useJob<OpsReport>(runJobId)
 
   const mode = state?.mode || 'running'
   const stopped = !!state && mode !== 'running' && mode !== 'backup'
@@ -87,7 +92,8 @@ export function SystemOpsPanel({
       }
       if (kind === 'enter') return { kind, data: await apiPost<OpsReport>(OPS.recoveryEnter) }
       if (kind === 'run') {
-        return { kind, data: await apiPost<OpsReport>(OPS.recoveryRun, { tx_action: txAction, repair: true }) }
+        const r = await apiPost<{ job_id: number }>(OPS.recoveryRun, { tx_action: txAction, repair: true, background: true })
+        return { kind, data: { job_id: r.job_id } as OpsReport }
       }
       return { kind, data: await apiPost<OpsReport>(OPS.resume) }
     },
@@ -102,16 +108,32 @@ export function SystemOpsPanel({
       } else if (kind === 'enter') {
         toast.ok(t('sysHealth.recoveryEnterDone'))
       } else if (kind === 'run') {
-        onReport({ title: t('sysHealth.recoveryReport'), data })
-        if (data?.ok === false) toast.error(t('sysHealth.recoveryProblems'))
-        else toast.ok(t('sysHealth.recoveryOk'))
+        setRunJobId(Number(data.job_id))
       } else {
         toast.ok(t('sysHealth.resumeDone'))
       }
     },
   })
 
-  const busy = run.isPending
+  // Fon vazifasi tugadi — hisobot sahifada, holat qayta o'qiladi.
+  const jobStatus = runJob.data?.status
+  useEffect(() => {
+    if (jobStatus !== 'done' && jobStatus !== 'failed') return
+    const job = runJob.data!
+    if (jobStatus === 'done') {
+      const data = (job.result ?? {}) as OpsReport
+      onReport({ title: t('sysHealth.recoveryReport'), data })
+      if (data?.ok === false) toast.error(t('sysHealth.recoveryProblems'))
+      else toast.ok(t('sysHealth.recoveryOk'))
+    } else {
+      toast.error(job.error || t('sysOps.jobFailed'))
+    }
+    setRunJobId(null)
+    void reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobStatus])
+
+  const busy = run.isPending || runJobId != null
   const reasonShort = reason.trim().length < 3
 
   return (
@@ -178,6 +200,13 @@ export function SystemOpsPanel({
         </div>
 
         {mode === 'backup' && <p className="mt-3 text-[12.5px] text-fg-muted">{t('sysHealth.backupModeHint')}</p>}
+
+        {runJobId != null && (
+          <div className="mt-4 border-t border-line pt-3">
+            <p className="mb-2 text-[13px] font-semibold text-fg">{t('sysHealth.recoveryRun')}</p>
+            <JobProgress job={runJob.data} />
+          </div>
+        )}
 
         {stopped && (
           <div className="mt-4 flex flex-col gap-2.5 border-t border-line pt-3">

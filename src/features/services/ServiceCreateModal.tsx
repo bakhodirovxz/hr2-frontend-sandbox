@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, History, PauseCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Button, Combobox, Field, Input, Modal, Textarea, useToast } from '@/components/ui'
 import { FormError } from '@/components/ui/FormError'
 import { tabPill } from '@/components/ui/control'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
 import { maskValue } from '@/lib/fieldMask'
+import { inUtc } from '@/lib/format'
+import { useAuthStore } from '@/store/authStore'
 import {
   JOB_APPLICATION,
+  isTemporarilyClosed,
   useApplicationBranches,
   useServiceMutations,
   type ServiceCatalogItem,
+  type ServicePrefill,
   type ServiceType,
 } from './useServices'
 import { serviceDescription, serviceLabel } from './serviceLabel'
@@ -53,12 +58,19 @@ export function ServiceCreateModal({
   onClose,
   catalog,
   initialType,
+  prefill,
   onCreated,
 }: {
   open: boolean
   onClose: () => void
   catalog: ServiceCatalogItem[]
   initialType?: ServiceType | null
+  /**
+   * TZ I1 «Повторная подача — Система заполняет форму данными из предыдущей
+   * заявки»: tur, maqsad va ariza maydonlari avvalgi so'rovdan. Ilovalar
+   * ko'chirilmaydi (ular avvalgi so'rovga tegishli fayllar).
+   */
+  prefill?: ServicePrefill | null
   /** Yaratilgan so'rov (ilovalar yuklangach) — tafsilotni ochish uchun. */
   onCreated?: (id: number) => void
 }) {
@@ -66,8 +78,15 @@ export function ServiceCreateModal({
   const toast = useToast()
   const { create, settle } = useServiceMutations()
   const queue = useAttachmentQueue()
+  const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
 
-  const usable = useMemo(() => catalog.filter((c) => c.available), [catalog])
+  // Ochiq xizmatlar + rolga ochiq, lekin vaqtincha yopilganlari (TZ I1 1610):
+  // ikkinchisi tanlanadi, sababi ko'rinadi, «Yuborish» o'chiq.
+  const usable = useMemo(
+    () => catalog.filter((c) => c.available || isTemporarilyClosed(user, c)),
+    [catalog, user],
+  )
   const categories = useMemo(
     () => [...new Set(usable.map((c) => c.category).filter((c): c is string => !!c))],
     [usable],
@@ -91,19 +110,33 @@ export function ServiceCreateModal({
     if (!open) return
     setError(null)
     setFieldErrors({})
-    setPurpose('')
-    setPayload(BLANK)
-    setBranchId('')
     setCategory('')
     setCreatedId(null)
     clear()
-    setType(initialType ?? usable[0]?.type ?? '')
+    if (prefill) {
+      const p = prefill.payload ?? {}
+      setType(prefill.type)
+      setPurpose(prefill.purpose ?? '')
+      setPayload(
+        Object.fromEntries(
+          (Object.keys(BLANK) as (keyof Payload)[]).map((k) => [k, p[k] == null ? '' : String(p[k])]),
+        ) as Payload,
+      )
+      setBranchId(prefill.organization_branch_id ? String(prefill.organization_branch_id) : '')
+      return
+    }
+    setPurpose('')
+    setPayload(BLANK)
+    setBranchId('')
+    setType(initialType ?? (usable.find((c) => c.available) ?? usable[0])?.type ?? '')
     // `usable` derived from catalog; keying on the modal opening is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialType])
+  }, [open, initialType, prefill])
 
   const visible = usable.filter((c) => !category || c.category === category)
   const selected = catalog.find((c) => c.type === type) ?? null
+  /** Tanlangan xizmat vaqtincha yopiq — forma ko'rinadi, yuborilmaydi. */
+  const closedNow = !!selected && !selected.available && !!selected.temporarily_unavailable
   const locked = createdId != null || busy
 
   const setField = (k: keyof Payload, v: string) => {
@@ -142,6 +175,7 @@ export function ServiceCreateModal({
       setError(t('services.pickService'))
       return
     }
+    if (closedNow) return
     const local: Record<string, string> = {}
     if (isApplication) {
       if (!payload.last_name.trim()) local.last_name = t('svc.required')
@@ -174,6 +208,8 @@ export function ServiceCreateModal({
         finish(d.id)
       }
     } catch (e) {
+      // Shu orada yopilgan xizmat — katalog yangilanadi, forma yopiq holatni ko'rsatadi.
+      if (errorCode(e) === 'service_unavailable') void qc.invalidateQueries({ queryKey: ['services', 'catalog'] })
       const fe = errorCode(e) === 'validation_error' ? fieldErrorsOf(e) : null
       if (fe) {
         setFieldErrors(fe)
@@ -210,7 +246,7 @@ export function ServiceCreateModal({
             <Button variant="ghost" onClick={onClose} disabled={busy}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={submit} loading={busy} disabled={!type}>
+            <Button onClick={submit} loading={busy} disabled={!type || closedNow}>
               {t('services.send')}
             </Button>
           </>
@@ -226,6 +262,12 @@ export function ServiceCreateModal({
         <div className="grid gap-4">
           {createdId != null && (
             <p className="rounded-inner bg-info-soft px-3 py-2.5 text-[12.5px] text-info">{t('svc.createdUploadHint')}</p>
+          )}
+          {prefill && createdId == null && (
+            <p className="flex items-start gap-2 rounded-inner bg-info-soft px-3 py-2.5 text-[12.5px] text-info">
+              <History size={15} className="mt-0.5 shrink-0" aria-hidden />
+              {t('sysOps.resubmitPrefilled', { number: prefill.fromNumber })}
+            </p>
           )}
 
           {categories.length > 1 && (
@@ -259,10 +301,27 @@ export function ServiceCreateModal({
                 setFieldErrors({})
               }}
               disabled={locked}
-              options={visible.map((c) => ({ value: c.type, label: serviceLabel(c.type, c.label) }))}
+              options={visible.map((c) => ({
+                value: c.type,
+                label: serviceLabel(c.type, c.label),
+                ...(c.available ? {} : { subLabel: t('sysOps.svcClosed') }),
+              }))}
               placeholder={t('services.pickService')}
             />
           </Field>
+
+          {closedNow && selected && (
+            <div role="alert" className="flex items-start gap-2 rounded-inner border border-warning/30 bg-warning-soft px-3 py-2.5 text-[12.5px]">
+              <PauseCircle size={15} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+              <span className="text-fg">
+                <b className="font-semibold">{t('sysOps.svcClosedTitle')}</b>
+                <span className="block text-fg-muted">
+                  {selected.reason || t('sysOps.svcClosedDefault')}
+                  {selected.unavailable_until ? ` · ${t('sysOps.svcUntil', { date: inUtc(selected.unavailable_until) })}` : ''}
+                </span>
+              </span>
+            </div>
+          )}
 
           {isApplication && (
             <>

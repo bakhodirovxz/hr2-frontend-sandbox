@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { ChevronRight, Clock, Download, UserX } from 'lucide-react'
+import { ChevronRight, Clock, Download, UsersRound, UserX } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -28,6 +28,7 @@ import { AttendanceDetailDrawer } from '@/features/attendance/AttendanceDetailDr
 import { CalendarStrip } from '@/features/attendance/CalendarStrip'
 import { LateDaysModal } from '@/features/attendance/LateDaysModal'
 import { ManualAttendanceModal } from '@/features/attendance/ManualAttendanceModal'
+import { BulkAttendanceModal } from '@/features/attendance/BulkAttendanceModal'
 import { formatHours } from '@/features/attendance/period'
 import {
   ATTENDANCE_SORT_KEYS,
@@ -101,6 +102,7 @@ export function AttendancePage() {
   const [correcting, setCorrecting] = useState<AttendanceRow | null>(null)
   const [lateFor, setLateFor] = useState<AttendanceRow | null>(null)
   const [photo, setPhoto] = useState<AttendanceRow | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const rangeChanged = from !== def.from || to !== def.to
   const filterCount = [filters.dept, filters.pos, filterType, search].filter(Boolean).length + (rangeChanged ? 1 : 0)
@@ -273,6 +275,11 @@ export function AttendancePage() {
         subtitle={t('davomat.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {canCorrect && (
+              <Button size="sm" variant="secondary" leftIcon={<UsersRound size={14} />} onClick={() => setBulkOpen(true)}>
+                {t('sysOps.bulkTitle')}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -431,6 +438,7 @@ export function AttendancePage() {
       {canCorrect && (
         <ManualAttendanceModal employee={correcting} defaultDate={from} onClose={() => setCorrecting(null)} />
       )}
+      {canCorrect && <BulkAttendanceModal open={bulkOpen} onClose={() => setBulkOpen(false)} />}
       <LateDaysModal
         open={lateFor != null}
         onClose={() => setLateFor(null)}

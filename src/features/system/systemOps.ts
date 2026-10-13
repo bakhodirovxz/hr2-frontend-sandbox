@@ -10,7 +10,49 @@ export const OPS = {
   recoveryEnter: 'system/ops/recovery/enter',
   recoveryRun: 'system/ops/recovery/run',
   resume: 'system/ops/resume',
+  integrity: 'system/ops/integrity',
+  modulesBlocked: 'system/ops/modules/blocked',
+  unblock: (m: string) => `system/ops/modules/${m}/unblock`,
+  acknowledge: (id: number) => `system/ops/incidents/${id}/acknowledge`,
+  settings: 'system/settings/ops',
 } as const
+
+/** Avariyaviy to'xtatish hisobotida har xizmat (TZ E2 1690): api / worker / beat / database. */
+export interface ServiceStop {
+  service: string
+  ok: boolean
+  action?: string
+  detail?: string | null
+  workers?: string[]
+}
+
+/** Butunlik buzilganda taklif qilinadigan nusxa (TZ E3 1729). */
+export interface SuggestRestore {
+  backup_id: number
+  finished_at?: string | null
+  file_name?: string | null
+  storage?: string | null
+  size_bytes?: number | null
+  confirm_phrase?: string
+}
+
+export interface IntegrityResult {
+  ok: boolean
+  problems: { kind?: string; object?: string; detail?: string }[]
+  stats?: Record<string, unknown>
+  elapsed_ms?: number
+  limit_seconds?: number
+  suggest_restore?: SuggestRestore | null
+}
+
+/** `blocked_modules` sozlamasi: {modul kodi: {reason, module, blocked_at}}. */
+export type BlockedModules = Record<string, { reason?: string; module?: string; blocked_at?: string }>
+
+/** `GET/PUT /system/settings/ops` — TZ E2 1699. */
+export interface OpsSettings {
+  auto_restart: { enabled: boolean; delay_s: number; healthy_checks: number }
+  escalation: { enabled: boolean; after_minutes: number; user_ids: number[]; emails: string[] }
+}
 
 export interface OpsState {
   mode?: string
@@ -74,7 +116,10 @@ export interface OpsReport {
   integrity?: { ok?: boolean; problems?: unknown[] }
   transactions?: { total?: number; resolved?: number; items?: unknown[] }
   repaired?: { fixed?: unknown[]; failed?: unknown[] }
-  modules?: { ok?: boolean; failed?: number; results?: ModuleResult[] }
+  modules?: { ok?: boolean; failed?: number; results?: ModuleResult[]; blocked?: string[] }
+  services?: ServiceStop[]
+  physical_stop?: string
+  suggest_restore?: SuggestRestore | null
   elapsed_seconds?: number
   [k: string]: unknown
 }
@@ -111,6 +156,7 @@ const STEP_KEYS: Record<string, string> = {
   'Tranzaksiyalarni tiklash jurnaliga yozish': 'step_tx',
   "Tizimni avariyaviy rejimga o'tkazish": 'step_mode',
   'Faol sessiyalarni yakunlash': 'step_sessions',
+  "Xizmatlarni to'xtatish (API, fon navbati, rejalashtiruvchi)": 'step_services',
   'Buferlarni diskka tushirish (CHECKPOINT)': 'step_checkpoint',
 }
 

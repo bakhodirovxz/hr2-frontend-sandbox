@@ -42,6 +42,24 @@ export function errorParams(err: unknown): Record<string, unknown> {
 }
 
 /**
+ * TZ E3 1729 «Сбой тестирования модуля — Система блокирует модуль»: modul
+ * o'z-o'zini sinovdan o'tmagani uchun bloklangan (503 `module_blocked`, bosh
+ * administratordan boshqa hamma uchun). Sahifa xato holati buni oddiy
+ * «yuklab bo'lmadi» dan ajratib ko'rsatadi.
+ */
+export function isModuleBlocked(err: unknown): boolean {
+  return errorCode(err) === 'module_blocked'
+}
+
+/** «Xodimlar» moduli vaqtincha bloklangan … — modul nomi lug'atdan. */
+function moduleBlockedMessage(params?: Record<string, unknown>): string {
+  const m = typeof params?.module === 'string' ? params.module : ''
+  const key = `roleAdmin.mod_${m}`
+  const name = m && i18n.exists(key) ? tr(key) : m
+  return tr('sysOps.moduleBlockedMsg', { module: name })
+}
+
+/**
  * Human-readable message for a failed request. The backend raises AppException
  * with `{code, detail}`; FastAPI validation errors come back as a list under
  * `detail`. Swallowing these into a generic "amal bajarilmadi" hid a real bug
@@ -65,6 +83,7 @@ function baseErrorMessage(err: unknown, fallback: string): string {
   if (!axios.isAxiosError(err)) return fallback
   const data = normalizeErrorBody(err.response?.data)
   if (!data) return fallback
+  if (data.code === 'module_blocked') return moduleBlockedMessage(data.params)
 
   /*
    * TZ sandbox: server xabari O'ZBEKCHA va eng aniq (masalan «KPI» moduliga

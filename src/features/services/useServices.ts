@@ -13,7 +13,7 @@ import {
 import type { Page } from '@/features/employees/useEmployees'
 import { useBranchStore } from '@/store/branchStore'
 import type { User } from '@/types'
-import { canWriteOrg, isGuest } from '@/auth/permissions'
+import { can, canWriteOrg, isGuest } from '@/auth/permissions'
 
 /**
  * INTERAKTIV XIZMATLAR — TZ 4.2.12 (+ TZ I1 katalog va ilovalar).
@@ -102,6 +102,74 @@ export interface ServiceCatalogItem {
   category?: string | null
   category_label?: string | null
   description?: string | null
+  /** TZ I1 1610: xizmat vaqtincha yopilgan (texnik ishlar) — `reason` sababi. */
+  temporarily_unavailable?: boolean
+  /** Shu vaqtgacha yopiq (ofsetli ISO); bo'sh — qayta ochilguncha. */
+  unavailable_until?: string | null
+}
+
+/** `GET /service-requests/availability` qatori. */
+export interface ServiceAvailability {
+  type: ServiceType
+  label: string
+  enabled: boolean
+  reason?: string | null
+  until?: string | null
+}
+
+/**
+ * Xizmat turi shu foydalanuvchining roliga ochiqmi (backend
+ * `_is_uge_employee` / `_is_portal_guest`). Vaqtincha yopilgan xizmatda
+ * katalog `reason` ga yopish sababini yozadi, rol sababini emas — shuning
+ * uchun rol bu yerda alohida aniqlanadi.
+ */
+export function roleAllowsService(user: User | null | undefined, type: string): boolean {
+  if (!user) return false
+  if (type === JOB_APPLICATION) return isGuest(user)
+  return !isGuest(user) && !!user.employee
+}
+
+/** Rolga ochiq, lekin hozir vaqtincha yopilgan (TZ I1 1610). */
+export function isTemporarilyClosed(user: User | null | undefined, c: ServiceCatalogItem): boolean {
+  return !c.available && !!c.temporarily_unavailable && roleAllowsService(user, c.type)
+}
+
+/** Avvalgi so'rov ma'lumoti bilan yangi so'rov (TZ I1 «Повторная подача»). */
+export interface ServicePrefill {
+  fromNumber: string
+  type: ServiceType
+  purpose?: string | null
+  payload?: Record<string, unknown> | null
+  organization_branch_id?: number | null
+}
+
+/** Faqat yakunlangan so'rov qayta topshiriladi (faol so'rov tahrirlanadi). */
+export const RESUBMIT_STATUSES: ServiceStatus[] = ['ready', 'rejected', 'cancelled']
+
+/** Yopish / ochish — `services = full` (kadr, bosh administrator). */
+export function canManageServiceAvailability(user: User | null | undefined): boolean {
+  return can(user, 'services', 'full')
+}
+
+export function useServiceAvailability(enabled: boolean) {
+  const q = useQuery({
+    queryKey: ['services', 'availability'],
+    queryFn: () => apiGet<ServiceAvailability[]>('service-requests/availability', { _no_branch_inject: true }),
+    enabled,
+  })
+  return { items: Array.isArray(q.data) ? q.data : [], loading: q.isLoading, error: q.error, refetch: q.refetch }
+}
+
+export function useSetServiceAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ type, body }: { type: string; body: { enabled: boolean; reason?: string | null; until?: string | null } }) =>
+      apiPut<ServiceAvailability>(`service-requests/availability/${type}`, body, { params: { _no_branch_inject: true } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['services', 'availability'] })
+      void qc.invalidateQueries({ queryKey: ['services', 'catalog'] })
+    },
+  })
 }
 
 /**
@@ -127,9 +195,10 @@ export function useServiceCatalog() {
   const q = useQuery({
     queryKey: ['services', 'catalog'],
     queryFn: () => apiGet<ServiceCatalogItem[]>(SERVICE_REQUESTS_CATALOG),
-    staleTime: 10 * 60_000,
+    // Xizmat istalgan payt vaqtincha yopilishi mumkin (TZ I1 1610) — uzoq kesh yo'q.
+    staleTime: 60_000,
   })
-  return { catalog: q.data ?? [], loading: q.isLoading }
+  return { catalog: q.data ?? [], loading: q.isLoading, refetch: q.refetch }
 }
 
 /**
