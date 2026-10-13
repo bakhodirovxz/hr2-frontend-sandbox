@@ -7266,6 +7266,9 @@ const ru: Record<string, string> = {
   'Xizmatlarni to‘xtatish (API, fon navbati, rejalashtiruvchi)': 'Остановка служб (API, фоновая очередь, планировщик)',
   'Vakansiya yopiq — ariza qabul qilinmaydi': 'Вакансия закрыта — заявки не принимаются',
   'Vakansiya vaqtincha to‘xtatilgan — ariza qabul qilinmaydi': 'Вакансия временно приостановлена — заявки не принимаются',
+  '{{name}} — tashkiliy tuzilma': '{{name}} — организационная структура',
+  'Jami bo‘linmalar: {{count}}': 'Всего подразделений: {{count}}',
+  'Qisqartirilgan ({{date}})': 'Упразднено ({{date}})',
 }
 
 export default ru

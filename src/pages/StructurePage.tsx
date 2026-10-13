@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Briefcase, FileSpreadsheet, FileText, GitBranch, History, List, Network, Plus, Shuffle } from 'lucide-react'
+import { Briefcase, FileSpreadsheet, FileText, GitBranch, History, List, Network, Plus, Shuffle, Printer } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -32,6 +32,8 @@ import {
   type StructureSource,
 } from '@/features/structure/StructureViews'
 import { buildTree, indexTree } from '@/features/structure/structureTree'
+import { printStructure } from '@/features/structure/printStructure'
+import { useBranches } from '@/hooks/useBranches'
 import { useDepartmentsAll, type DepartmentRow } from '@/features/structure/useDepartmentAdmin'
 import { useStructureSnapshot, type SnapshotPosition, type SnapshotStaffPosition } from '@/features/structure/useHierarchy'
 
@@ -48,7 +50,7 @@ const VIEWS: View[] = ['tree', 'list', 'scheme']
  * themselves are created and edited with the same forms as on `/departments`.
  */
 export function StructurePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const toast = useToast()
   const user = useAuthStore((s) => s.user)
   const branchId = useBranchStore((s) => s.selectedBranchId)
@@ -88,6 +90,25 @@ export function StructurePage() {
   const [form, setForm] = useState<{ value: DepartmentRow | null } | null>(null)
   const [wizard, setWizard] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
+
+  const { branches } = useBranches()
+  const [printing, setPrinting] = useState(false)
+  const doPrint = async () => {
+    setPrinting(true)
+    try {
+      await printStructure({
+        roots: historyMode ? asOfRoots : roots,
+        orgName: branches.find((b) => b.id === Number(branchId))?.name ?? t('structure.title'),
+        asOf: historyMode ? asOf : undefined,
+        t,
+        lang: i18n.language,
+      })
+    } catch (e) {
+      toast.error(errorMessage(e, t('structure.print.failed')))
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   const doExport = async (format: 'xlsx' | 'pdf') => {
     setExporting(format)
@@ -165,6 +186,11 @@ export function StructurePage() {
             <Button size="sm" variant="outline" leftIcon={<FileText size={14} />} loading={exporting === 'pdf'} onClick={() => doExport('pdf')}>
               PDF
             </Button>
+            {branchId && (
+              <Button size="sm" variant="outline" leftIcon={<Printer size={14} />} loading={printing} onClick={() => void doPrint()}>
+                {t('structure.print.action')}
+              </Button>
+            )}
             {canEditDepartments && branchId && view !== 'scheme' && !historyMode && (
               <>
                 <Button size="sm" variant="outline" leftIcon={<Shuffle size={14} />} onClick={() => setWizard(true)}>

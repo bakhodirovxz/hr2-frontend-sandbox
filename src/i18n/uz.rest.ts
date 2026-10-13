@@ -4568,6 +4568,21 @@ const rest = {
   },
 
   structure: {
+    print: {
+      action: 'Chop etish',
+      heading: '{{name}} — tashkiliy tuzilma',
+      printedAt: 'Holat: {{date}}',
+      asOfDate: '{{date}} holatiga',
+      total: 'Jami bo‘linmalar: {{count}}',
+      colCode: 'Kod',
+      colName: 'Bo‘linma',
+      colHead: 'Rahbar',
+      colStaff: 'Xodimlar',
+      colStatus: 'Holat',
+      active: 'Faol',
+      closed: 'Qisqartirilgan ({{date}})',
+      failed: 'Bosma shaklni tayyorlab bo‘lmadi',
+    },
     colCode: 'Kod',
     colCreated: 'Yaratilgan',
     colShortName: 'Qisqa nomi',
