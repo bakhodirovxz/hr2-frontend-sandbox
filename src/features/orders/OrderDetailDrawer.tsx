@@ -6,11 +6,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  FilePen,
   FileText,
   History,
   Paperclip,
   PlayCircle,
   Send,
+  Undo2,
   Users,
   XCircle,
 } from 'lucide-react'
@@ -33,7 +35,8 @@ import { wordDiff } from './wordDiff'
 import { RejectReasonModal } from './RejectReasonModal'
 import { useDismissalReasonOptions } from './OrderTypeFields'
 import { OrderStatusBadge, decreeStatusLabel } from './OrderStatusBadge'
-import { hasEmployeeSigned, isDecreeOrder, isKnownDecreeStatus, orderPowers } from './orderFlow'
+import { canCorrectOrder, canWithdrawOrder, hasEmployeeSigned, isDecreeOrder, isKnownDecreeStatus, orderPowers } from './orderFlow'
+import { WithdrawOrderModal } from './OrderCorrection'
 import {
   ALL_DETAIL_KEYS,
   DATE_KEYS,
@@ -72,6 +75,9 @@ function historyFieldLabel(t: TFunction, field?: string | null): string {
     case 'effective_start_date': return t('orders.h_effectiveStart')
     case 'effective_end_date': return t('orders.h_effectiveEnd')
     case 'assigned_signers': return t('orders.h_signers')
+    case 'corrects_order_act_id': return t('ordVac.h_corrects')
+    case 'corrected_by_order_act_id': return t('ordVac.h_correctedBy')
+    case 'withdrawn': return t('ordVac.h_withdrawn')
     default: return field || t('orders.document')
   }
 }
@@ -82,7 +88,7 @@ function historyValue(t: TFunction, h: OrderHistoryRow, which: 'old' | 'new', ty
   const raw = which === 'old' ? h.old_text : h.new_text
   const disp = which === 'old' ? h.old_display : h.new_display
   if (raw == null && disp == null) return '—'
-  if (h.field === 'status') return isKnownDecreeStatus(raw) ? decreeStatusLabel(t, raw) : raw || '—'
+  if (h.field === 'status' || h.field === 'withdrawn') return isKnownDecreeStatus(raw) ? decreeStatusLabel(t, raw) : raw || '—'
   if (disp && typeof disp === 'object' && !Array.isArray(disp)) {
     const parts = Object.entries(disp as Record<string, unknown>).map(([k, v]) => `${detailLabel(t, k, type)}: ${isoToDmy(v)}`)
     return parts.length ? parts.join('; ') : '—'
@@ -101,10 +107,16 @@ export function OrderDetailDrawer({
   onClose,
   onOpenDocument,
   readOnly = false,
+  onOpenOrder,
+  onCorrective,
 }: {
   id: number | null
   onClose: () => void
   onOpenDocument: (o: OrderAct) => void
+  /** Follow a corrective-order link (TZ O2 1224) inside the same drawer. */
+  onOpenOrder?: (id: number) => void
+  /** «Tuzatuvchi buyruq» — open the create form filled from this locked order. */
+  onCorrective?: (id: number) => void
   /** «Sana bo'yicha holat» — the list is a past snapshot: no workflow buttons. */
   readOnly?: boolean
 }) {
@@ -119,10 +131,12 @@ export function OrderDetailDrawer({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [applyOpen, setApplyOpen] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
 
   useEffect(() => {
     setHistoryOpen(false)
     setApplyOpen(false)
+    setWithdrawing(false)
   }, [id])
 
   const decree = isDecreeOrder(order)
@@ -197,6 +211,18 @@ export function OrderDetailDrawer({
           {t('orders.resubmit')}
         </Button>,
       )
+    if (canWithdrawOrder(order, user))
+      actions.push(
+        <Button key="withdraw" variant="outline" leftIcon={<Undo2 size={15} />} disabled={busy} onClick={() => setWithdrawing(true)}>
+          {t('ordVac.withdraw')}
+        </Button>,
+      )
+    if (onCorrective && canCorrectOrder(order, user))
+      actions.push(
+        <Button key="corrective" variant="secondary" leftIcon={<FilePen size={15} />} onClick={() => onCorrective(order.id)}>
+          {t('ordVac.corrective')}
+        </Button>,
+      )
     if (powers.apply && !applyOpen)
       actions.push(
         <Button key="apply" variant="secondary" leftIcon={<PlayCircle size={15} />} onClick={() => setApplyOpen(true)}>
@@ -258,6 +284,8 @@ export function OrderDetailDrawer({
             {decree && order.submitter?.legal_name && <Meta label={t('orders.fSubmitter')}>{order.submitter.legal_name}</Meta>}
           </dl>
 
+          <CorrectionLinks order={order} onOpenOrder={onOpenOrder} />
+
           {order.summary && (
             <section>
               <h3 className="mb-1 text-[12px] font-semibold text-fg-subtle">{t('orders.fSummary')}</h3>
@@ -309,7 +337,7 @@ export function OrderDetailDrawer({
               {historyOpen && (
                 <ul className="space-y-2 border-t border-line p-3">
                   {history.rows.map((h) => (
-                    <HistoryItem key={h.id} h={h} type={orderType} />
+                    <HistoryItem key={h.id} h={h} type={orderType} onOpenOrder={onOpenOrder} />
                   ))}
                 </ul>
               )}
@@ -317,6 +345,18 @@ export function OrderDetailDrawer({
           )}
         </div>
       )}
+
+      <WithdrawOrderModal
+        open={withdrawing}
+        number={order?.act_number || order?.id}
+        loading={mut.withdraw.isPending}
+        onClose={() => setWithdrawing(false)}
+        onSubmit={async (reason) => {
+          if (!order) return
+          const ok = await run(() => mut.withdraw.mutateAsync({ id: order.id, reason }), t('ordVac.withdrawn'))
+          if (ok) setWithdrawing(false)
+        }}
+      />
 
       <RejectReasonModal
         open={rejecting}
@@ -346,6 +386,43 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-[11.5px] text-fg-subtle">{label}</dt>
       <dd className="mt-0.5 flex flex-wrap items-center text-[13.5px] font-medium text-fg">{children}</dd>
     </div>
+  )
+}
+
+/**
+ * TZ O2 1224 — the two directions of a correction: «Nº X buyruqni tuzatadi»
+ * (this order corrects X) and «Nº Y buyruq bilan tuzatilgan» (Y corrects it).
+ */
+function CorrectionLinks({ order, onOpenOrder }: { order: OrderAct; onOpenOrder?: (id: number) => void }) {
+  const { t } = useTranslation()
+  const { order: corrected } = useOrder(order.corrects_order_act_id ?? null)
+  const correctors = order.corrective_orders ?? []
+  if (!order.corrects_order_act_id && !correctors.length) return null
+  const link = (id: number, text: string) =>
+    onOpenOrder ? (
+      <button type="button" onClick={() => onOpenOrder(id)} className="font-semibold text-brand hover:underline">
+        {text}
+      </button>
+    ) : (
+      <span className="font-semibold text-fg">{text}</span>
+    )
+  const num = (n?: string | null, id?: number) => (n ? `№${n}` : `#${id}`)
+  return (
+    <section className="space-y-1.5 rounded-panel border border-brand/25 bg-brand-soft/50 px-3 py-2.5 text-[13px]">
+      {order.corrects_order_act_id && (
+        <p className="flex flex-wrap items-center gap-1.5 text-fg-muted">
+          <FilePen size={14} className="shrink-0 text-brand" />
+          {link(order.corrects_order_act_id, t('ordVac.correctsLink', { n: num(corrected?.act_number, order.corrects_order_act_id) }))}
+        </p>
+      )}
+      {correctors.map((c) => (
+        <p key={c.id} className="flex flex-wrap items-center gap-1.5 text-fg-muted">
+          <FilePen size={14} className="shrink-0 text-warning" />
+          {link(c.id, t('ordVac.correctedByLink', { n: num(c.act_number, c.id) }))}
+          {isKnownDecreeStatus(c.status) && <span className="text-[11.5px] text-fg-subtle">· {decreeStatusLabel(t, c.status)}</span>}
+        </p>
+      ))}
+    </section>
   )
 }
 
@@ -502,7 +579,7 @@ function Signers({ order }: { order: OrderAct }) {
   )
 }
 
-function HistoryItem({ h, type }: { h: OrderHistoryRow; type: OrderTypeCode | null }) {
+function HistoryItem({ h, type, onOpenOrder }: { h: OrderHistoryRow; type: OrderTypeCode | null; onOpenOrder?: (id: number) => void }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const isReason = h.field === 'change_reason'
@@ -528,7 +605,17 @@ function HistoryItem({ h, type }: { h: OrderHistoryRow; type: OrderTypeCode | nu
           {reason}
         </p>
       )}
-      {isReason ? null : !isText ? (
+      {isReason ? null : (h.field === 'corrects_order_act_id' || h.field === 'corrected_by_order_act_id') && /^\d+$/.test(h.new_text ?? '') ? (
+        <p className="mt-1 text-[12.5px]">
+          {onOpenOrder ? (
+            <button type="button" onClick={() => onOpenOrder(Number(h.new_text))} className="font-semibold text-brand hover:underline">
+              {historyValue(t, h, 'new', type)}
+            </button>
+          ) : (
+            <span className="text-success">{historyValue(t, h, 'new', type)}</span>
+          )}
+        </p>
+      ) : !isText ? (
         <p className="mt-1 text-[12.5px]">
           <span className="text-danger">{historyValue(t, h, 'old', type)}</span>
           <span className="text-fg-subtle"> → </span>

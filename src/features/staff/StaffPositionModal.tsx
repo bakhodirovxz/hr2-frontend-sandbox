@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
-import { History, Megaphone } from 'lucide-react'
+import { Copy, History, Lock, Megaphone, Send } from 'lucide-react'
 import { inTashkent } from '@/lib/format'
 import { Button, Checkbox, Combobox, DateInput, Field, Input, Modal, Select, Textarea, useToast } from '@/components/ui'
 import { FormError } from '@/components/ui/FormError'
@@ -12,11 +12,14 @@ import { useServerText } from '@/features/statistics/serverText'
 import { RequiredLanguagesChips, entryLabel } from '@/features/vacancies/RequiredLanguagesChips'
 import type { RequiredLanguage } from '@/features/vacancies/useVacancies'
 import { RequiredLanguagesEditor, cleanLanguages } from './RequiredLanguagesEditor'
+import { EmployeeSelect } from '@/features/orders/EmployeeSelect'
+import { useBranchStore } from '@/store/branchStore'
 import {
   EMPLOYMENT_TYPES,
   fmtUnits,
   useStaffChanges,
   useStaffMutations,
+  useVacancyPushJobs,
   type StaffChange,
   type StaffPosition,
 } from './useStaffPositions'
@@ -30,6 +33,8 @@ interface Props {
   vacancyMode?: boolean
   /** A department head (TZ V1 «Руководители») — his units only. null = any. */
   allowedDepartmentIds?: number[] | null
+  /** TZ V2 1304 «Вакансия закрыта — предлагает создать новую вакансию»: copy this line. */
+  onCopy?: (row: StaffPosition) => void
 }
 
 const BLANK = {
@@ -52,15 +57,17 @@ const BLANK = {
   work_schedule: '',
   employment_type: '',
   vacancy_status: 'open',
+  recruiter_employee_id: '',
 }
 
-type FieldErrors = Partial<Record<'department' | 'position' | 'units' | 'salary' | 'deadline' | 'reason', string>>
+type FieldErrors = Partial<Record<'department' | 'position' | 'units' | 'salary' | 'deadline' | 'reason' | 'recruiter', string>>
 
 /** Server field → the form error slot it belongs under (TZ D-D4 422). */
 const SERVER_FIELD: Record<string, keyof FieldErrors> = {
   salary_to: 'salary',
   application_deadline: 'deadline',
   reason: 'reason',
+  recruiter_employee_id: 'recruiter',
 }
 
 /**
@@ -69,7 +76,7 @@ const SERVER_FIELD: Record<string, keyof FieldErrors> = {
  * line moved to another post is a different line. Every change may carry a
  * reason, which lands in the change log shown at the bottom (TZ V2 «История»).
  */
-export function StaffPositionModal({ open, onClose, row, vacancyMode = false, allowedDepartmentIds = null }: Props) {
+export function StaffPositionModal({ open, onClose, row, vacancyMode = false, allowedDepartmentIds = null, onCopy }: Props) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const st = useServerText()
@@ -105,6 +112,12 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
 
   const isEdit = !!row?.id
   const { changes } = useStaffChanges(open && isEdit ? row?.id : null)
+  const selectedBranchId = useBranchStore((s) => s.selectedBranchId)
+  // TZ V1 1277: the last job-portal delivery of this line (the caller's own pushes).
+  const pushJobs = useVacancyPushJobs(open && isEdit)
+  const lastPush = isEdit ? (pushJobs.data ?? []).find((j) => j.result?.staff_position_id === row?.id) : undefined
+  // TZ V2 1304: 409 `vacancy_closed` — offer a new vacancy (a copy) instead.
+  const [closedOffer, setClosedOffer] = useState(false)
 
   const [form, setForm] = useState(BLANK)
   const [languages, setLanguages] = useState<RequiredLanguage[]>([])
@@ -118,6 +131,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     setErrors({})
     setFormError(null)
     setNoFree(null)
+    setClosedOffer(false)
     setLanguages(
       Array.isArray(row?.required_languages)
         ? row!.required_languages!.map((r) => ({ language_code: r.language_code || '', level_code: r.level_code ?? null }))
@@ -145,6 +159,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
             work_schedule: row.work_schedule ?? '',
             employment_type: row.employment_type ?? '',
             vacancy_status: row.vacancy_status ?? 'open',
+            recruiter_employee_id: row.recruiter_employee_id ? String(row.recruiter_employee_id) : '',
           }
         : {
             ...BLANK,
@@ -175,7 +190,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     }
     const statusChanged = isEdit
       ? (form.vacancy_status || 'open') !== (row?.vacancy_status || 'open')
-      : vacancyMode && form.vacancy_status === 'closed'
+      : vacancyMode && (form.vacancy_status === 'closed' || form.vacancy_status === 'paused')
     if (statusChanged && form.reason.trim().length < 3) next.reason = t('orgRef.statusReason')
     if (Object.keys(next).length) {
       setErrors(next)
@@ -202,6 +217,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
       employment_type: text(form.employment_type),
       vacancy_status: text(form.vacancy_status) || 'open',
       required_languages: cleanLanguages(languages),
+      recruiter_employee_id: form.recruiter_employee_id ? Number(form.recruiter_employee_id) : null,
     }
     // A plain staff line (not a vacancy) is created without a status: the free
     // units check of TZ V1 1267 runs only when a vacancy is OPENED.
@@ -230,6 +246,14 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
       const msg = errorMessage(e, t('staff.saveFailed'))
       if (errorCode(e) === 'no_free_units') {
         setNoFree(errorParams(e))
+        return
+      }
+      if (errorCode(e) === 'vacancy_closed') {
+        setClosedOffer(true)
+        return
+      }
+      if (errorCode(e) === 'recruiter_not_found') {
+        setErrors((cur) => ({ ...cur, recruiter: msg }))
         return
       }
       const fieldErrs = errorParams(e).errors
@@ -369,8 +393,22 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
                 }}
                 options={[
                   { value: 'open', label: t('staff.vacOpen') },
+                  { value: 'paused', label: t('ordVac.vacPaused') },
                   { value: 'closed', label: t('staff.vacClosed') },
                 ]}
+              />
+            </Field>
+            <Field label={t('ordVac.recruiter')} hint={t('ordVac.recruiterHint')} error={errors.recruiter} wide>
+              <EmployeeSelect
+                value={form.recruiter_employee_id}
+                onChange={(v) => {
+                  set('recruiter_employee_id', v)
+                  clearErr('recruiter')
+                }}
+                branchId={row?.organization_branch_id ?? selectedBranchId ?? null}
+                known={row?.recruiter_employee_id ? [{ value: String(row.recruiter_employee_id), label: row.recruiter_name || `#${row.recruiter_employee_id}` }] : []}
+                placeholder={t('orgRef.notSelected')}
+                invalid={!!errors.recruiter}
               />
             </Field>
             <Field label={t('staff.requiredSkills')} wide>
@@ -452,6 +490,25 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
                 label={t('staff.publishToPortal')}
               />
               <p className="mt-1 pl-7 text-xs text-fg-subtle">{t('orgRef.portalHint')}</p>
+              {lastPush && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-7 text-xs text-fg-muted">
+                  <Send size={12} className="shrink-0" />
+                  {t('ordVac.lastPush')}:{' '}
+                  {(lastPush.result?.deliveries ?? []).length ? (
+                    (lastPush.result?.deliveries ?? []).map((d, i) => (
+                      <span key={i} className={d.ok ? 'text-success' : 'text-danger'} title={d.error ?? undefined}>
+                        {d.portal} — {d.ok ? t('ordVac.deliveryOk') : t('ordVac.deliveryFailed')}
+                        {i < (lastPush.result?.deliveries ?? []).length - 1 ? ';' : ''}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-warning">{t('ordVac.deliveryQueued')}</span>
+                  )}
+                  {(lastPush.finished_at || lastPush.created_at) && (
+                    <span className="tabnum text-fg-subtle">· {inTashkent(lastPush.finished_at || lastPush.created_at).format('DD.MM.YYYY HH:mm')}</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -478,6 +535,41 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
         )}
 
         <FormError>{formError}</FormError>
+
+        <Modal
+          open={closedOffer}
+          onClose={() => setClosedOffer(false)}
+          size="sm"
+          title={t('ordVac.closedTitle')}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setClosedOffer(false)}>
+                {t('common.cancel')}
+              </Button>
+              {onCopy && row && (
+                <Button
+                  leftIcon={<Copy size={15} />}
+                  onClick={() => {
+                    setClosedOffer(false)
+                    onCopy(row)
+                  }}
+                >
+                  {t('ordVac.copyAsNew')}
+                </Button>
+              )}
+            </>
+          }
+        >
+          <div className="flex gap-3 text-[13.5px]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-warning-soft text-warning">
+              <Lock size={17} />
+            </span>
+            <div className="space-y-1.5">
+              <p className="font-semibold text-fg">{t('ordVac.closedText')}</p>
+              <p className="text-fg-muted">{t('ordVac.closedHint')}</p>
+            </div>
+          </div>
+        </Modal>
 
         {isEdit && changes.length > 0 && (
           <ChangeHistory changes={changes} educationLabel={(c) => educationOptions.find((o) => o.value === c)?.label} st={st} />
@@ -507,7 +599,8 @@ function ChangeHistory({
         .map((x) => (x && typeof x === 'object' ? Object.values(x).filter(Boolean).join(' / ') : String(x)))
         .join('; ')
     }
-    if (field === 'vacancy_status') return v === 'closed' ? t('staff.vacClosed') : v === 'open' ? t('staff.vacOpen') : String(v)
+    if (field === 'vacancy_status')
+      return v === 'closed' ? t('staff.vacClosed') : v === 'open' ? t('staff.vacOpen') : v === 'paused' ? t('ordVac.vacPaused') : String(v)
     if (field === 'employment_type' && (EMPLOYMENT_TYPES as readonly string[]).includes(String(v)))
       return t(`orgRef.emp_${v as (typeof EMPLOYMENT_TYPES)[number]}`)
     if (field === 'education_level_code') return educationLabel(String(v)) ?? String(v)

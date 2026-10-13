@@ -1,5 +1,6 @@
 import type { BadgeTone } from '@/components/ui/Badge'
-import { canWriteOrg, isSiteMasterAdmin } from '@/auth/permissions'
+import { canWrite, canWriteOrg, isSiteMasterAdmin } from '@/auth/permissions'
+import { errorCode } from '@/api/errorMessage'
 import type { User } from '@/types'
 import type { OrderAct } from './useOrders'
 
@@ -175,3 +176,30 @@ export function orderPowers(o: OrderAct, user: U): OrderPowers {
     delete: !locked && (o.signers ?? []).length === 0 && (admin || (!management && (isCreator || hr))),
   }
 }
+
+// ── TZ O2 1224 «Возможные расширения» ─────────────────────────────────────
+
+/** Backend `_WITHDRAWABLE_STATUSES`: the order is somewhere in the approval chain. */
+export const WITHDRAWABLE_STATUSES = ['pending_submitter', 'pending_approval', 'approved', 'pending_leadership', 'changes_requested']
+
+/**
+ * «Kelishuvdan qaytarib olish» — the author, HR with `orders = full`, or the
+ * site master admin (server `OrderActService.withdraw`, 403 otherwise).
+ */
+export function canWithdrawOrder(o: OrderAct | null | undefined, user: U): boolean {
+  if (!o || !WITHDRAWABLE_STATUSES.includes(o.status ?? '')) return false
+  if (isSiteMasterAdmin(user)) return true
+  const me = user?.employee?.id ?? null
+  const createdBy = o.created_by_id ?? o.created_by?.id ?? null
+  if (me && sameId(createdBy, me)) return true
+  return isOrdersHr(user) && canWrite(user, 'orders', 'full')
+}
+
+/** A confirmed / applied decree is changed only by a corrective order (HR who author orders). */
+export function canCorrectOrder(o: OrderAct | null | undefined, user: U): boolean {
+  if (!o || !isDecreeOrder(o) || !LOCKED_STATUSES.includes(o.status ?? '')) return false
+  return canManageOrders(user) && (isSiteMasterAdmin(user) || !isOrdersManagement(user))
+}
+
+/** 409 `order_locked` (400 `order_act_locked` before TZ v2) — edit / delete of a locked order. */
+export const isOrderLockedError = (err: unknown) => ['order_locked', 'order_act_locked'].includes(errorCode(err) ?? '')
