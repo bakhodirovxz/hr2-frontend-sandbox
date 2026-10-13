@@ -27,6 +27,20 @@ export interface Finding {
   /** Server-computed: still open and past `due_date`. */
   is_overdue?: boolean
   resolution_note?: string | null
+  /** K5 · 1475 «план корректирующих мероприятий»: work-plan tasks of the finding. */
+  tasks?: FindingTask[]
+  tasks_total?: number
+  tasks_done?: number
+}
+
+export interface FindingTask {
+  id: number
+  title: string
+  status: string
+  status_label?: string | null
+  employee_id?: number | null
+  department_id?: number | null
+  end_date?: string | null
 }
 
 export interface SnapshotRow {
@@ -80,6 +94,10 @@ export interface Inspection {
   findings_total?: number
   kpi_snapshot?: KpiSnapshotData | null
   extensions?: Extension[]
+  /** K5 · 1475 «Повторный аудит»: the audit this one re-checks, and its own repeats. */
+  parent_inspection_id?: number | null
+  parent_inspection_title?: string | null
+  follow_ups?: { id: number; title: string; status: string; status_label?: string | null }[]
 }
 
 interface Page<T> { items?: T[]; total?: number; pages?: number }
@@ -160,6 +178,17 @@ export function useInspectionMutations() {
     /** `{reason}` — required. */
     cancel: useMutation(action('cancel')),
     addFinding: useMutation(action('findings')),
+    /** K5 · 1475: a corrective task in the work plan (defaults: the finding's responsible and due date). */
+    addFindingTask: useMutation({
+      mutationFn: ({ id, findingId, body }: { id: number; findingId: number; body: Record<string, unknown> }) =>
+        apiPost<{ id: number }>(`${URL}/${id}/findings/${findingId}/tasks`, body),
+      onSuccess: () => {
+        void done()
+        void qc.invalidateQueries({ queryKey: ['work-plans'] })
+      },
+    }),
+    /** K5 · 1475 «Повторный аудит» — completed audits only (409 `inspection_not_completed`). */
+    followUp: useMutation(action('follow-up')),
     updateFinding: useMutation({
       mutationFn: ({ id, findingId, body }: { id: number; findingId: number; body: Record<string, unknown> }) =>
         apiPatch(`${URL}/${id}/findings/${findingId}`, body),

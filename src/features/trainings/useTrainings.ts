@@ -39,6 +39,12 @@ export interface Training {
   file_url?: string | null
   file_original_name?: string | null
   note?: string | null
+  /** K4 · 1442 «Привязка к KPI»: a completed, passed training counts towards this indicator. */
+  kpi_indicator_id?: number | null
+  kpi_indicator_name?: string | null
+  /** The KPI entry the training counts in (set while it counts). */
+  kpi_entry_id?: number | null
+  kpi_argument_id?: number | null
 }
 
 export interface TrainingFilters {

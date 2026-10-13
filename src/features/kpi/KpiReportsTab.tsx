@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { BarChart3, Download, Eye, FileSpreadsheet, FileText, Plus, Trash2, X } from 'lucide-react'
+import { BarChart3, Download, Eye, FileSpreadsheet, FileText, Mail, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Combobox } from '@/components/ui/Combobox'
@@ -42,6 +42,11 @@ import {
 import { PERIOD_KEY } from './KpiIntervals'
 import { useMonthOptions } from './KpiResultsTab'
 import { useKpiAccess } from './useKpiAccess'
+import { apiGet } from '@/api/http'
+import { useListParams } from '@/hooks/useListParams'
+import { ADMIN_SUPPORT, type TemplateParams } from './extApi'
+import { PositionGroupFilter } from './PositionGroupControls'
+import { KpiCompareView, ReportTemplatesBar, SendReportModal } from './ReportExtras'
 
 // recharts (~420 KB) loads only when a report is opened.
 const ReportBarChart = lazy(() => import('@/features/statistics/ReportBarChart'))
@@ -104,7 +109,11 @@ export function KpiReportsTab() {
   const departments = useDepartmentOptions()
   const positions = useJobPositionOptions()
   const [opened, setOpened] = useState<KpiReport | null>(null)
+  const [sending, setSending] = useState<KpiReport | null>(null)
   const monthOptions = useMonthOptions(36)
+  // «Hisobotlar» | «Davrlarni solishtirish» (K3 · 1412 «Сравнение периодов»).
+  const { filters, setFilter } = useListParams(['rv'])
+  const view = filters.rv === 'compare' ? 'compare' : 'reports'
 
   const [type, setType] = useState<ReportType>('individual')
   const [mode, setMode] = useState<PeriodMode>('month')
@@ -119,7 +128,46 @@ export function KpiReportsTab() {
   const [group, setGroup] = useState('')
   const [groupBy, setGroupBy] = useState<ReportGroupBy>('')
   const [sort, setSort] = useState('')
+  const [pg, setPg] = useState('')
   const [err, setErr] = useState('')
+
+  /** The builder's parameters as a template keeps them (K3 · 1412 «шаблон отчёта»). */
+  const currentParams = (): TemplateParams => ({
+    title: title.trim() || undefined,
+    report_type: type,
+    period_type: mode,
+    employee_ids: people.length ? people.map((p) => p.id) : undefined,
+    division_ids: deptIds.length ? deptIds.map(Number) : undefined,
+    job_position_ids: posId ? [Number(posId)] : undefined,
+    indicator_ids: indIds.length ? indIds.map(Number) : undefined,
+    group_names: group ? [group] : undefined,
+    group_by: groupBy || undefined,
+    sort: sort || undefined,
+    position_group: pg === ADMIN_SUPPORT ? ADMIN_SUPPORT : undefined,
+  })
+  const applyParams = (p: TemplateParams) => {
+    setType(p.report_type && REPORT_TYPES.includes(p.report_type) ? p.report_type : 'individual')
+    setMode(p.period_type && PERIOD_MODES.includes(p.period_type as PeriodMode) ? (p.period_type as PeriodMode) : 'month')
+    setTitle(p.title ?? '')
+    setDeptIds(p.division_ids ?? [])
+    setPosId(p.job_position_ids?.[0] ? String(p.job_position_ids[0]) : '')
+    setIndIds(p.indicator_ids ?? [])
+    setGroup(p.group_names?.[0] ?? '')
+    setGroupBy(p.group_by ?? '')
+    setSort(p.sort ?? '')
+    setPg(p.position_group ?? '')
+    const ids = p.employee_ids ?? []
+    setPeople(ids.map((id) => ({ id, legal_name: `#${id}` })))
+    // A template keeps only ids — the names are looked up for the picker.
+    if (ids.length)
+      void Promise.all(
+        ids.map((id) =>
+          apiGet<{ id: number; legal_name?: string | null }>(`employees/${id}`)
+            .then((e) => ({ id, legal_name: e.legal_name ?? `#${id}` }))
+            .catch(() => ({ id, legal_name: `#${id}` })),
+        ),
+      ).then(setPeople)
+  }
 
   const bounds = useMemo(() => {
     if (mode === 'custom') return from && to ? { start: from, end: to, label: `${fmtDay(from)} — ${fmtDay(to)}` } : null
@@ -153,6 +201,7 @@ export function KpiReportsTab() {
     if (group) body.group_names = [group]
     if (groupBy) body.group_by = groupBy
     if (sort) body.sort = sort
+    if (pg === ADMIN_SUPPORT) body.position_group = ADMIN_SUPPORT
     try {
       const r = await mut.createReport.mutateAsync(body)
       setTitle('')
@@ -185,7 +234,12 @@ export function KpiReportsTab() {
       className: 'whitespace-nowrap text-fg-muted',
       cell: (r) => {
         const ty = r.filters?.report_type
-        return ty && TYPE_KEY[ty] ? t(TYPE_KEY[ty] as never) : '—'
+        return (
+          <>
+            {ty && TYPE_KEY[ty] ? t(TYPE_KEY[ty] as never) : '—'}
+            {r.filters?.position_group === ADMIN_SUPPORT && <span className="block text-[11.5px] text-fg-subtle">{t('kpiExt.adminSupport')}</span>}
+          </>
+        )
       },
     },
     {
@@ -217,6 +271,11 @@ export function KpiReportsTab() {
             <Download size={14} />
           </IconButton>
           {canRun && (
+            <IconButton size="sm" label={t('kpiExt.sendAction')} onClick={() => setSending(r)}>
+              <Mail size={14} />
+            </IconButton>
+          )}
+          {canRun && (
             <IconButton
               size="sm"
               label={t('common.delete')}
@@ -239,8 +298,31 @@ export function KpiReportsTab() {
     },
   ]
 
+  const switcher = (
+    <div className="scroll-thin overflow-x-auto">
+      <Segmented
+        size="sm"
+        value={view}
+        onChange={(v) => setFilter('rv', v === 'compare' ? 'compare' : '')}
+        options={[
+          { value: 'reports', label: t('kpiExt.viewReports') },
+          { value: 'compare', label: t('kpiExt.compareTitle') },
+        ]}
+      />
+    </div>
+  )
+
+  if (view === 'compare')
+    return (
+      <div className="flex flex-col gap-4">
+        {switcher}
+        <KpiCompareView />
+      </div>
+    )
+
   return (
     <div className="flex flex-col gap-4">
+      {switcher}
       {canRun && (
         <Card className="flex flex-col gap-4 p-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -248,6 +330,7 @@ export function KpiReportsTab() {
             <h3 className="text-[14px] font-semibold text-fg">{t('kpi.reportBuild')}</h3>
             <span className="text-[12px] text-fg-subtle">{t('kpi.reportFormats')}</span>
           </div>
+          <ReportTemplatesBar current={currentParams} onApply={applyParams} />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label={t('kpi.reportType')} wide>
               <Segmented value={type} onChange={setType} options={REPORT_TYPES.map((x) => ({ value: x, label: t(TYPE_KEY[x] as never) }))} />
@@ -298,7 +381,10 @@ export function KpiReportsTab() {
             <Field label={t('kpi.sorting')}>
               <Select value={sort} onChange={(e) => setSort(e.target.value)} placeholder={t('kpi.defaultSort')} options={SORTS.map((s) => ({ value: s.value, label: t(s.key as never) }))} />
             </Field>
-            <div className="flex items-end md:col-span-2 xl:col-span-2">
+            <Field label={t('kpiExt.staffGroup')}>
+              <PositionGroupFilter value={pg} onChange={setPg} className="lg:w-full" />
+            </Field>
+            <div className="flex items-end">
               <Button leftIcon={<Plus size={15} />} loading={mut.createReport.isPending} onClick={create}>
                 {t('kpi.build')}
               </Button>
@@ -308,7 +394,15 @@ export function KpiReportsTab() {
         </Card>
       )}
 
-      {opened && <KpiReportView key={opened.id} report={opened} onClose={() => setOpened(null)} onDownload={(f) => download(opened, f)} />}
+      {opened && (
+        <KpiReportView
+          key={opened.id}
+          report={opened}
+          onClose={() => setOpened(null)}
+          onDownload={(f) => download(opened, f)}
+          onSend={canRun ? () => setSending(opened) : undefined}
+        />
+      )}
 
       <Card className="flex flex-col overflow-hidden">
         <div className="border-b border-line p-4">
@@ -326,12 +420,23 @@ export function KpiReportsTab() {
           skeletonRows={3}
         />
       </Card>
+      <SendReportModal report={sending} onClose={() => setSending(null)} />
     </div>
   )
 }
 
 /** A stored report on screen: the plan / fact (/ penalty) chart and the table. */
-function KpiReportView({ report, onClose, onDownload }: { report: KpiReport; onClose: () => void; onDownload: (f: 'xlsx' | 'pdf' | 'docx') => void }) {
+function KpiReportView({
+  report,
+  onClose,
+  onDownload,
+  onSend,
+}: {
+  report: KpiReport
+  onClose: () => void
+  onDownload: (f: 'xlsx' | 'pdf' | 'docx') => void
+  onSend?: () => void
+}) {
   const { t } = useTranslation()
   const sx = useServerText()
   const { data, loading, error } = useReportData(report.id)
@@ -365,6 +470,11 @@ function KpiReportView({ report, onClose, onDownload }: { report: KpiReport; onC
           <Button size="sm" variant="outline" leftIcon={<FileText size={14} />} onClick={() => onDownload('docx')}>
             Word
           </Button>
+          {onSend && (
+            <Button size="sm" variant="secondary" leftIcon={<Mail size={14} />} onClick={onSend}>
+              {t('kpiExt.sendAction')}
+            </Button>
+          )}
           <IconButton size="sm" label={t('common.close')} onClick={onClose}>
             <X size={15} />
           </IconButton>

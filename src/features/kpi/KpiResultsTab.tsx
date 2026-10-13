@@ -49,6 +49,7 @@ import {
 } from './api'
 import { KpiStatusMenu } from './KpiStatusMenu'
 import { useKpiAccess } from './useKpiAccess'
+import { PositionGroupFilter } from './PositionGroupControls'
 
 /** Last twelve months, newest first — the «Davr» filter (v1 `buildMonthOptions`). */
 export function useMonthOptions(count = 12) {
@@ -114,6 +115,7 @@ export function KpiResultsTab({ onOpenEntry }: { onOpenEntry: (id: number) => vo
     'dept',
     'pos',
     'st',
+    'pg',
   ])
   const { indicators } = useIndicators()
   const departments = useDepartmentOptions()
@@ -128,6 +130,7 @@ export function KpiResultsTab({ onOpenEntry }: { onOpenEntry: (id: number) => vo
     department_id: filters.dept,
     job_position_id: filters.pos,
     status: filters.st,
+    position_group: filters.pg,
     ...monthRange(filters.month),
   }
   const list = useEntries({ ...query, page, size })
@@ -315,6 +318,7 @@ export function KpiResultsTab({ onOpenEntry }: { onOpenEntry: (id: number) => vo
           placeholder={t('kpi.allStatuses')}
           className="w-full lg:w-44"
         />
+        <PositionGroupFilter value={filters.pg} onChange={(v) => setFilter('pg', v)} />
         <FilterReset count={activeFilterCount} onReset={reset} />
         <div className="flex flex-wrap gap-2 lg:ml-auto">
           <Button

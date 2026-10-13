@@ -31,7 +31,25 @@ export interface WorkPlan {
   status_label?: string | null
   priority?: string | null
   priority_label?: string | null
+  // K2 · 1385 «Декомпозиция задачи»: the hierarchy (root = depth 1, at most 3).
+  parent_id?: number | null
+  depth?: number | null
+  children_count?: number | null
+  // K2 · 1385 «Согласование плана»: draft → submitted → approved | returned.
+  approval_status?: ApprovalStatus | null
+  approval_status_label?: string | null
+  approver_employee_id?: number | null
+  approver_name?: string | null
+  approval_comment?: string | null
+  approved_at?: string | null
+  /** K5 · 1475: a corrective task of an audit finding. */
+  inspection_finding_id?: number | null
 }
+
+export type ApprovalStatus = 'draft' | 'submitted' | 'approved' | 'returned'
+export const APPROVAL_STATUSES: ApprovalStatus[] = ['draft', 'submitted', 'approved', 'returned']
+/** The deepest a task tree goes (`MAX_TASK_DEPTH` on the server). */
+export const MAX_TASK_DEPTH = 3
 
 /** A task from the 409 `work_plan_overlap` → `params.tasks`. */
 export interface OverlapTask {
@@ -128,10 +146,58 @@ export function useWorkPlanCalendar(f: PlanFilters & { status?: string }, from: 
   return { rows: q.data?.items ?? [], loading: q.isFetching, error: q.error, refetch: q.refetch }
 }
 
+/** The direct subtasks of a task (`parent_id`), any period. */
+export function useWorkPlanChildren(parentId: number | null) {
+  const q = useQuery({
+    queryKey: ['work-plans', 'children', parentId],
+    queryFn: () => apiGet<{ items: WorkPlan[] }>(PLANS, { parent_id: parentId }),
+    enabled: parentId != null,
+  })
+  return { rows: q.data?.items ?? [], loading: q.isLoading, error: q.error }
+}
+
+/** K2 · 1385: the plans sent to ME for approval (`approver=me`). */
+export function useWorkPlanApprovals(approvalStatus: string, enabled: boolean) {
+  const q = useQuery({
+    queryKey: ['work-plans', 'approvals', approvalStatus],
+    queryFn: () =>
+      apiGet<{ items: WorkPlan[] }>(PLANS, {
+        approver: 'me',
+        approval_status: approvalStatus || undefined,
+        parent_id: 0,
+        organization_branch_id: null,
+      }),
+    enabled,
+    placeholderData: (prev) => prev,
+  })
+  return { rows: q.data?.items ?? [], loading: q.isLoading, fetching: q.isFetching, error: q.error, refetch: q.refetch }
+}
+
+export interface CopyPlanResult {
+  created: number
+  skipped: { id: number; title?: string | null; reason: 'exists' | 'out_of_scope'; existing_id?: number }[]
+  items: WorkPlan[]
+}
+
 export function useWorkPlanMutations() {
   const qc = useQueryClient()
   const done = () => qc.invalidateQueries({ queryKey: ['work-plans'] })
   return {
+    copy: useMutation({
+      mutationFn: (body: { from_start: string; from_end: string; to_start: string; employee_id?: number; department_id?: number }) =>
+        apiPost<CopyPlanResult>(`${PLANS}/copy`, body),
+      onSuccess: done,
+    }),
+    submit: useMutation({
+      mutationFn: ({ id, approver_employee_id, comment }: { id: number; approver_employee_id?: number | null; comment?: string | null }) =>
+        apiPost<WorkPlan>(`${PLANS}/${id}/submit`, { approver_employee_id: approver_employee_id || null, comment: comment || null }),
+      onSuccess: done,
+    }),
+    decide: useMutation({
+      mutationFn: ({ id, approve, comment }: { id: number; approve: boolean; comment?: string | null }) =>
+        apiPost<WorkPlan>(`${PLANS}/${id}/${approve ? 'approve' : 'return'}`, { comment: comment || null }),
+      onSuccess: done,
+    }),
     create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<WorkPlan>(PLANS, body), onSuccess: done }),
     update: useMutation({
       mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => apiPatch<WorkPlan>(`${PLANS}/${id}`, body),
