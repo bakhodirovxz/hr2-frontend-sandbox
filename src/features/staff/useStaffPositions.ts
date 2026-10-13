@@ -65,10 +65,17 @@ export interface StaffPosition {
   required_skills?: string | null
   work_schedule?: string | null
   employment_type?: string | null
-  /** open | closed */
+  /** open | paused (TZ V2 1304: hidden from the public list) | closed */
   vacancy_status?: string | null
   required_languages?: RequiredLanguage[] | null
+  /** TZ V1 1277 «ответственный рекрутер». */
+  recruiter_employee_id?: number | null
+  recruiter_name?: string | null
 }
+
+/** Announcement statuses (`StaffPositionService.VACANCY_STATUSES`). */
+export const VACANCY_STATUSES = ['open', 'paused', 'closed'] as const
+export type VacancyStatus = (typeof VACANCY_STATUSES)[number]
 
 interface CategorySummary {
   category?: string | null
@@ -271,6 +278,17 @@ export function useStaffMutations() {
       onSuccess: invalidate,
     }),
     /**
+     * TZ V1 1277 «Копирование существующей вакансии»: a new (department ×
+     * position) vacancy with the source's announcement fields. 400
+     * `staff_position_duplicate` when that line already exists.
+     */
+    copyVacancy: useMutation({
+      meta,
+      mutationFn: ({ id, body }: { id: number; body: { department_id: number; job_position_id: number; planned_units?: number; reason?: string } }) =>
+        apiPost<StaffPosition>(`${STAFF_POSITION_DETAIL(id)}/copy-vacancy`, body),
+      onSuccess: invalidate,
+    }),
+    /**
      * One department's planned units in ONE request: the backend records one
      * change entry with a shared reason, instead of N scattered ones.
      */
@@ -391,5 +409,71 @@ export function useUpdateApplication() {
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       apiPatch<VacancyApplication>(`vacancy-applications/${id}`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vacancy-applications'] }),
+  })
+}
+
+// ── Job-portallar (TZ V1 1277 «Публикация на внешних ресурсах») ─────────────
+/** `auth_header` comes back as `********`; sending the mask back keeps the stored one. */
+export const PORTAL_SECRET_MASK = '********'
+
+export interface JobPortal {
+  name: string
+  url: string
+  auth_header?: string | null
+  format: 'xml' | 'json'
+  enabled: boolean
+}
+
+const PORTALS_KEY = ['system-settings', 'vacancies'] as const
+
+/** Site master admin only (`/system/settings/{key}` 403 for everyone else). */
+export function useJobPortals(enabled: boolean) {
+  return useQuery({
+    queryKey: PORTALS_KEY,
+    queryFn: () => apiGet<{ job_portals: JobPortal[] }>('system/settings/vacancies', { _no_branch_inject: true }),
+    enabled,
+  })
+}
+
+export function useSaveJobPortals() {
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { silent: true },
+    mutationFn: (job_portals: JobPortal[]) =>
+      apiPut<{ job_portals: JobPortal[] }>('system/settings/vacancies', { job_portals }, { params: { _no_branch_inject: true } }),
+    onSuccess: (data) => qc.setQueryData(PORTALS_KEY, data),
+  })
+}
+
+export interface PortalDelivery {
+  portal?: string | null
+  url?: string | null
+  format?: string | null
+  action?: string | null
+  status_code?: number | null
+  ok?: boolean
+  error?: string | null
+  at?: string | null
+}
+
+export interface VacancyPushJob {
+  id: number
+  status: string
+  error?: string | null
+  created_at?: string | null
+  finished_at?: string | null
+  result?: { staff_position_id?: number | null; deliveries?: PortalDelivery[]; action?: string | null } | null
+}
+
+/**
+ * Delivery log: `background_jobs` kind `vacancy_push`. `GET /jobs` lists the
+ * CALLER's own jobs (the site master admin's saves land here).
+ */
+export function useVacancyPushJobs(enabled: boolean, limit = 50) {
+  return useQuery({
+    queryKey: ['jobs', 'vacancy_push', limit],
+    queryFn: () => apiGet<VacancyPushJob[]>('jobs', { kind: 'vacancy_push', limit, _no_branch_inject: true }),
+    enabled,
+    meta: { silent: true },
   })
 }

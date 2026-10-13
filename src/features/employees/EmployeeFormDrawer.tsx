@@ -191,11 +191,14 @@ export function EmployeeFormDrawer({
   editId,
   onClose,
   onSaved,
+  initialName,
 }: {
   open: boolean
   editId: number | null
   onClose: () => void
   onSaved?: (res: { id: number; created: boolean }) => void
+  /** Create mode: the F.I.Sh. typed where the person was not found (TZ O1 «Сотрудник не найден»). */
+  initialName?: string
 }) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -249,6 +252,7 @@ export function EmployeeFormDrawer({
       setOriginal(null)
       setForm({
         ...BLANK,
+        legal_name: initialName ?? '',
         organization_branch_id: def ? String(def) : '',
         working_hours_start: '09:00',
         working_hours_end: '18:00',

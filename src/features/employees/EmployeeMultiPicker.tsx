@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Loader2, Search, X } from 'lucide-react'
+import { Check, Loader2, Search, UserPlus, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { POPOVER_CLS, control } from '@/components/ui/control'
 import { useClickOutside } from '@/hooks/useClickOutside'
@@ -31,6 +31,8 @@ export function EmployeeMultiPicker({
   branchId,
   placeholder,
   invalid,
+  onCreateNew,
+  createNewLabel,
 }: {
   value: PickedPerson[]
   onChange: (next: PickedPerson[]) => void
@@ -38,6 +40,9 @@ export function EmployeeMultiPicker({
   branchId?: number | null
   placeholder?: string
   invalid?: boolean
+  /** «Not found» → offer to create the person (TZ O1 «Сотрудник не найден»); gets the typed text. */
+  onCreateNew?: (typed: string) => void
+  createNewLabel?: string
 }) {
   const { t } = useTranslation()
   const [q, setQ] = useState('')
@@ -142,6 +147,18 @@ export function EmployeeMultiPicker({
             ) : candidates.length === 0 ? (
               <li className="px-3 py-4 text-center text-xs text-fg-subtle">
                 {loading ? t('common.loading') : t('common.noResults')}
+                {!loading && onCreateNew && q.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      onCreateNew(q.trim())
+                    }}
+                    className="mx-auto mt-2 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-brand-strong hover:bg-brand-soft"
+                  >
+                    <UserPlus size={14} /> {createNewLabel}
+                  </button>
+                )}
               </li>
             ) : (
               candidates.map((e) => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Paperclip, ScanSearch, Trash2, UserPlus, Wand2, X } from 'lucide-react'
+import { FilePen, Paperclip, ScanSearch, Trash2, UserPlus, UserRoundPlus, Wand2, X } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { EMPLOYEES_LIST, ORDER_ACT_CATEGORIES, ORGANIZATION_BRANCH_LEADERS } from '@/api/endpoints'
 import { Button } from '@/components/ui/Button'
@@ -18,7 +18,9 @@ import { Textarea } from '@/components/ui/Textarea'
 import { useToast } from '@/components/ui/Toast'
 import { ERROR_CLS, LABEL_CLS } from '@/components/ui/control'
 import { useDepartmentOptions } from '@/hooks/useReferenceData'
-import { isSiteMasterAdmin } from '@/auth/permissions'
+import { canWrite, isSiteMasterAdmin } from '@/auth/permissions'
+import { errorMessage } from '@/api/errorMessage'
+import { EmployeeFormDrawer } from '@/features/employees/EmployeeFormDrawer'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import { cn } from '@/lib/cn'
@@ -27,7 +29,7 @@ import { employeeOption } from '@/features/employees/subLabel'
 import { EmployeeMultiPicker, type PickedPerson } from '@/features/employees/EmployeeMultiPicker'
 import { EmployeeSelect } from './EmployeeSelect'
 import { OrderTypeFields } from './OrderTypeFields'
-import { isOrdersHr } from './orderFlow'
+import { isOrderLockedError, isOrdersHr } from './orderFlow'
 import {
   buildDetailsPayload,
   orderTypeOfCategory,
@@ -37,6 +39,7 @@ import {
 } from './orderTypes'
 import {
   detectEmployees,
+  fetchCorrectiveDraft,
   suggestActNumber,
   useActNumberCheck,
   useOrder,
@@ -167,11 +170,17 @@ export function OrderFormDrawer({
   editId,
   onClose,
   onSaved,
+  correctsId = null,
+  onLocked,
 }: {
   open: boolean
   editId: number | null
   onClose: () => void
   onSaved: (createdId: number | null) => void
+  /** TZ O2 1224: create a CORRECTIVE order for this confirmed / applied one. */
+  correctsId?: number | null
+  /** The saved order turned out locked (409 `order_locked`) — offer a corrective order. */
+  onLocked?: (id: number) => void
 }) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -179,6 +188,20 @@ export function OrderFormDrawer({
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId)
   const mut = useOrderMutations()
   const { order: detail, loading: detailLoading } = useOrder(open && editId ? editId : null)
+  const correcting = open && !editId && !!correctsId
+  // The original's own read carries the employees' and signers' names the draft does not.
+  const { order: original0, error: original0Error } = useOrder(correcting ? correctsId : null)
+  const draftQ = useQuery({
+    queryKey: ['orders', 'corrective-draft', correctsId],
+    queryFn: () => fetchCorrectiveDraft(correctsId!),
+    enabled: correcting,
+    retry: false,
+    gcTime: 0,
+  })
+  const draft = correcting ? draftQ.data ?? null : null
+  // TZ O1 «Сотрудник не найден — система предлагает создать кадровую запись».
+  const canCreateEmployee = canWrite(user, 'employees')
+  const [newEmployee, setNewEmployee] = useState<{ name: string } | null>(null)
 
   const [form, setForm] = useState<FormState>(EMPTY)
   const [original, setOriginal] = useState<Partial<FormState> & { organization_branch_id?: number | null }>({})
@@ -229,7 +252,7 @@ export function OrderFormDrawer({
       loadedFor.current = null
       return
     }
-    if (!editId) {
+    if (!editId && !correctsId) {
       setForm(EMPTY)
       setOriginal({})
       setKnown([])
@@ -238,7 +261,38 @@ export function OrderFormDrawer({
     setErrors({})
     setNewFiles([])
     setMentions(null)
-  }, [open, editId])
+  }, [open, editId, correctsId])
+
+  // Corrective order: the form starts as a copy of the locked original.
+  useEffect(() => {
+    if (!correcting || !draft || loadedFor.current === -draft.corrects_order_act_id) return
+    if (!original0 && !original0Error) return
+    loadedFor.current = -draft.corrects_order_act_id
+    const signers = draft.assigned_signers ?? []
+    const names = new Map((original0?.employees ?? []).map((e) => [e.id, e.full_name ?? null]))
+    const ids = (draft.employee_ids ?? []).map(Number).filter(Number.isFinite)
+    setForm({
+      ...EMPTY,
+      category_id: draft.category_id ? String(draft.category_id) : '',
+      summary: draft.summary ?? '',
+      description: draft.description ?? '',
+      leadership_id: String(signers.find((x) => x.signer_type === 'leadership')?.employee_id ?? ''),
+      approvers: signers
+        .filter((x) => x.signer_type === 'approver' && x.employee_id)
+        .map((x) => ({ employee_id: String(x.employee_id), can_edit_document: !!x.can_edit_document })),
+      employees: ids.map((id) => ({ id, legal_name: names.get(id) ?? null })),
+      details: pickDetails(draft.details),
+      effective_start_date: draft.effective_start_date ?? '',
+      department_id: draft.department_id ? String(draft.department_id) : '',
+      submitter_id: original0?.submitter_id ? String(original0.submitter_id) : '',
+    })
+    setOriginal({ organization_branch_id: draft.organization_branch_id ?? null })
+    setKnown(
+      [original0?.submitter, ...(original0?.assigned_signers ?? []).map((x) => x.employee)]
+        .map(personOption)
+        .filter((o): o is SelectOption => !!o),
+    )
+  }, [correcting, draft, original0, original0Error])
 
   useEffect(() => {
     if (!open || !editId || !detail || loadedFor.current === editId) return
@@ -338,7 +392,7 @@ export function OrderFormDrawer({
     if (editId && !form.change_reason.trim()) e.change_reason = t('orders.errReasonRequired')
     setErrors(e)
     if (Object.keys(e).length) return
-    if (!editId && !effectiveBranchId) {
+    if (!editId && !effectiveBranchId && !branchId) {
       toast.error(t('orders.pickBranchFirst'))
       return
     }
@@ -365,7 +419,8 @@ export function OrderFormDrawer({
       if (form.created_by_id && form.created_by_id !== (original.created_by_id ?? ''))
         body.created_by_id = Number(form.created_by_id)
     } else {
-      body.organization_branch_id = effectiveBranchId
+      body.organization_branch_id = branchId
+      if (correcting) body.corrects_order_act_id = correctsId
       if (form.department_id) body.department_id = Number(form.department_id)
       if (creatorRole === 'hr') {
         body.act_number = form.act_number.trim() || null
@@ -389,8 +444,11 @@ export function OrderFormDrawer({
       mut.invalidate()
       toast.ok(editId ? t('orders.saved') : t('orders.created'))
       onSaved(editId ? null : id)
-    } catch {
-      // The mutation cache already showed the server's reason; keep the form.
+    } catch (err) {
+      // Create errors are toasted by the mutation cache; the edit is silent so a
+      // locked order can offer the corrective order instead of a bare toast.
+      if (editId && isOrderLockedError(err) && onLocked) onLocked(editId)
+      else if (editId) toast.error(errorMessage(err, t('common.actionFailed')))
     } finally {
       setSaving(false)
     }
@@ -406,7 +464,19 @@ export function OrderFormDrawer({
     }
   }
 
-  const loading = !!editId && (detailLoading || !detail)
+  const loading = (!!editId && (detailLoading || !detail)) || (correcting && !draftQ.isError && (!draft || (!original0 && !original0Error)))
+
+  /** The new personnel record joins the order's employees as soon as it is saved. */
+  const addCreatedEmployee = async (id: number) => {
+    let name: string | null = newEmployee?.name ?? null
+    try {
+      name = (await apiGet<Employee>(`employees/${id}`)).legal_name ?? name
+    } catch {
+      /* the chip falls back to the typed name */
+    }
+    setForm((f) => (f.employees.some((p) => p.id === id) ? f : { ...f, employees: [...f.employees, { id, legal_name: name }] }))
+    toast.ok(t('ordVac.employeeAdded'))
+  }
 
   return (
     <Modal
@@ -414,7 +484,7 @@ export function OrderFormDrawer({
       onClose={onClose}
       placement="right"
       size="lg"
-      title={editId ? t('orders.editTitle') : t('orders.createTitle')}
+      title={editId ? t('orders.editTitle') : correcting ? t('ordVac.correctiveTitle') : t('orders.createTitle')}
       description={creatorRole === 'hr' ? t('orders.hrOrder') : t('orders.employeeOrder')}
       footer={
         <>
@@ -431,7 +501,11 @@ export function OrderFormDrawer({
         </>
       }
     >
-      {loading ? (
+      {correcting && draftQ.isError ? (
+        <p role="alert" className="rounded-inner border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px] text-danger">
+          {errorMessage(draftQ.error, t('ordVac.draftFailed'))}
+        </p>
+      ) : loading ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-11 w-full" />
@@ -439,6 +513,12 @@ export function OrderFormDrawer({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {correcting && draft && (
+            <p className="flex items-start gap-2 rounded-inner border border-brand/25 bg-brand-soft px-3 py-2.5 text-[13px] text-brand-strong sm:col-span-2">
+              <FilePen size={15} className="mt-0.5 shrink-0" />
+              <span>{t('ordVac.correctiveBanner', { n: draft.corrects_order_act_number || `#${draft.corrects_order_act_id}` })}</span>
+            </p>
+          )}
           <Field label={t('orders.fCategory')} required error={errors.category_id} wide>
             <Combobox
               value={form.category_id}
@@ -602,7 +682,14 @@ export function OrderFormDrawer({
                   </div>
                 </div>
               ) : (
-                <p className="mt-2 text-[12px] text-fg-subtle">{t('orders.mentionsNone')}</p>
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
+                  {t('orders.mentionsNone')}
+                  {canCreateEmployee && (
+                    <Button type="button" size="sm" variant="ghost" leftIcon={<UserRoundPlus size={14} />} onClick={() => setNewEmployee({ name: '' })}>
+                      {t('ordVac.createEmployee')}
+                    </Button>
+                  )}
+                </p>
               ))}
           </div>
 
@@ -612,6 +699,8 @@ export function OrderFormDrawer({
               onChange={(v) => set('employees', v)}
               branchId={branchId}
               placeholder={t('orders.employeesPlaceholder')}
+              onCreateNew={canCreateEmployee ? (name) => setNewEmployee({ name }) : undefined}
+              createNewLabel={t('ordVac.createEmployee')}
             />
           </Field>
 
@@ -753,6 +842,17 @@ export function OrderFormDrawer({
             </Field>
           )}
         </div>
+      )}
+      {canCreateEmployee && (
+        <EmployeeFormDrawer
+          open={!!newEmployee}
+          editId={null}
+          initialName={newEmployee?.name}
+          onClose={() => setNewEmployee(null)}
+          onSaved={({ id, created }) => {
+            if (created) void addCreatedEmployee(id)
+          }}
+        />
       )}
     </Modal>
   )

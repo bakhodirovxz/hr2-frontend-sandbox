@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import {
@@ -11,11 +12,15 @@ import {
   BellRing,
   Check,
   Columns3,
+  Copy,
   Download,
   FileCode2,
   FileText,
+  Globe,
   Megaphone,
+  Pause,
   Pencil,
+  Play,
   Plus,
   RotateCcw,
 } from 'lucide-react'
@@ -47,6 +52,10 @@ import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenc
 import { cn } from '@/lib/cn'
 import { PDF_MIME, XLSX_MIME, XML_MIME, downloadFile } from '@/lib/download'
 import { useAuthStore } from '@/store/authStore'
+import { isSiteMasterAdmin } from '@/auth/permissions'
+import { CopyVacancyModal } from '@/features/staff/CopyVacancyModal'
+import { JobPortalsModal } from '@/features/staff/JobPortalsModal'
+import { VacancyStatusModal } from '@/features/staff/VacancyStatusModal'
 import { RequiredLanguagesChips } from '@/features/vacancies/RequiredLanguagesChips'
 import { BulkStaffModal } from '@/features/staff/BulkStaffModal'
 import { ExportColumnsModal } from '@/features/staff/ExportColumnsModal'
@@ -56,6 +65,7 @@ import { VacancyApplicationsPanel } from '@/features/staff/VacancyApplicationsPa
 import { VacancyNotifyModal } from '@/features/staff/VacancyNotifyModal'
 import {
   STAFF_CATEGORIES,
+  VACANCY_STATUSES,
   canCreateVacancy,
   canManageStaff,
   fmtUnits,
@@ -70,7 +80,7 @@ import {
 } from '@/features/staff/useStaffPositions'
 
 type Tab = 'shtat' | 'muammo' | 'arizalar'
-const FILTER_KEYS = ['tab', 'vacant', 'dept', 'pos', 'cat', 'closed', 'sort', 'dir'] as const
+const FILTER_KEYS = ['tab', 'vacant', 'dept', 'pos', 'cat', 'closed', 'sort', 'dir', 'ann'] as const
 /** Server `sort_by` keys (StaffPositionService._SORTABLE). */
 const SORTABLE = ['department', 'job_position', 'category', 'razryad', 'planned_units'] as const
 
@@ -112,6 +122,10 @@ export function StaffPositionsPage() {
   // A pasted ?tab=muammo link still lands on the table for a non-manager.
   const tab: Tab = requested !== 'shtat' && !manage ? 'shtat' : requested
   const onlyVacant = filters.vacant === '1'
+  // TZ V2 1304: the announcement status (open / paused / closed). The server
+  // list has no such filter, so with it on the whole register (≤ 500 rows) is
+  // read and narrowed here; «Faqat bo'sh o'rinlar» is open announcements only.
+  const annStatus = !onlyVacant && (VACANCY_STATUSES as readonly string[]).includes(filters.ann) ? filters.ann : ''
   const sortBy = (SORTABLE as readonly string[]).includes(filters.sort) ? filters.sort : ''
   const sortDir: 'asc' | 'desc' = filters.dir === 'desc' ? 'desc' : 'asc'
 
@@ -119,8 +133,8 @@ export function StaffPositionsPage() {
   const positions = useJobPositionOptions()
 
   const query = {
-    page,
-    size,
+    page: annStatus ? 1 : page,
+    size: annStatus ? 500 : size,
     search,
     departmentId: filters.dept || (isHeadOnly && headIds!.length === 1 ? headIds![0] : undefined),
     jobPositionId: filters.pos,
@@ -135,10 +149,11 @@ export function StaffPositionsPage() {
   const issues = useStaffIssues(manage)
 
   // A head sees his own units only (TZ V1 «Руководители»).
-  const rows = useMemo(
-    () => (isHeadOnly ? list.rows.filter((r) => headIds!.includes(Number(r.department_id))) : list.rows),
-    [list.rows, isHeadOnly, headIds],
-  )
+  const rows = useMemo(() => {
+    let out = isHeadOnly ? list.rows.filter((r) => headIds!.includes(Number(r.department_id))) : list.rows
+    if (annStatus) out = out.filter((r) => r.has_staff_row !== false && (r.vacancy_status || 'open') === annStatus)
+    return out
+  }, [list.rows, isHeadOnly, headIds, annStatus])
   const groups = useMemo(() => {
     const map = new Map<string, StaffPosition[]>()
     for (const r of rows) {
@@ -162,6 +177,10 @@ export function StaffPositionsPage() {
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [exportCols, setExportCols] = useState<string[]>([])
   const [exporting, setExporting] = useState<string | null>(null)
+  const [copySource, setCopySource] = useState<StaffPosition | null>(null)
+  const [statusTarget, setStatusTarget] = useState<{ row: StaffPosition; status: 'paused' | 'open' } | null>(null)
+  const [portalsOpen, setPortalsOpen] = useState(false)
+  const master = isSiteMasterAdmin(user)
 
   // `?open=12` — open that staff line and drop the parameter.
   const [params, setParams] = useSearchParams()
@@ -186,8 +205,8 @@ export function StaffPositionsPage() {
   const toggleSort = (key: string) =>
     setFilters({ sort: key, dir: sortBy === key && sortDir === 'asc' ? 'desc' : null })
 
-  const filterCount = [filters.dept, filters.pos, filters.cat, filters.closed, filters.vacant, search].filter(Boolean).length
-  const resetFilters = () => setFilters({ dept: null, pos: null, cat: null, closed: null, vacant: null, q: null })
+  const filterCount = [filters.dept, filters.pos, filters.cat, filters.closed, filters.vacant, annStatus, search].filter(Boolean).length
+  const resetFilters = () => setFilters({ dept: null, pos: null, cat: null, closed: null, vacant: null, ann: null, q: null })
 
   /* TZ 4.2.10 «Экспорт данных в форматы Excel, PDF и XML» — with the filters
      on screen; XML is the uzgidro.uz portal feed (open places only). */
@@ -256,6 +275,9 @@ export function StaffPositionsPage() {
                       },
                       { key: 'notify', label: t('staff.notifyTitle'), hint: t('staff.notifyHint'), icon: <BellRing size={14} />, onClick: () => setNotifyOpen(true) },
                     ]
+                  : []),
+                ...(master
+                  ? [{ key: 'portals', label: t('ordVac.portalsTitle'), hint: t('ordVac.portalsMenuHint'), icon: <Globe size={14} />, divider: !manage, onClick: () => setPortalsOpen(true) }]
                   : []),
               ]}
             />
@@ -412,6 +434,16 @@ export function StaffPositionsPage() {
                 {t('orgRef.onlyVacant')}
                 {!!summary?.vacant_rows && <Badge tone="success">{summary.vacant_rows}</Badge>}
               </button>
+              {!onlyVacant && (
+                <Select
+                  value={annStatus}
+                  onChange={(e) => setFilter('ann', e.target.value)}
+                  options={VACANCY_STATUSES.map((v) => ({ value: v, label: vacancyStatusLabel(t, v) }))}
+                  placeholder={t('ordVac.allAnnStatuses')}
+                  aria-label={t('staff.vacancyStatus')}
+                  wrapperClassName="w-[190px]"
+                />
+              )}
               <Checkbox
                 checked={filters.closed === '1'}
                 onChange={(e) => setFilter('closed', e.target.checked ? '1' : '')}
@@ -435,7 +467,7 @@ export function StaffPositionsPage() {
                     {onlyVacant && <th className={cn(TH, 'w-[240px]')}>{t('staff.requirements')}</th>}
                     {onlyVacant && <th className={cn(TH, 'w-[120px]')}>{t('orgRef.deadlineShort')}</th>}
                     {onlyVacant && <th className={cn(TH, 'w-[180px]')}>{t('orgRef.contact')}</th>}
-                    <th className={cn(TH, 'w-[110px] text-right')}>{t('orgRef.actions')}</th>
+                    <th className={cn(TH, 'w-[150px] text-right')}>{t('orgRef.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -498,9 +530,12 @@ export function StaffPositionsPage() {
                             row={r}
                             index={idx + 1}
                             manage={manage}
+                            canCopy={canCreate}
                             onlyVacant={onlyVacant}
                             onEdit={() => setDrawer({ row: r, vacancy: false })}
                             onClose={() => setCloseRow(r)}
+                            onCopy={() => setCopySource(r)}
+                            onStatus={(status) => setStatusTarget({ row: r, status })}
                           />
                         ))}
                       </Fragment>
@@ -509,7 +544,11 @@ export function StaffPositionsPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination page={page} size={size} total={list.total} pages={list.pages} onPage={setPage} onSize={setSize} loading={list.loading} />
+            {annStatus ? (
+              <p className="border-t border-line px-6 py-3 text-[12.5px] text-fg-muted">{t('ordVac.annFiltered', { count: rows.length })}</p>
+            ) : (
+              <Pagination page={page} size={size} total={list.total} pages={list.pages} onPage={setPage} onSize={setSize} loading={list.loading} />
+            )}
           </>
         )}
       </Card>
@@ -520,7 +559,20 @@ export function StaffPositionsPage() {
         row={drawer?.row ?? null}
         vacancyMode={!!drawer?.vacancy}
         allowedDepartmentIds={isHeadOnly ? headIds : null}
+        onCopy={canCreate ? (r) => setCopySource(r) : undefined}
       />
+      <CopyVacancyModal
+        source={copySource}
+        allowedDepartmentIds={isHeadOnly ? headIds : null}
+        onClose={() => setCopySource(null)}
+        onCopied={(created) => {
+          setCopySource(null)
+          // «заполняет форму данными из выбранной вакансии» — the copy opens for review.
+          setDrawer(manage ? { row: created, vacancy: false } : null)
+        }}
+      />
+      <VacancyStatusModal target={statusTarget} onClose={() => setStatusTarget(null)} />
+      {master && <JobPortalsModal open={portalsOpen} onClose={() => setPortalsOpen(false)} />}
       <StaffCloseModal row={closeRow} onClose={() => setCloseRow(null)} />
       <BulkStaffModal open={!!bulk} onClose={() => setBulk(null)} departmentName={bulk?.name ?? ''} rows={bulk?.rows ?? []} />
       <ExportColumnsModal open={colsOpen} onClose={() => setColsOpen(false)} selected={exportCols} onApply={setExportCols} />
@@ -578,16 +630,22 @@ function StaffRow({
   row,
   index,
   manage,
+  canCopy,
   onlyVacant,
   onEdit,
   onClose,
+  onCopy,
+  onStatus,
 }: {
   row: StaffPosition
   index: number
   manage: boolean
+  canCopy: boolean
   onlyVacant: boolean
   onEdit: () => void
   onClose: () => void
+  onCopy: () => void
+  onStatus: (status: 'paused' | 'open') => void
 }) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -639,6 +697,18 @@ function StaffRow({
         {row.is_closed && (
           <span className="ml-2 align-middle">
             <Badge tone="neutral">{t('orgRef.reducedBadge')}</Badge>
+          </span>
+        )}
+        {!virtual && !row.is_closed && (row.vacancy_status === 'paused' || row.vacancy_status === 'closed') && (
+          <span className="ml-2 align-middle" title={t('staff.vacancyStatus')}>
+            <Badge tone={row.vacancy_status === 'paused' ? 'warning' : 'neutral'} dot>
+              {vacancyStatusLabel(t, row.vacancy_status)}
+            </Badge>
+          </span>
+        )}
+        {row.recruiter_name && (
+          <span className="block text-[11.5px] text-fg-subtle">
+            {t('ordVac.recruiter')}: {row.recruiter_name}
           </span>
         )}
       </td>
@@ -734,6 +804,11 @@ function StaffRow({
         </td>
       )}
       <td className={cn(TD_COMPACT, 'text-right')}>
+        {!manage && canCopy && !virtual && row.id && (
+          <IconButton size="sm" label={t('ordVac.copy')} onClick={onCopy}>
+            <Copy size={14} />
+          </IconButton>
+        )}
         {manage && (
           <span className="inline-flex justify-end gap-1">
             {virtual ? (
@@ -743,11 +818,32 @@ function StaffRow({
                 </Button>
               )
             ) : onlyVacant ? (
-              <IconButton size="sm" label={t('orgRef.editAnnouncement')} onClick={onEdit}>
-                <Megaphone size={14} />
-              </IconButton>
+              <>
+                <IconButton size="sm" label={t('orgRef.editAnnouncement')} onClick={onEdit}>
+                  <Megaphone size={14} />
+                </IconButton>
+                <IconButton size="sm" label={t('ordVac.pause')} onClick={() => onStatus('paused')}>
+                  <Pause size={14} />
+                </IconButton>
+                <IconButton size="sm" label={t('ordVac.copy')} onClick={onCopy}>
+                  <Copy size={14} />
+                </IconButton>
+              </>
             ) : (
               <>
+                {!row.is_closed && row.vacancy_status === 'paused' && (
+                  <IconButton size="sm" label={t('ordVac.resume')} onClick={() => onStatus('open')}>
+                    <Play size={14} className="text-success" />
+                  </IconButton>
+                )}
+                {!row.is_closed && (row.vacancy_status || 'open') === 'open' && Number(row.vacant_units ?? 0) > 0 && (
+                  <IconButton size="sm" label={t('ordVac.pause')} onClick={() => onStatus('paused')}>
+                    <Pause size={14} />
+                  </IconButton>
+                )}
+                <IconButton size="sm" label={t('ordVac.copy')} onClick={onCopy}>
+                  <Copy size={14} />
+                </IconButton>
                 <IconButton size="sm" label={t('common.edit')} onClick={onEdit}>
                   <Pencil size={14} />
                 </IconButton>
@@ -761,4 +857,11 @@ function StaffRow({
       </td>
     </tr>
   )
+}
+
+/** Announcement status label — TZ V2 1304 adds «To'xtatilgan» (paused). */
+function vacancyStatusLabel(t: TFunction, v?: string | null): string {
+  if (v === 'paused') return t('ordVac.vacPaused')
+  if (v === 'closed') return t('staff.vacClosed')
+  return t('staff.vacOpen')
 }

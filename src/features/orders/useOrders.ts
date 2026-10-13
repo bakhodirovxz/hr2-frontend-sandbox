@@ -4,6 +4,8 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
 import { ORDER_ACTS } from '@/api/endpoints'
 import { apiClient } from '@/api/client'
 import { useDebounce } from '@/hooks/useDebounce'
+import { PDF_MIME, XLSX_MIME, downloadFile } from '@/lib/download'
+import dayjs from 'dayjs'
 import { useBranchStore } from '@/store/branchStore'
 
 /**
@@ -87,6 +89,47 @@ export interface OrderAct {
   employee_ids?: number[] | null
   details?: Record<string, unknown> | null
   employees?: { id: number; full_name?: string | null }[] | null
+  /** TZ O2 1224: this order corrects that (confirmed / applied) order. */
+  corrects_order_act_id?: number | null
+  /** TZ O2 1224: orders that correct this one (read of one order only). */
+  corrective_orders?: CorrectiveRef[] | null
+}
+
+export interface CorrectiveRef {
+  id: number
+  act_number?: string | null
+  status?: string | null
+}
+
+/** `GET /order-acts/{pk}/corrective-draft` — a create body built from the locked original. */
+export interface CorrectiveDraft {
+  corrects_order_act_id: number
+  corrects_order_act_number?: string | null
+  category_id?: number | null
+  summary?: string | null
+  description?: string | null
+  employee_id?: number | null
+  employee_ids?: number[] | null
+  organization_branch_id?: number | null
+  department_id?: number | null
+  effective_start_date?: string | null
+  effective_end_date?: string | null
+  details?: Record<string, unknown> | null
+  assigned_signers?: { employee_id?: number | null; signer_type?: string | null; can_edit_document?: boolean | null }[] | null
+}
+
+export const fetchCorrectiveDraft = (id: number) => apiGet<CorrectiveDraft>(`${ORDER_ACTS}/${id}/corrective-draft`)
+
+/** TZ O3 1248 «Экспорт списка» — the list's own filters, xlsx | pdf. */
+export const exportOrders = (params: OrderListParams, format: 'xlsx' | 'pdf') => {
+  const { light: _light, ...rest } = params
+  return downloadFile({
+    url: `${ORDER_ACTS}/export`,
+    method: 'post',
+    mime: format === 'pdf' ? PDF_MIME : XLSX_MIME,
+    filename: `Buyruqlar_${dayjs().format('DD.MM.YYYY')}.${format}`,
+    params: { ...rest, format },
+  })
 }
 
 /** `GET /order-acts/as-of` row — the order as it was at the end of `on`. */
@@ -252,11 +295,19 @@ export function useOrderMutations() {
   return {
     invalidate,
     create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<OrderAct>(ORDER_ACTS, body) }),
+    // Silent: a locked order (409 `order_locked`) opens the corrective-order
+    // dialog instead of a toast — the caller reports every other error.
     update: useMutation({
+      meta: { silent: true },
       mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
         apiPatch<OrderAct>(`${ORDER_ACTS}/${id}`, body),
     }),
-    remove: useMutation({ mutationFn: (id: number) => apiDelete(`${ORDER_ACTS}/${id}`) }),
+    remove: useMutation({ meta: { silent: true }, mutationFn: (id: number) => apiDelete(`${ORDER_ACTS}/${id}`) }),
+    /** TZ O2 1224 «отозвать с согласования» — back to draft, signatures cleared. */
+    withdraw: useMutation({
+      mutationFn: ({ id, reason }: { id: number; reason?: string | null }) =>
+        apiPost<OrderAct>(`${ORDER_ACTS}/${id}/withdraw`, { reason: reason || null }),
+    }),
     uploadDocuments: useMutation({
       mutationFn: ({ id, files }: { id: number; files: File[] }) => {
         const fd = new FormData()

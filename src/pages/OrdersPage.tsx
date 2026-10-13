@@ -4,6 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 import {
   BarChart3,
   CheckCircle2,
+  Download,
+  FilePen,
+  FileSpreadsheet,
   FileText,
   History,
   Info,
@@ -11,9 +14,12 @@ import {
   Plus,
   Send,
   Trash2,
+  Undo2,
   XCircle,
 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
+import { ActionMenu } from '@/components/ui/ActionMenu'
+import { errorMessage } from '@/api/errorMessage'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -47,12 +53,16 @@ import { EmployeeSelect } from '@/features/orders/EmployeeSelect'
 import { OrderDetailDrawer, submitLabel } from '@/features/orders/OrderDetailDrawer'
 import { OrderDocumentViewer } from '@/features/orders/OrderDocumentViewer'
 import { OrderFormDrawer } from '@/features/orders/OrderFormDrawer'
+import { OrderLockedDialog, WithdrawOrderModal } from '@/features/orders/OrderCorrection'
 import { OrderStats } from '@/features/orders/OrderStats'
 import { OrderStatusBadge, decreeStatusLabel } from '@/features/orders/OrderStatusBadge'
 import { RejectReasonModal } from '@/features/orders/RejectReasonModal'
 import {
   STATUS_FILTER,
+  canCorrectOrder,
   canManageOrders,
+  canWithdrawOrder,
+  isOrderLockedError,
   isDecreeOrder,
   isOrdersHr,
   isOrdersManagement,
@@ -60,6 +70,7 @@ import {
 } from '@/features/orders/orderFlow'
 import { ORDER_TYPE_CODES, orderTypeLabel } from '@/features/orders/orderTypes'
 import {
+  exportOrders,
   useOrderList,
   useOrderMutations,
   useOrdersAsOf,
@@ -194,7 +205,29 @@ export function OrdersPage() {
 
   const [detailId, setDetailId] = useState<number | null>(null)
   const [docOrder, setDocOrder] = useState<OrderAct | null>(null)
-  const [form, setForm] = useState<{ open: boolean; editId: number | null }>({ open: false, editId: null })
+  const [form, setForm] = useState<{ open: boolean; editId: number | null; correctsId?: number | null }>({ open: false, editId: null })
+  // TZ O2 1224: a locked order (409 `order_locked`) and «Kelishuvdan qaytarib olish».
+  const [locked, setLocked] = useState<{ id: number; number?: string | null } | null>(null)
+  const [withdrawTarget, setWithdrawTarget] = useState<OrderAct | null>(null)
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+  const openCorrective = (id: number) => {
+    setLocked(null)
+    setDetailId(null)
+    setForm({ open: true, editId: null, correctsId: id })
+  }
+  const lockedNumber = (id: number) => rows.find((r) => r.id === id)?.act_number ?? null
+  // TZ O3 1248 «Экспорт списка» — the list as filtered on screen.
+  const doExport = async (format: 'xlsx' | 'pdf') => {
+    setExporting(format)
+    try {
+      await exportOrders(listParams, format)
+      toast.ok(t('ordVac.exported'))
+    } catch (e) {
+      toast.error(errorMessage(e, t('ordVac.exportFailed')))
+    } finally {
+      setExporting(null)
+    }
+  }
   const [rejectTarget, setRejectTarget] = useState<OrderAct | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
 
@@ -252,7 +285,18 @@ export function OrdersPage() {
       description: t('orders.deleteConfirm', { n: row.act_number || row.id }),
       confirmLabel: t('orders.deleteYes'),
     })
-    if (ok) await act(row, () => mut.remove.mutateAsync(row.id), t('orders.deleted'))
+    if (!ok) return
+    setBusyId(row.id)
+    try {
+      await mut.remove.mutateAsync(row.id)
+      mut.invalidate()
+      toast.ok(t('orders.deleted'))
+    } catch (err) {
+      if (isOrderLockedError(err)) setLocked({ id: row.id, number: row.act_number })
+      else toast.error(errorMessage(err, t('common.actionFailed')))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const rowActions = (row: OrderAct): ReactNode => {
@@ -301,6 +345,16 @@ export function OrdersPage() {
         {p.confirmSubmission && (
           <IconButton size="sm" label={t('orders.confirmAsSubmitter')} disabled={loadingRow} onClick={() => act(row, () => mut.confirmSubmission.mutateAsync(row.id), t('orders.confirmedDone'))}>
             <CheckCircle2 size={15} className="text-success" />
+          </IconButton>
+        )}
+        {canWithdrawOrder(row, user) && (
+          <IconButton size="sm" label={t('ordVac.withdraw')} disabled={loadingRow} onClick={() => setWithdrawTarget(row)}>
+            <Undo2 size={15} />
+          </IconButton>
+        )}
+        {canCorrectOrder(row, user) && (
+          <IconButton size="sm" label={t('ordVac.corrective')} onClick={() => openCorrective(row.id)}>
+            <FilePen size={15} className="text-brand" />
           </IconButton>
         )}
         {p.edit && (
@@ -394,6 +448,16 @@ export function OrdersPage() {
               <Button variant="ghost" leftIcon={<BarChart3 size={16} />} onClick={() => setAnalyticsOpen((o) => !o)} aria-expanded={analyticsOpen}>
                 {analyticsOpen ? t('orders.analyticsHide') : t('orders.analyticsShow')}
               </Button>
+            )}
+            {!asOfActive && (
+              <ActionMenu
+                label={t('ordVac.export')}
+                icon={<Download size={14} />}
+                items={[
+                  { key: 'xlsx', label: 'Excel', icon: <FileSpreadsheet size={14} />, loading: exporting === 'xlsx', disabled: rangeInvalid, onClick: () => void doExport('xlsx') },
+                  { key: 'pdf', label: 'PDF', icon: <FileText size={14} />, loading: exporting === 'pdf', disabled: rangeInvalid, onClick: () => void doExport('pdf') },
+                ]}
+              />
             )}
             {canManage && !asOfActive && (
               <Button leftIcon={<Plus size={16} />} onClick={() => setForm({ open: true, editId: null })}>
@@ -544,6 +608,8 @@ export function OrdersPage() {
         readOnly={asOfActive}
         onClose={() => setDetailId(null)}
         onOpenDocument={(o) => setDocOrder(o)}
+        onOpenOrder={(id) => setDetailId(id)}
+        onCorrective={openCorrective}
       />
 
       <OrderDocumentViewer
@@ -555,11 +621,37 @@ export function OrdersPage() {
       <OrderFormDrawer
         open={form.open}
         editId={form.editId}
+        correctsId={form.correctsId ?? null}
+        onLocked={(id) => {
+          setForm({ open: false, editId: null })
+          setLocked({ id, number: lockedNumber(id) })
+        }}
         onClose={() => setForm({ open: false, editId: null })}
         onSaved={(createdId) => {
           setForm({ open: false, editId: null })
           // A new order opens straight away — «Yuborish» is the next step.
           if (createdId) setDetailId(createdId)
+        }}
+      />
+
+      <OrderLockedDialog
+        open={!!locked}
+        number={locked?.number || locked?.id}
+        canCorrect={canManage}
+        onClose={() => setLocked(null)}
+        onCorrect={() => locked && openCorrective(locked.id)}
+      />
+
+      <WithdrawOrderModal
+        open={!!withdrawTarget}
+        number={withdrawTarget?.act_number || withdrawTarget?.id}
+        loading={mut.withdraw.isPending}
+        onClose={() => setWithdrawTarget(null)}
+        onSubmit={async (reason) => {
+          const row = withdrawTarget
+          if (!row) return
+          setWithdrawTarget(null)
+          await act(row, () => mut.withdraw.mutateAsync({ id: row.id, reason }), t('ordVac.withdrawn'))
         }}
       />
 

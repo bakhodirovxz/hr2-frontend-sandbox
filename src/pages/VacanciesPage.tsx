@@ -1,14 +1,16 @@
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BriefcaseBusiness, CalendarClock, Inbox, Send } from 'lucide-react'
+import { BriefcaseBusiness, CalendarClock, Download, FileSpreadsheet, FileText, Inbox, Send, Share2 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column, type SortState } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
 import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
 import { LoadError } from '@/components/data/LoadError'
+import { ActionMenu } from '@/components/ui/ActionMenu'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { DateInput } from '@/components/ui/DateInput'
@@ -28,6 +30,8 @@ import { useListParams } from '@/hooks/useListParams'
 import { useDictionaryOptions } from '@/features/dictionaries/useDictionaries'
 import { RequiredLanguagesChips, entryLabel } from '@/features/vacancies/RequiredLanguagesChips'
 import {
+  exportVacancies,
+  shareVacancy,
   useApplyVacancy,
   useMyApplications,
   useVacancies,
@@ -92,16 +96,81 @@ function sortRows(rows: Vacancy[], key: VacancySortKey, dir: 'asc' | 'desc'): Va
   })
 }
 
+type UrlFilters = Record<string, string>
+
+function sortOf(f: UrlFilters): { key: VacancySortKey; dir: 'asc' | 'desc' } {
+  return {
+    key: (SORT_KEYS as string[]).includes(f.sort) ? (f.sort as VacancySortKey) : 'available_from',
+    dir: f.order === 'desc' ? 'desc' : 'asc',
+  }
+}
+
+/** The server filters from the URL — shared by the list and its export. */
+function listQuery(f: UrlFilters): VacancyFilters {
+  const badRange = isInvalidRange(f.from, f.to)
+  return {
+    organization: f.org,
+    department: f.dept,
+    job_position: f.job,
+    requirements: f.req,
+    vacant_count_min: /^\d+([.,]\d+)?$/.test(f.min) ? f.min.replace(',', '.') : '',
+    date_from: badRange ? '' : f.from,
+    date_to: badRange ? '' : f.to,
+  }
+}
+
+/** TZ V3 1327 «Поделиться вакансией» — the link opens this vacancy's card. */
+function useShare() {
+  const { t } = useTranslation()
+  const toast = useToast()
+  return async (v: Vacancy) => {
+    const res = await shareVacancy(v, v.job_position?.name || t('vacancies.vacancy'))
+    if (res === 'copied') toast.ok(t('ordVac.linkCopied'))
+    else if (res === 'failed') toast.error(t('ordVac.shareFailed'))
+  }
+}
+
 const fmtCount = (n?: number | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toLocaleString('ru-RU'))
 
 export function VacanciesPage() {
   const { t } = useTranslation()
+  const toast = useToast()
   const lp = useListParams(URL_KEYS)
   const tab: 'list' | 'mine' = lp.filters.tab === 'mine' ? 'mine' : 'list'
+  const f = lp.filters
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+
+  // TZ V3 1327 «Экспорт списка вакансий» — the list's own filters and order (guests too).
+  const doExport = async (format: 'xlsx' | 'pdf') => {
+    setExporting(format)
+    try {
+      await exportVacancies(listQuery(f), sortOf(f).key, sortOf(f).dir, format)
+      toast.ok(t('ordVac.exported'))
+    } catch (e) {
+      toast.error(errorMessage(e, t('ordVac.exportFailed')))
+    } finally {
+      setExporting(null)
+    }
+  }
 
   return (
     <PageContainer>
-      <PageHeader title={t('vacancies.title')} subtitle={t('vacancies.subtitle')} />
+      <PageHeader
+        title={t('vacancies.title')}
+        subtitle={t('vacancies.subtitle')}
+        actions={
+          tab === 'list' ? (
+            <ActionMenu
+              label={t('ordVac.export')}
+              icon={<Download size={14} />}
+              items={[
+                { key: 'xlsx', label: 'Excel', icon: <FileSpreadsheet size={14} />, loading: exporting === 'xlsx', onClick: () => void doExport('xlsx') },
+                { key: 'pdf', label: 'PDF', icon: <FileText size={14} />, loading: exporting === 'pdf', onClick: () => void doExport('pdf') },
+              ]}
+            />
+          ) : undefined
+        }
+      />
       <Segmented
         className="mb-4"
         aria-label={t('vacancies.title')}
@@ -124,20 +193,11 @@ function VacancyList({ lp }: { lp: ListParams }) {
   const user = useAuthStore((s) => s.user)
   const { filters: f, page, setPage, size, setSize, setFilter, setFilters } = lp
 
-  const sortKey: VacancySortKey = (SORT_KEYS as string[]).includes(f.sort) ? (f.sort as VacancySortKey) : 'available_from'
-  const sortDir: 'asc' | 'desc' = f.order === 'desc' ? 'desc' : 'asc'
+  const { key: sortKey, dir: sortDir } = sortOf(f)
   const badRange = isInvalidRange(f.from, f.to)
-
-  const query: VacancyFilters = {
-    organization: f.org,
-    department: f.dept,
-    job_position: f.job,
-    requirements: f.req,
-    vacant_count_min: /^\d+([.,]\d+)?$/.test(f.min) ? f.min.replace(',', '.') : '',
-    date_from: badRange ? '' : f.from,
-    date_to: badRange ? '' : f.to,
-  }
+  const query = listQuery(f)
   const list = useVacancies(query, sortKey, sortDir)
+  const share = useShare()
   const all = useMemo(() => sortRows(list.data ?? [], sortKey, sortDir), [list.data, sortKey, sortDir])
   const pages = Math.max(1, Math.ceil(all.length / size))
   const pageRows = all.slice((page - 1) * size, page * size)
@@ -215,10 +275,21 @@ function VacancyList({ lp }: { lp: ListParams }) {
     {
       key: 'actions',
       header: '',
-      headerClassName: 'w-36',
-      className: 'pr-4 text-right',
+      headerClassName: 'w-44',
+      className: 'pr-4 text-right whitespace-nowrap',
       skeleton: 'w-24',
       cell: (r) => (
+        <span className="inline-flex items-center gap-1">
+        <IconButton
+          size="sm"
+          label={t('ordVac.share')}
+          onClick={(e) => {
+            e.stopPropagation()
+            void share(r)
+          }}
+        >
+          <Share2 size={15} />
+        </IconButton>
         <Button
           size="sm"
           variant="outline"
@@ -229,6 +300,7 @@ function VacancyList({ lp }: { lp: ListParams }) {
         >
           {t('vacancies.apply')}
         </Button>
+        </span>
       ),
     },
   ]
@@ -379,6 +451,7 @@ function VacancyDrawer({
   user: User | null
 }) {
   const { t, i18n } = useTranslation()
+  const share = useShare()
   const edu = useDictionaryOptions(v?.education_level_code ? 'education_levels' : null)
   const emp = v?.employment_type ? EMPLOYMENT_KEYS[v.employment_type as keyof typeof EMPLOYMENT_KEYS] : undefined
   // Maosh oralig'i: «7 000 000 – 9 000 000», «… dan», «… gacha».
@@ -416,8 +489,8 @@ function VacancyDrawer({
         <>
           <dl>
             <Fact label={t('vacancies.annStatus')}>
-              <Badge tone={v.status === 'closed' ? 'neutral' : 'success'} dot>
-                {v.status === 'closed' ? t('vacancies.statusClosed') : t('vacancies.statusOpen')}
+              <Badge tone={v.status === 'closed' ? 'neutral' : v.status === 'paused' ? 'warning' : 'success'} dot>
+                {v.status === 'closed' ? t('vacancies.statusClosed') : v.status === 'paused' ? t('ordVac.vacPaused') : t('vacancies.statusOpen')}
               </Badge>
             </Fact>
             <Fact label={t('vacancies.colOrg')}>{v.organization?.name}</Fact>
@@ -459,9 +532,14 @@ function VacancyDrawer({
           {applying ? (
             <ApplyForm key={v.id} vacancy={v} user={user} onDone={onClose} onCancel={() => setApplying(false)} />
           ) : (
-            <Button className="mt-5 w-full" leftIcon={<CalendarClock size={16} />} onClick={() => setApplying(true)}>
-              {t('vacancies.applyLong')}
-            </Button>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Button className="w-full sm:flex-1" leftIcon={<CalendarClock size={16} />} onClick={() => setApplying(true)}>
+                {t('vacancies.applyLong')}
+              </Button>
+              <Button variant="outline" className="w-full sm:w-auto" leftIcon={<Share2 size={16} />} onClick={() => void share(v)}>
+                {t('ordVac.share')}
+              </Button>
+            </div>
           )}
         </>
       )}
