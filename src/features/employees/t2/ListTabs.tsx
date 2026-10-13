@@ -44,7 +44,7 @@ function RowsSectionTab({
   current: Row[]
   toBody: (rows: Row[]) => Record<string, unknown>
 }) {
-  const { saving, put } = useT2Save(employeeId)
+  const { saving, put, begin } = useT2Save(employeeId, () => setEditing(false))
   const [editing, setEditing] = useState(false)
   const [rows, setRows] = useState<Row[]>([])
   return (
@@ -56,6 +56,7 @@ function RowsSectionTab({
       editing={editing}
       onEdit={() => {
         setRows(current.map((r) => ({ ...r })))
+        begin(saveKey)
         setEditing(true)
       }}
       onCancel={() => setEditing(false)}

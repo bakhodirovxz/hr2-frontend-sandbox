@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
 import { BasisFields, EMPTY_BASIS, isBasisComplete } from './BasisFields'
 import { useDepartmentAdminMutations, type Basis, type DepartmentRow } from './useDepartmentAdmin'
+import { TransferEmployeesModal } from './TransferEmployeesModal'
 
 /**
  * TZ 4.2.6 «Сокращение подразделений» (S1): bo'limni qisqartirish yoki qayta
@@ -33,6 +34,8 @@ export function DepartmentCloseModal({
   const [basis, setBasis] = useState<Basis>(EMPTY_BASIS)
   const [errors, setErrors] = useState<{ reason?: string; basis?: string; form?: string }>({})
   const [blocked, setBlocked] = useState<{ employees: number; children: number } | null>(null)
+  // TZ S1 1116: «Xodimlarni o‘tkazish» from the refusal, then close again.
+  const [transferOpen, setTransferOpen] = useState(false)
   const open = !!dept
   const reopen = mode === 'reopen'
 
@@ -67,64 +70,76 @@ export function DepartmentCloseModal({
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="md"
-      title={reopen ? t('orgAdmin.reopenTitle') : t('orgAdmin.closeTitle')}
-      description={dept?.name}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={setClosed.isPending}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant={reopen ? 'primary' : 'danger'} onClick={submit} loading={setClosed.isPending}>
-            {reopen ? t('orgAdmin.reopen') : t('orgAdmin.close')}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        {!reopen && <p className="text-[13px] leading-relaxed text-fg-muted">{t('orgAdmin.closeHint')}</p>}
-        <Field label={t('orgAdmin.reason')} required error={errors.reason}>
-          <Textarea
-            rows={3}
-            maxLength={1000}
-            value={reason}
-            invalid={!!errors.reason}
-            onChange={(e) => {
-              setReason(e.target.value)
-              if (errors.reason) setErrors((x) => ({ ...x, reason: undefined }))
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        size="md"
+        title={reopen ? t('orgAdmin.reopenTitle') : t('orgAdmin.closeTitle')}
+        description={dept?.name}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose} disabled={setClosed.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant={reopen ? 'primary' : 'danger'} onClick={submit} loading={setClosed.isPending}>
+              {reopen ? t('orgAdmin.reopen') : t('orgAdmin.close')}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {!reopen && <p className="text-[13px] leading-relaxed text-fg-muted">{t('orgAdmin.closeHint')}</p>}
+          <Field label={t('orgAdmin.reason')} required error={errors.reason}>
+            <Textarea
+              rows={3}
+              maxLength={1000}
+              value={reason}
+              invalid={!!errors.reason}
+              onChange={(e) => {
+                setReason(e.target.value)
+                if (errors.reason) setErrors((x) => ({ ...x, reason: undefined }))
+              }}
+            />
+          </Field>
+          <BasisFields
+            value={basis}
+            onChange={(b) => {
+              setBasis(b)
+              if (errors.basis) setErrors((x) => ({ ...x, basis: undefined }))
             }}
+            title={t('orgAdmin.basisOrder')}
+            error={errors.basis}
           />
-        </Field>
-        <BasisFields
-          value={basis}
-          onChange={(b) => {
-            setBasis(b)
-            if (errors.basis) setErrors((x) => ({ ...x, basis: undefined }))
-          }}
-          title={t('orgAdmin.basisOrder')}
-          error={errors.basis}
-        />
-        {blocked && (
-          <div role="alert" className="flex gap-2.5 rounded-lg border border-danger/30 bg-danger-soft p-3 text-[13px] text-danger">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="font-semibold">{t('orgAdmin.notEmptyTitle')}</p>
-              <p className="mt-1">
-                {t('orgAdmin.notEmptyCounts', { employees: blocked.employees, children: blocked.children })}
-              </p>
-              <p className="mt-1 text-danger/80">{t('orgAdmin.notEmptyHint')}</p>
+          {blocked && (
+            <div role="alert" className="flex gap-2.5 rounded-lg border border-danger/30 bg-danger-soft p-3 text-[13px] text-danger">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">{t('orgAdmin.notEmptyTitle')}</p>
+                <p className="mt-1">
+                  {t('orgAdmin.notEmptyCounts', { employees: blocked.employees, children: blocked.children })}
+                </p>
+                <p className="mt-1 text-danger/80">{t('orgAdmin.notEmptyHint')}</p>
+                {blocked.employees > 0 && (
+                  <Button size="sm" variant="outline" className="mt-2" leftIcon={<ArrowRightLeft size={14} />} onClick={() => setTransferOpen(true)}>
+                    {t('hrExt.transfer.title')}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-        {errors.form && (
-          <p role="alert" className="text-xs text-danger">
-            {errors.form}
-          </p>
-        )}
-      </div>
-    </Modal>
+          )}
+          {errors.form && (
+            <p role="alert" className="text-xs text-danger">
+              {errors.form}
+            </p>
+          )}
+        </div>
+      </Modal>
+      <TransferEmployeesModal
+        ctx={transferOpen && dept && blocked ? { dept, action: 'close', employeeCount: blocked.employees, archivedCount: 0 } : null}
+        onClose={() => setTransferOpen(false)}
+        onDone={() => void submit()}
+      />
+    </>
   )
 }

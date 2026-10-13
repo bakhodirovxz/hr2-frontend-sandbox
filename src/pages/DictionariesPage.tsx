@@ -14,6 +14,7 @@ import {
   Search,
   Trash2,
   Upload,
+  Printer,
 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { Button, Card, Input, Modal, Select, Spinner, useToast } from '@/components/ui'
@@ -32,6 +33,8 @@ import { useAuthStore } from '@/store/authStore'
 import { DictionaryEntryCard } from '@/features/dictionaries/DictionaryEntryCard'
 import { DictionaryEntryModal, useExtraKindLabel } from '@/features/dictionaries/DictionaryEntryModal'
 import { DictionaryImportModal } from '@/features/dictionaries/DictionaryImportModal'
+import { DictionaryRegistryModal, DictionaryUsageList } from '@/features/dictionaries/DictionaryUsageList'
+import { printDictionary } from '@/features/dictionaries/printDictionary'
 import { useServerText } from '@/features/statistics/serverText'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import {
@@ -126,6 +129,8 @@ export function DictionariesPage() {
   const [cardEntry, setCardEntry] = useState<DictionaryEntry | null>(null)
   const usage = useEntryUsage(deleteTarget?.id ?? null)
   const [exporting, setExporting] = useState<TableFormat | null>(null)
+  const [printing, setPrinting] = useState(false)
+  const [registryOpen, setRegistryOpen] = useState(false)
 
   useEffect(() => {
     setCardEntry(null)
@@ -201,6 +206,23 @@ export function DictionariesPage() {
       toast.error(errorMessage(e, t('dictionaries.exportFailed')))
     } finally {
       setExporting(null)
+    }
+  }
+
+  const doPrint = async () => {
+    if (!type) return
+    setPrinting(true)
+    try {
+      await printDictionary({
+        type,
+        filters: { search, parentId: filters.parent, status: filters.status },
+        t,
+        lang,
+      })
+    } catch (e) {
+      toast.error(errorMessage(e, t('hrExt.print.failed')))
+    } finally {
+      setPrinting(false)
     }
   }
 
@@ -462,6 +484,16 @@ export function DictionariesPage() {
                 <FilterReset count={activeFilterCount} onReset={reset} />
 
                 <div className="ml-auto flex items-center gap-2">
+                  {/* TZ D1 1558 / D2 1583 — where this dictionary's codes are stored. */}
+                  {!external && (
+                    <Button size="sm" variant="ghost" leftIcon={<Link2 size={14} />} onClick={() => setRegistryOpen(true)}>
+                      {t('hrExt.usage.registryButton')}
+                    </Button>
+                  )}
+                  {/* TZ D2 1583 «Печать справочника» — the print form. */}
+                  <Button size="sm" variant="outline" leftIcon={<Printer size={14} />} loading={printing} onClick={() => void doPrint()}>
+                    {t('hrExt.print.action')}
+                  </Button>
                   {/* Three export formats + import = one menu (redesign 2026-09-24). */}
                   <ActionMenu
                     label={t('staff.download')}
@@ -541,6 +573,7 @@ export function DictionariesPage() {
       )}
 
       <DictionaryEntryCard entry={cardEntry} type={type} onClose={() => setCardEntry(null)} />
+      <DictionaryRegistryModal type={type} open={registryOpen} onClose={() => setRegistryOpen(false)} />
 
       <Modal
         open={!!deleteTarget}
@@ -570,14 +603,9 @@ export function DictionariesPage() {
         {usage.data?.used && (
           <div className="mt-3 rounded-inner bg-warning-soft px-3 py-2.5 text-left text-xs text-warning">
             <p className="font-bold">{t('dictionaries.inUse')}</p>
-            <ul className="mt-1 list-disc pl-4">
-              {usage.data.refs.map((r, i) => (
-                <li key={i}>
-                  {lang === 'ru' && r.label_ru ? r.label_ru : st(r.label)} — {t('orgRef.countItems', { count: r.count })}
-                  {r.sample.length ? ` (${r.sample.slice(0, 3).join(', ')}…)` : ''}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-1.5 text-fg">
+              <DictionaryUsageList refs={usage.data.refs} compact />
+            </div>
             <p className="mt-1.5 opacity-80">{t('dictionaries.inUseHint')}</p>
           </div>
         )}

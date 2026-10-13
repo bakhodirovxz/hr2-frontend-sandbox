@@ -35,6 +35,7 @@ import { useCodeOptions } from './t2/useT2'
 import { MARITAL, fmtDate, hhmm } from './format'
 import { WeeklyScheduleEditor, type WeeklySchedule } from './WeeklyScheduleEditor'
 import { useEmployeeOptions } from './useEmployeeOptions'
+import { EditConflictDialog, editConflictOf, recordOwnWrite, resolveBase, type EditConflictInfo } from './editConflict'
 import {
   addEmployeeRecord,
   fetchEmployee,
@@ -229,8 +230,38 @@ export function EmployeeFormDrawer({
   const [cred, setCred] = useState<{ state: 'sending' | 'failed' | 'timeout'; email: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [pwdOpen, setPwdOpen] = useState(false)
+  const [conflict, setConflict] = useState<EditConflictInfo | null>(null)
 
   // ── load ──
+  /** The form, its baseline for the «changed fields» diff, and — TZ C3 1062 —
+   *  the `updated_at` sent back as `expected_updated_at`. */
+  const applyLoaded = (e: EmployeeFull) => {
+    const f = fromEmployee(e)
+    const x: Extra = {
+      stavka: e.stavka != null ? Number(e.stavka) : 1,
+      working_days: e.working_days ?? [0, 1, 2, 3, 4],
+      weekly_schedule: (e.weekly_schedule ?? {}) as WeeklySchedule,
+      is_multi_org_user: !!e.is_multi_org_user,
+      organization_branch_ids: (e.organization_branches ?? []).map((b) => b.id),
+    }
+    setForm(f)
+    setExtra(x)
+    setOriginal({ form: f, extra: x, employee: e })
+  }
+
+  /** «Yangisini yuklash» after 409 `edit_conflict`: the latest saved record
+   *  replaces the form; the basis, new rows and the picked photo stay. */
+  const reloadFromServer = async () => {
+    if (!editId) return
+    try {
+      applyLoaded(await fetchEmployee(editId))
+      setStep(1)
+      toast.info(t('hrExt.conflict.reloaded'))
+    } catch (err) {
+      toast.error(errorMessage(err, t('personnel.form.loadFailed')))
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     setStep(1)
@@ -263,17 +294,7 @@ export function EmployeeFormDrawer({
     fetchEmployee(editId!)
       .then((e) => {
         if (!alive) return
-        const f = fromEmployee(e)
-        const x: Extra = {
-          stavka: e.stavka != null ? Number(e.stavka) : 1,
-          working_days: e.working_days ?? [0, 1, 2, 3, 4],
-          weekly_schedule: (e.weekly_schedule ?? {}) as WeeklySchedule,
-          is_multi_org_user: !!e.is_multi_org_user,
-          organization_branch_ids: (e.organization_branches ?? []).map((b) => b.id),
-        }
-        setForm(f)
-        setExtra(x)
-        setOriginal({ form: f, extra: x, employee: e })
+        applyLoaded(e)
       })
       .catch((err) => {
         toast.error(errorMessage(err, t('personnel.form.loadFailed')))
@@ -352,6 +373,11 @@ export function EmployeeFormDrawer({
   }
 
   const handleSaveError = (err: unknown) => {
+    const clash = editConflictOf(err)
+    if (clash) {
+      setConflict(clash)
+      return
+    }
     const code = errorCode(err)
     const msg = errorMessage(err, t('common.actionFailed'))
     const field = code ? DUP_FIELD[code] : undefined
@@ -492,7 +518,10 @@ export function EmployeeFormDrawer({
           return
         }
         if (Object.keys(changed).length) {
-          await update.mutateAsync({ id: editId!, body: { ...changed, basis: cleanBasis(basis) } })
+          // TZ C3 1062: the record as it was when the form opened.
+          const expected = resolveBase(editId!, original?.employee.updated_at)
+          const saved = await update.mutateAsync({ id: editId!, body: { ...changed, basis: cleanBasis(basis), expected_updated_at: expected } })
+          recordOwnWrite(editId!, expected, saved?.updated_at)
           if (typeof changed.email === 'string' && changed.email) {
             const email = changed.email
             setCred({ state: 'sending', email })
@@ -982,6 +1011,8 @@ export function EmployeeFormDrawer({
           }}
         />
       )}
+      {/* TZ C3 1062: somebody saved this card after the form was opened. */}
+      <EditConflictDialog conflict={conflict} onReload={reloadFromServer} onClose={() => setConflict(null)} />
     </>
   )
 }

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Hash, IdCard, ImageIcon, Phone, Save } from 'lucide-react'
-import { apiPatch } from '@/api/http'
+import { apiGet, apiPatch } from '@/api/http'
 import { EMPLOYEE_SELF_UPDATE } from '@/api/endpoints'
 import { errorMessage } from '@/api/errorMessage'
 import { Avatar } from '@/components/ui/Avatar'
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { useToast } from '@/components/ui/Toast'
 import { useCodeOptions } from '@/features/employees/t2/useT2'
+import { EditConflictDialog, editConflictOf, recordOwnWrite, resolveBase, type EditConflictInfo } from '../editConflict'
 import { MARITAL_VALUES, maritalKey } from './MyGeneralInfo'
 import { MAX_PHOTO_BYTES, readImage, useRefreshAccount, type MyEmployee } from './useMyAccount'
 
@@ -36,6 +37,15 @@ const KEYS = [
 ] as const
 type Key = (typeof KEYS)[number]
 type Form = Record<Key, string>
+
+function toForm(employee: MyEmployee): Form {
+  const o = {} as Form
+  for (const k of KEYS) {
+    const v = (employee as unknown as Record<string, unknown>)[k]
+    o[k] = v == null ? '' : String(v)
+  }
+  return o
+}
 
 /** Kiritish paytidagi maskalar (hujjat raqamlari shakli). */
 function mask(key: Key, v: string): string {
@@ -88,15 +98,11 @@ export function MyEditForm({
   const nationalities = useCodeOptions('nationalities')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const initial = useMemo(() => {
-    const o = {} as Form
-    for (const k of KEYS) {
-      const v = (employee as unknown as Record<string, unknown>)[k]
-      o[k] = v == null ? '' : String(v)
-    }
-    return o
-  }, [employee])
+  const initial = useMemo(() => toForm(employee), [employee])
   const [form, setForm] = useState<Form>(initial)
+  // TZ C3 1062: the card's `updated_at` when the form opened.
+  const [base, setBase] = useState<string | null | undefined>(employee.updated_at)
+  const [conflict, setConflict] = useState<EditConflictInfo | null>(null)
   const [photo, setPhoto] = useState<{ preview: string; base64: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -146,16 +152,34 @@ export function MyEditForm({
     if (photo) body.photo_base64 = photo.base64
     if (!Object.keys(body).length) return toast.info(t('account.noChanges'))
     setSaving(true)
+    const expected = resolveBase(employee.id, base)
     try {
-      await apiPatch(EMPLOYEE_SELF_UPDATE, body)
+      const res = await apiPatch<{ employee?: { updated_at?: string | null } }>(EMPLOYEE_SELF_UPDATE, { ...body, expected_updated_at: expected })
+      recordOwnWrite(employee.id, expected, res?.employee?.updated_at)
       await refresh(employee.id)
       setPhoto(null)
       toast.ok(t('account.saved'))
       onSaved()
     } catch (err) {
-      toast.error(errorMessage(err, t('account.saveFailed')))
+      const clash = editConflictOf(err)
+      if (clash) setConflict(clash)
+      else toast.error(errorMessage(err, t('account.saveFailed')))
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** «Yangisini yuklash»: the latest saved card replaces the form. */
+  const reload = async () => {
+    try {
+      const fresh = await apiGet<MyEmployee>(`employees/${employee.id}`)
+      setForm(toForm(fresh))
+      setBase(fresh.updated_at)
+      setPhoto(null)
+      await refresh(employee.id)
+      toast.info(t('hrExt.conflict.reloaded'))
+    } catch (err) {
+      toast.error(errorMessage(err, t('account.saveFailed')))
     }
   }
 
@@ -255,6 +279,7 @@ export function MyEditForm({
             {t('common.save')}
           </Button>
         </div>
+        <EditConflictDialog conflict={conflict} onReload={reload} onClose={() => setConflict(null)} />
       </div>
     </div>
   )

@@ -18,7 +18,7 @@ import { Pagination } from '@/components/data/Pagination'
 import { SearchInput } from '@/components/data/SearchInput'
 import { useConfirm } from '@/components/data/useConfirm'
 import { useListParams } from '@/hooks/useListParams'
-import { errorMessage } from '@/api/errorMessage'
+import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
 import { DEPARTMENTS_LIST } from '@/api/endpoints'
 import { canWriteOrg } from '@/auth/permissions'
 import { downloadFile } from '@/lib/download'
@@ -30,6 +30,7 @@ import { DepartmentCardModal, type CardTab } from '@/features/structure/Departme
 import { DepartmentCloseModal } from '@/features/structure/DepartmentCloseModal'
 import { DepartmentFormModal } from '@/features/structure/DepartmentFormModal'
 import { RestructureWizard } from '@/features/structure/RestructureWizard'
+import { TransferEmployeesModal, type TransferContext } from '@/features/structure/TransferEmployeesModal'
 import {
   useDepartmentAdminMutations,
   useDepartmentsAll,
@@ -67,6 +68,7 @@ export function DepartmentsPage() {
   const [form, setForm] = useState<{ value: DepartmentRow | null } | null>(null)
   const [closing, setClosing] = useState<{ dept: DepartmentRow; mode: 'close' | 'reopen' } | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [transfer, setTransfer] = useState<TransferContext | null>(null)
   const [exporting, setExporting] = useState<ExportFormat | null>(null)
 
   // `?open=3` — kartochkani ochamiz va parametrni olib tashlaymiz.
@@ -241,11 +243,28 @@ export function DepartmentsPage() {
       description: t('orgAdmin.deleteConfirm', { name: d.name ?? '' }),
     })
     if (!ok) return
+    await doRemove(d)
+  }
+
+  /**
+   * TZ S1 1116: a department with employees is not deleted — the refusal
+   * (409 `department_in_use`, `params.employee_count` /
+   * `archived_employee_count`) offers «Xodimlarni o‘tkazish», and the delete
+   * is repeated after the transfer.
+   */
+  const doRemove = async (d: DepartmentRow) => {
     try {
       await mut.remove.mutateAsync(d.id)
       toast.ok(t('orgAdmin.deptDeleted'))
     } catch (e) {
-      toast.error(errorMessage(e, t('common.actionFailed')))
+      const p = errorParams(e)
+      const employees = Number(p.employee_count ?? 0)
+      const archived = Number(p.archived_employee_count ?? 0)
+      if (errorCode(e) === 'department_in_use' && employees + archived > 0) {
+        setTransfer({ dept: d, action: 'delete', employeeCount: employees, archivedCount: archived })
+      } else {
+        toast.error(errorMessage(e, t('common.actionFailed')))
+      }
     }
   }
 
@@ -340,6 +359,14 @@ export function DepartmentsPage() {
       <DepartmentFormModal open={!!form} value={form?.value ?? null} all={all} onClose={() => setForm(null)} />
       <DepartmentCloseModal dept={closing?.dept ?? null} mode={closing?.mode ?? 'close'} onClose={() => setClosing(null)} />
       <RestructureWizard open={wizard} all={all} onClose={() => setWizard(false)} />
+      <TransferEmployeesModal
+        ctx={transfer}
+        onClose={() => setTransfer(null)}
+        onDone={() => {
+          const d = transfer?.dept
+          if (d) void doRemove(d)
+        }}
+      />
     </PageContainer>
   )
 }

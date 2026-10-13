@@ -32,6 +32,7 @@ import { AwardsTab, ElectiveTab, LanguagesTab, MeritsTab, RelativesTab, Vacation
 import { AddressTab, PassportTab, PhotoTab } from '../t2/PassportAddressTabs'
 import { useT2Card } from '../t2/useT2'
 import { T2BasisContext } from '../t2/T2Ui'
+import { EditConflictProvider } from '../editConflict'
 import { EMPTY_BASIS, type EditBasis } from '../types'
 import { AsOfTab, CareerTab, OrdersTab } from './CardPanels'
 
@@ -257,7 +258,9 @@ export function CardTabs({
     <div className="flex min-w-0 flex-col gap-3">
       <TabBar tabs={tabs} active={active} onChange={onChange} />
       <div role="tabpanel" id="emp-card-panel" aria-labelledby={`emp-card-tab-${active}`} tabIndex={0} className="min-w-0 outline-none" data-needs-t2={needsT2 || undefined}>
-        <T2BasisContext.Provider value={canEdit ? { value: basis, onChange: setBasis } : null}>{body()}</T2BasisContext.Provider>
+        <EditConflictProvider>
+          <T2BasisContext.Provider value={canEdit ? { value: basis, onChange: setBasis } : null}>{body()}</T2BasisContext.Provider>
+        </EditConflictProvider>
       </div>
     </div>
   )

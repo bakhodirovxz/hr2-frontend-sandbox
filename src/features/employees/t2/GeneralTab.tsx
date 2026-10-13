@@ -38,7 +38,7 @@ export function GeneralTab({ employee, card, canEdit, onEditEmployee }: T2TabPro
   const { t } = useTranslation()
   const labels = usePersonnelLabels()
   const cardName = useCardName(card)
-  const { saving, patch } = useT2Save(employee.id)
+  const { saving, patch, begin } = useT2Save(employee.id, (key) => (key === 'extra' ? setExtraEditing(false) : setEditing(false)))
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [extraEditing, setExtraEditing] = useState(false)
@@ -99,6 +99,7 @@ export function GeneralTab({ employee, card, canEdit, onEditEmployee }: T2TabPro
         editing={editing}
         onEdit={() => {
           setForm(Object.fromEntries(SCALARS.map((k) => [k, values[k] ?? ''])))
+          begin('general')
           setEditing(true)
         }}
         onCancel={() => setEditing(false)}
@@ -139,6 +140,7 @@ export function GeneralTab({ employee, card, canEdit, onEditEmployee }: T2TabPro
           editing={extraEditing}
           onEdit={() => {
             setExtra({ ...savedExtra })
+            begin('extra')
             setExtraEditing(true)
           }}
           onCancel={() => setExtraEditing(false)}

@@ -62,7 +62,7 @@ export function PhotoTab({ employee, canEdit, onEditEmployee }: T2TabProps) {
  */
 export function PassportTab({ employee, card, canEdit, onEditEmployee }: T2TabProps) {
   const { t } = useTranslation()
-  const { saving, patch } = useT2Save(employee.id)
+  const { saving, patch, begin } = useT2Save(employee.id, () => setEditing(false))
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ pasport_issue_date: '', pasport_expiry_date: '' })
   const values = card.values ?? {}
@@ -77,6 +77,7 @@ export function PassportTab({ employee, card, canEdit, onEditEmployee }: T2TabPr
         editing={editing}
         onEdit={() => {
           setForm({ pasport_issue_date: values.pasport_issue_date ?? '', pasport_expiry_date: values.pasport_expiry_date ?? '' })
+          begin('passport')
           setEditing(true)
         }}
         onCancel={() => setEditing(false)}
@@ -139,7 +140,7 @@ const ADDRESS_KEYS = [
 export function AddressTab({ employee, card, canEdit }: T2TabProps) {
   const { t } = useTranslation()
   const cardName = useCardName(card)
-  const { saving, patch } = useT2Save(employee.id)
+  const { saving, patch, begin } = useT2Save(employee.id, () => setEditing(false))
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const values = card.values ?? {}
@@ -185,6 +186,7 @@ export function AddressTab({ employee, card, canEdit }: T2TabProps) {
         editing={editing}
         onEdit={() => {
           setForm({ ...cur })
+          begin('address')
           setEditing(true)
         }}
         onCancel={() => setEditing(false)}

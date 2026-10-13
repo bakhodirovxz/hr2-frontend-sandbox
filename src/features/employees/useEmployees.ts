@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/api/http'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/api/http'
 import { apiClient } from '@/api/client'
 import { useBranchStore } from '@/store/branchStore'
 import { useAuthStore } from '@/store/authStore'
@@ -121,6 +121,48 @@ export function useArchivedEmployees(f: { page: number; size: number; search?: s
   })
 }
 
+/**
+ * TZ C4 1087: the archive row of ONE card — its `restore_until` (the card
+ * itself does not carry it). Looked up by name in `/employees/archived`.
+ */
+export function useArchivedRow(employee: { id: number; legal_name?: string | null; is_archived?: boolean | null } | null | undefined, enabled: boolean) {
+  const name = employee?.legal_name?.trim() ?? ''
+  return useQuery({
+    queryKey: ['employees-archived', 'row', employee?.id, name],
+    queryFn: async () => {
+      const page = await apiGet<Page<ArchivedEmployee>>('employees/archived', { search: name, page: 1, size: 50, _no_branch_inject: true })
+      return page.items.find((r) => r.id === employee?.id) ?? null
+    },
+    enabled: enabled && !!employee?.is_archived && !!name,
+    retry: false,
+  })
+}
+
+/** TZ C4 1087: `archive.restore_days` — master-only system setting (0 = off). */
+export interface ArchiveSettings {
+  restore_days: number
+}
+const ARCHIVE_SETTINGS = 'system/settings/archive'
+
+export function useArchiveSettings(enabled: boolean) {
+  const qc = useQueryClient()
+  const query = useQuery({
+    queryKey: ['system-settings', 'archive'],
+    queryFn: () => apiGet<ArchiveSettings>(ARCHIVE_SETTINGS),
+    enabled,
+  })
+  const save = useMutation({
+    meta: { silent: true },
+    mutationFn: (body: ArchiveSettings) => apiPut<ArchiveSettings>(ARCHIVE_SETTINGS, body),
+    onSuccess: (data) => {
+      qc.setQueryData(['system-settings', 'archive'], data)
+      // `restore_until` of every archive row moves with it.
+      void qc.invalidateQueries({ queryKey: ['employees-archived'] })
+    },
+  })
+  return { query, save }
+}
+
 // ── one card ────────────────────────────────────────────────────────────────
 
 export function useEmployeeDetail(id: number | null) {
@@ -208,6 +250,8 @@ export function useEmployeeMutations() {
       onSuccess: done,
     }),
     update: useMutation({
+      // The drawer reports every failure itself (field errors, TZ C3 conflict dialog).
+      meta: { silent: true },
       mutationFn: ({ id, body }: { id: number; body: EmployeePayload }) =>
         apiPatch<EmployeeFull>(`employees/${id}`, body, { params: { _no_branch_inject: true } }),
       onSuccess: done,
@@ -232,6 +276,13 @@ export function useEmployeeMutations() {
     rehire: useMutation({
       mutationFn: ({ id, body }: { id: number; body: { hire_date: string; department_id: number; job_position_id: number; basis: EditBasis } }) =>
         apiPost<EmployeeFull>(`employees/${id}/rehire`, body, { params: { _no_branch_inject: true } }),
+      onSuccess: done,
+    }),
+    /** TZ C4 1087 «Восстановление из архива» — back to the pre-archive place. */
+    restore: useMutation({
+      meta: { silent: true },
+      mutationFn: ({ id, basis }: { id: number; basis?: EditBasis | null }) =>
+        apiPost<EmployeeFull>(`employees/${id}/restore`, { basis: basis ?? undefined }, { params: { _no_branch_inject: true } }),
       onSuccess: done,
     }),
     migrate: useMutation({

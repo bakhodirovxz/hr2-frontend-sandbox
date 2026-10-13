@@ -58,6 +58,8 @@ export interface Education {
 /** `GET /employees/{pk}` — EmployeeReadFull (PII masked by the viewer's level). */
 export interface EmployeeFull {
   id: number
+  /** TZ C3 1062: sent back as `expected_updated_at` (naive UTC). */
+  updated_at?: string | null
   user_id?: number | null
   tabel_number?: string | null
   legal_name?: string | null
@@ -150,6 +152,8 @@ export interface ArchivedEmployee {
   archive_date?: string | null
   archived_at?: string | null
   archive_note?: string | null
+  /** TZ C4 1087: `POST /employees/{pk}/restore` is possible until then (`null` — not possible). */
+  restore_until?: string | null
 }
 
 // ── T-2 ─────────────────────────────────────────────────────────────────────
@@ -246,6 +250,8 @@ export interface ExtraAttribute {
 
 export interface T2Card {
   employee_id: number
+  /** TZ C3 1062: sent back as `expected_updated_at` (naive UTC). */
+  updated_at?: string | null
   values: T2Values
   nationality_name?: string | null
   military_obligation_name?: string | null

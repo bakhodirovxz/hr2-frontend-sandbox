@@ -107,7 +107,7 @@ const EDU_KEYS = [
 export function EducationTab({ employee, card, canEdit }: T2TabProps) {
   const { t } = useTranslation()
   const cardName = useCardName(card)
-  const { saving, patch } = useT2Save(employee.id)
+  const { saving, patch, begin } = useT2Save(employee.id, () => setEditing(false))
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [addOpen, setAddOpen] = useState(false)
@@ -158,6 +158,7 @@ export function EducationTab({ employee, card, canEdit }: T2TabProps) {
         editing={editing}
         onEdit={() => {
           setForm(Object.fromEntries(EDU_KEYS.map((k) => [k, values[k] == null ? '' : String(values[k])])))
+          begin('education')
           setEditing(true)
         }}
         onCancel={() => setEditing(false)}
@@ -251,7 +252,7 @@ function TrainingsList({ employeeId }: { employeeId: number }) {
 export function ExperienceTab({ employee, card, canEdit }: T2TabProps) {
   const { t } = useTranslation()
   const labels = usePersonnelLabels()
-  const { saving, patch } = useT2Save(employee.id)
+  const { saving, patch, begin } = useT2Save(employee.id, () => setEditing(false))
   const [editing, setEditing] = useState(false)
   const [prevMonths, setPrevMonths] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -291,6 +292,7 @@ export function ExperienceTab({ employee, card, canEdit }: T2TabProps) {
         editing={editing}
         onEdit={() => {
           setPrevMonths(values.previous_experience_months == null ? '' : String(values.previous_experience_months))
+          begin('experience')
           setEditing(true)
         }}
         onCancel={() => setEditing(false)}
