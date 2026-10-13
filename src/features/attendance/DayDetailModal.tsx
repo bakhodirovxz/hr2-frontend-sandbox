@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/cn'
-import { inTashkent } from '@/lib/format'
+import { inWallClock } from '@/lib/format'
 import { dmy } from './period'
 import { CAL_COLOR, CAL_LABEL, type CalStatus } from './attendanceStatus'
 import type { DayDocument } from './useDayDocuments'
@@ -67,8 +67,8 @@ export function DayDetailModal({
   // The employee's OWN lunch window — 1200 people here lunch at 12:00, not 13:00.
   const inside = insideMinutes(events, workingEnd, { start: lunchStart, end: lunchEnd })
   const breaks = dayBreaks(events, workingEnd)
-  const firstIn = day?.entry?.happen_time ? inTashkent(day.entry.happen_time).format('HH:mm') : '—'
-  const lastOut = day?.exit?.happen_time ? inTashkent(day.exit.happen_time).format('HH:mm') : '—'
+  const firstIn = day?.entry?.happen_time ? inWallClock(day.entry.happen_time).format('HH:mm') : '—'
+  const lastOut = day?.exit?.happen_time ? inWallClock(day.exit.happen_time).format('HH:mm') : '—'
 
   return (
     <Modal
@@ -294,7 +294,7 @@ function PassRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="text-[13px] font-semibold tabular-nums text-fg">
-              {inTashkent(event.happen_time).format('HH:mm:ss')}
+              {inWallClock(event.happen_time).format('HH:mm:ss')}
             </span>
             <span
               className="inline-flex items-center gap-1 rounded-[var(--r-pill)] px-1.5 py-0.5 text-[10.5px] font-semibold"

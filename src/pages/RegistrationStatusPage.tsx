@@ -12,6 +12,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import dayjs from 'dayjs'
 import { inTashkent } from '@/lib/format'
 import { useMyRegistration, type RegistrationRow } from '@/features/registration/useRegistration'
+import { useAuthMethodLabel } from '@/features/registration/AuthMethodBadge'
 
 /**
  * Arizachining O'Z arizasi va holati — TZ 4.2.2 / 4.2.12
@@ -35,6 +36,7 @@ const ICON: Record<string, React.ReactNode> = {
 
 export function RegistrationStatusPage() {
   const { t } = useTranslation()
+  const authLabel = useAuthMethodLabel()
   const query = useMyRegistration()
   const logout = useLogout()
   const status = (query.error as { response?: { status?: number } } | null)?.response?.status
@@ -134,6 +136,7 @@ export function RegistrationStatusPage() {
         <CardHeader title={t('regStatus.submitted')} />
         <div className="grid gap-x-8 px-5 pb-4 sm:grid-cols-2">
           <Row label={t('register.username')} value={row.username} />
+          <Row label={t('regAuth.label')} value={authLabel(row.auth_method)} />
           <Row label={t('register.email')} value={row.email} />
           <Row label={t('register.phone')} value={row.phone_number} />
           <Row label={t('register.birthDate')} value={row.birth_date ? dayjs(row.birth_date).format('DD.MM.YYYY') : null} />

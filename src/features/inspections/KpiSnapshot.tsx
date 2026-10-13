@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Gauge } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { KpiSnapshotData, SnapshotRow } from './useInspections'
@@ -39,7 +40,7 @@ export function KpiSnapshot({ snapshot }: { snapshot?: KpiSnapshotData | null })
         )}
         {snapshot.taken_at && (
           <span>
-            {t('inspections.snapTakenAt')}: <b className="font-medium text-fg">{dayjs(snapshot.taken_at).format('DD.MM.YYYY HH:mm')}</b>
+            {t('inspections.snapTakenAt')}: <b className="font-medium text-fg">{inTashkent(snapshot.taken_at).format('DD.MM.YYYY HH:mm')}</b>
           </span>
         )}
       </div>

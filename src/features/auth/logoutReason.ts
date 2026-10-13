@@ -15,12 +15,19 @@ export function setLogoutReason(reason: LogoutReason): void {
   }
 }
 
-export function takeLogoutReason(): LogoutReason | null {
+/** Faqat o'qiydi — render paytida (StrictMode ikki marta chaqiradi) xavfsiz. */
+export function peekLogoutReason(): LogoutReason | null {
   try {
-    const v = sessionStorage.getItem(KEY)
-    sessionStorage.removeItem(KEY)
-    return v === 'idle' ? v : null
+    return sessionStorage.getItem(KEY) === 'idle' ? 'idle' : null
   } catch {
     return null
+  }
+}
+
+export function clearLogoutReason(): void {
+  try {
+    sessionStorage.removeItem(KEY)
+  } catch {
+    /* storage yopiq */
   }
 }

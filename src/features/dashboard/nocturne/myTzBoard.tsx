@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { Activity, ClipboardCheck, ConciergeBell } from 'lucide-react'
 import { apiGet } from '@/api/http'
 import { useAuthStore } from '@/store/authStore'
@@ -113,7 +114,7 @@ export function MyServicesFace({ rows }: { rows: ServiceRequestRow[] }) {
             </span>
             <span className="truncate text-[11px] text-fg-subtle tabnum">
               № {r.number}
-              {r.submitted_at ? ` · ${dayjs(r.submitted_at).format('DD.MM.YYYY')}` : ''}
+              {r.submitted_at ? ` · ${inTashkent(r.submitted_at).format('DD.MM.YYYY')}` : ''}
             </span>
           </span>
           <StatusPill tone={SERVICE_TONE[r.status] ?? 'neutral'}>
