@@ -151,8 +151,10 @@ export function EmployeeMultiPicker({
                   <button
                     type="button"
                     onClick={() => {
+                      const typed = q.trim()
+                      setQ('')
                       setOpen(false)
-                      onCreateNew(q.trim())
+                      onCreateNew(typed)
                     }}
                     className="mx-auto mt-2 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-brand-strong hover:bg-brand-soft"
                   >
