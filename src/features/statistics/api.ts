@@ -1,5 +1,6 @@
 import { apiClient } from '@/api/client'
-import { apiGet, apiPost, apiDelete } from '@/api/http'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/api/http'
+import { downloadFromUrl } from '@/lib/download'
 
 /**
  * STATISTIK HISOBOT MODULI — server bilan aloqa qatlami (TZ 4.2.11, R1, R2).
@@ -151,6 +152,47 @@ export interface ReportTemplate {
   report_code: string | null
   /** Faqat MUALLIF (va master-admin) o'chira oladi — tugma shu bayroqqa qarab. */
   is_mine: boolean
+  /** Avtomatik shakllantirish jadvali (yo'q bo'lsa `null`). */
+  schedule?: ReportSchedule | null
+  /** Faqat muallifga qaytadi. */
+  recipients?: string[] | null
+  formats?: DeliveryFormat[] | null
+  last_run_at?: string | null
+}
+
+export type DeliveryFormat = 'xlsx' | 'pdf' | 'docx'
+export const DELIVERY_FORMATS: DeliveryFormat[] = ['xlsx', 'pdf', 'docx']
+
+export interface ReportSchedule {
+  enabled: boolean
+  frequency: 'daily' | 'weekly' | 'monthly'
+  hour: number
+  /** 0 = dushanba … 6 = yakshanba */
+  weekday: number
+  /** Oyning kuni, 1–28 */
+  day: number
+}
+
+export interface ScheduleInput {
+  schedule: ReportSchedule
+  recipients: string[]
+  formats: DeliveryFormat[]
+}
+
+export interface ReportRun {
+  id: number
+  kind: string
+  status: string
+  error: string | null
+  file_name: string | null
+  has_file: boolean
+  created_at: string | null
+  finished_at: string | null
+  result: {
+    template_id?: number
+    files?: string[]
+    delivery?: { status?: string; sent?: string[]; failed?: { email: string; error: string }[] }
+  } | null
 }
 
 export interface TemplateInput {
@@ -159,6 +201,9 @@ export interface TemplateInput {
   params: Record<string, unknown>
   is_shared: boolean
   report_code?: string | null
+  schedule?: ReportSchedule
+  recipients?: string[]
+  formats?: DeliveryFormat[]
 }
 
 export type DashboardCategory = 'staff' | 'vacancies' | 'kpi' | 'training'
@@ -182,12 +227,15 @@ export interface DashboardWidget {
   unit: string | null
   trend: 'up' | 'down' | 'flat'
   delta: number | null
+  /** Foydalanuvchi sozlamasi bo'yicha ko'rinishi (eski javobda yo'q). */
+  visible?: boolean
 }
 
 export interface DashboardChart {
   code: string
   label: string
-  data: { label: string; value: number }[]
+  data: { label: string; value: number; key?: string | number | null }[]
+  visible?: boolean
 }
 
 export interface StatisticsDashboard {
@@ -197,6 +245,27 @@ export interface StatisticsDashboard {
   comparison: 'previous' | 'custom'
   widgets: DashboardWidget[]
   charts: DashboardChart[]
+  preferences?: { widgets: string[] | null; charts: string[] | null; customized: boolean }
+}
+
+export interface DashboardPreferences {
+  default_category: DashboardCategory
+  widgets: Record<string, string[]>
+  charts: Record<string, string[]>
+  available: { widgets: Record<string, string[]>; charts: Record<string, string[]> }
+  customized: boolean
+}
+
+export interface DrillResult {
+  category: DashboardCategory
+  widget: string
+  key: string | null
+  columns: { key: string; label: string }[]
+  items: Record<string, unknown>[]
+  total: number
+  page: number
+  size: number
+  pii_level?: string
 }
 
 export function fetchStatisticsMeta(): Promise<StatisticsMeta> {
@@ -277,4 +346,67 @@ export async function downloadStatisticsExport(
   link.click()
   link.remove()
   URL.revokeObjectURL(href)
+}
+
+
+// ── R1: e-mail, bir nechta format, jadval ────────────────────────────────
+
+export function sendReportByEmail(body: { params: Record<string, unknown>; formats: DeliveryFormat[]; emails: string[] }) {
+  return apiPost<{ files: string[]; sent: string[]; failed: { email: string; error: string }[] }>('statistics/report/send', body)
+}
+
+export function setTemplateSchedule(id: number, body: ScheduleInput) {
+  return apiPut<unknown>(`statistics/templates/${id}/schedule`, body)
+}
+
+export function fetchReportRuns(): Promise<ReportRun[]> {
+  return apiGet<ReportRun[]>('jobs', { kind: 'report_schedule', limit: 50 })
+}
+
+export async function downloadRunFile(id: number, name: string): Promise<void> {
+  const { url } = await apiGet<{ url: string }>(`jobs/${id}/download`)
+  await downloadFromUrl(url, name)
+}
+
+/** Tanlangan formatlar bitta zip arxivda. */
+export async function downloadStatisticsBundle(
+  body: ExportParams,
+  formats: DeliveryFormat[],
+  fallbackName = 'statistika',
+): Promise<void> {
+  const res = await apiClient.post('statistics/export/bundle', { ...body, formats }, { responseType: 'blob', timeout: 300_000 })
+  const href = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/zip' }))
+  const link = document.createElement('a')
+  link.href = href
+  link.download = fileNameFrom(res.headers?.['content-disposition'], `${fallbackName}.zip`)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(href)
+}
+
+// ── R2: eksport, batafsil, sozlash ───────────────────────────────────────
+
+export async function downloadDashboardExport(params: DashboardParams, format: 'xlsx' | 'pdf'): Promise<void> {
+  const res = await apiClient.get('statistics/dashboard/export', { params: { ...params, format }, responseType: 'blob', timeout: 120_000 })
+  const href = URL.createObjectURL(new Blob([res.data as BlobPart], { type: format === 'pdf' ? MIME.pdf : MIME.excel }))
+  const link = document.createElement('a')
+  link.href = href
+  link.download = fileNameFrom(res.headers?.['content-disposition'], `statistika-panel.${format}`)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(href)
+}
+
+export function fetchDrill(params: DashboardParams & { widget: string; key?: string | null; page: number; size: number }) {
+  return apiGet<DrillResult>('statistics/dashboard/drill', { ...params })
+}
+
+export function fetchDashboardPreferences() {
+  return apiGet<DashboardPreferences>('statistics/dashboard/preferences')
+}
+
+export function saveDashboardPreferences(body: Partial<Pick<DashboardPreferences, 'default_category' | 'widgets' | 'charts'>>) {
+  return apiPut<DashboardPreferences>('statistics/dashboard/preferences', body)
 }

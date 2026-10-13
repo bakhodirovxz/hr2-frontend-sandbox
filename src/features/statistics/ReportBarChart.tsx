@@ -24,10 +24,13 @@ export default function ReportBarChart({
   rows,
   series,
   height = 320,
+  onBarClick,
 }: {
   rows: Record<string, unknown>[]
   series: BarSeries[]
   height?: number
+  /** Ustun bosilganda (qator tartib raqami) — panelda batafsil ochish uchun. */
+  onBarClick?: (index: number) => void
 }) {
   const { t } = useTranslation()
   const data = useMemo(
@@ -87,6 +90,8 @@ export default function ReportBarChart({
                 fill={tokenColor(CHART_TOKENS[i % CHART_TOKENS.length])}
                 radius={[4, 4, 0, 0]}
                 maxBarSize={36}
+                cursor={onBarClick ? 'pointer' : undefined}
+                onClick={onBarClick ? (_d, index) => onBarClick(index) : undefined}
               />
             ))}
           </BarChart>

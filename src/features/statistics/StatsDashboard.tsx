@@ -1,6 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Briefcase, GraduationCap, Minus, RefreshCw, Target, TrendingDown, TrendingUp, Users } from 'lucide-react'
+import { Briefcase, FileSpreadsheet, FileText, GraduationCap, Minus, RefreshCw, Settings2, Target, TrendingDown, TrendingUp, Users } from 'lucide-react'
+import { errorMessage } from '@/api/errorMessage'
+import { useToast } from '@/components/ui/Toast'
 import { useListParams } from '@/hooks/useListParams'
 import { cn } from '@/lib/cn'
 import { Button } from '@/components/ui/Button'
@@ -16,7 +18,8 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { FilterReset } from '@/components/data/FilterReset'
 import { LoadError } from '@/components/data/LoadError'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
-import type { DashboardCategory, DashboardParams, DashboardWidget } from './api'
+import { downloadDashboardExport, type DashboardCategory, type DashboardParams, type DashboardWidget } from './api'
+import { DashboardSettings, DrillDrawer, type DrillTarget } from './DashboardExtras'
 import { dmy, isoDate, reversed } from './reportUtils'
 import { useServerText } from './serverText'
 import { ALL_BRANCHES, useDashboard, useStatBranch } from './useStatistics'
@@ -48,6 +51,10 @@ const fmt = (v: number | null | undefined) =>
 export function StatsDashboard() {
   const { t } = useTranslation()
   const st = useServerText()
+  const toast = useToast()
+  const [drill, setDrill] = useState<DrillTarget | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
   const { filters, setFilter, setFilters, activeFilterCount, reset } = useListParams(FILTER_KEYS)
   const now = new Date()
   const category = (CATEGORIES.some((c) => c.value === filters.dcat) ? filters.dcat : 'staff') as DashboardCategory
@@ -72,8 +79,23 @@ export function StatsDashboard() {
   }
   const q = useDashboard(params, !badPeriod && !badCompare)
   const data = q.data
-  const widgets = (data?.widgets ?? []).filter((w) => w && typeof w === 'object')
-  const charts = (data?.charts ?? []).filter((c) => c && Array.isArray(c.data))
+  const allWidgets = (data?.widgets ?? []).filter((w) => w && typeof w === 'object')
+  const allCharts = (data?.charts ?? []).filter((c) => c && Array.isArray(c.data))
+  // Sozlamada yashirilganlar chizilmaydi (eski javobda `visible` yo'q — hammasi ko'rinadi).
+  const widgets = allWidgets.filter((w) => w.visible !== false)
+  const charts = allCharts.filter((c) => c.visible !== false)
+
+  const doExport = async (format: 'xlsx' | 'pdf') => {
+    setExporting(format)
+    try {
+      await downloadDashboardExport(params, format)
+      toast.ok(t('statistics.exported'))
+    } catch (e) {
+      toast.error(errorMessage(e, t('statistics.exportFailed')))
+    } finally {
+      setExporting(null)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,8 +112,31 @@ export function StatsDashboard() {
               icon: <Icon size={14} />,
             }))}
           />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <FilterReset count={activeFilterCount} onReset={reset} />
+            <Button size="sm" variant="outline" leftIcon={<Settings2 size={14} />} disabled={!data} onClick={() => setSettingsOpen(true)}>
+              {t('statDash.settings')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<FileSpreadsheet size={14} />}
+              loading={exporting === 'xlsx'}
+              disabled={!data || (!!exporting && exporting !== 'xlsx')}
+              onClick={() => void doExport('xlsx')}
+            >
+              Excel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<FileText size={14} />}
+              loading={exporting === 'pdf'}
+              disabled={!data || (!!exporting && exporting !== 'pdf')}
+              onClick={() => void doExport('pdf')}
+            >
+              PDF
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -167,7 +212,7 @@ export function StatsDashboard() {
             <Skeleton key={i} className="h-28 w-full" />
           ))}
         </div>
-      ) : !widgets.length && !charts.length ? (
+      ) : !allWidgets.length && !allCharts.length ? (
         <Card className="p-10">
           <EmptyState title={t('statistics.noData')} description={t('statistics.noDataHint')} />
         </Card>
@@ -185,7 +230,14 @@ export function StatsDashboard() {
           )}
           <div className={cn('grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5', q.isFetching && 'opacity-70')} aria-busy={q.isFetching}>
             {widgets.map((w) => (
-              <WidgetCard key={w.code} w={w} label={st(w.label)} unit={st(w.unit)} custom={data?.comparison === 'custom'} />
+              <WidgetCard
+                key={w.code}
+                w={w}
+                label={st(w.label)}
+                unit={st(w.unit)}
+                custom={data?.comparison === 'custom'}
+                onOpen={() => setDrill({ widget: w.code, title: st(w.label) })}
+              />
             ))}
           </div>
           {charts.length > 0 && (
@@ -199,6 +251,10 @@ export function StatsDashboard() {
                         rows={c.data.map((d) => ({ __x: st(d.label), value: d.value }))}
                         series={[{ key: 'value', label: st(c.label) }]}
                         height={260}
+                        onBarClick={(i) => {
+                          const item = c.data[i]
+                          if (item?.key != null) setDrill({ widget: c.code, key: String(item.key), title: `${st(c.label)} · ${st(item.label)}` })
+                        }}
                       />
                     </Suspense>
                   </div>
@@ -208,17 +264,40 @@ export function StatsDashboard() {
           )}
         </>
       )}
+      {drill && <DrillDrawer target={drill} params={params} onClose={() => setDrill(null)} />}
+      {settingsOpen && (
+        <DashboardSettings category={category} widgets={allWidgets} charts={allCharts} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   )
 }
 
-function WidgetCard({ w, label, unit, custom }: { w: DashboardWidget; label: string; unit: string; custom: boolean }) {
+function WidgetCard({
+  w,
+  label,
+  unit,
+  custom,
+  onOpen,
+}: {
+  w: DashboardWidget
+  label: string
+  unit: string
+  custom: boolean
+  onOpen: () => void
+}) {
   const { t } = useTranslation()
   const trend = w.trend === 'up' || w.trend === 'down' ? w.trend : 'flat'
   const Icon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus
   const trendLabel = t(`statReports.trend_${trend}` as 'statReports.trend_up')
   return (
-    <Card className="flex flex-col gap-1 p-4">
+    <Card className="relative flex flex-col gap-1 p-4 transition-colors focus-within:ring-2 focus-within:ring-brand/40 hover:border-brand/40">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={t('statDash.openDetails', { name: label })}
+        title={t('statDash.openDetails', { name: label })}
+        className="absolute inset-0 z-10 rounded-[inherit] focus:outline-none"
+      />
       <p className="line-clamp-2 text-[12px] font-medium text-fg-muted">{label}</p>
       <p className="text-2xl font-bold tabular-nums leading-tight text-fg">
         {fmt(w.value)}
