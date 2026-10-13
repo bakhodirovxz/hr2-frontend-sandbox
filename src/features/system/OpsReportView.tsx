@@ -1,6 +1,16 @@
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, XCircle } from 'lucide-react'
-import { componentLabel, localizeDetail, stepLabel, type OpsReport, type Step } from './systemOps'
+import { CheckCircle2, DatabaseBackup, Lock, XCircle } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { formatDateTime } from '@/lib/format'
+import {
+  componentLabel,
+  localizeDetail,
+  stepLabel,
+  type OpsReport,
+  type ServiceStop,
+  type Step,
+  type SuggestRestore,
+} from './systemOps'
 
 /** Step-by-step result of an emergency shutdown (each step with its ms). */
 export function StepList({ steps }: { steps: Step[] }) {
@@ -28,19 +38,30 @@ export function StepList({ steps }: { steps: Step[] }) {
  * the steps, the recovery summary (integrity, transactions, repaired indexes,
  * module test) and the per-module results.
  */
-export function OpsReportView({ report }: { report: OpsReport }) {
+export function OpsReportView({
+  report,
+  onRestore,
+}: {
+  report: OpsReport
+  /** Butunlik buzilganda taklif qilingan nusxadan tiklash ustasini ochadi. */
+  onRestore?: (s: SuggestRestore) => void
+}) {
   const { t } = useTranslation()
   const steps = Array.isArray(report.steps) ? report.steps : []
+  const services = Array.isArray(report.services) ? report.services : []
+  const blocked = Array.isArray(report.modules?.blocked) ? report.modules.blocked : []
   const checks = Array.isArray(report.checks) ? report.checks : []
   const modules = report.modules?.results ?? []
   const hasRecovery = !!report.integrity || !!report.modules
-  const empty = steps.length === 0 && checks.length === 0 && !hasRecovery
+  const empty = steps.length === 0 && checks.length === 0 && !hasRecovery && services.length === 0
 
   if (empty) return <p className="text-[13px] text-fg-subtle">{t('sysHealth.noReportDetails')}</p>
 
   return (
     <div className="flex flex-col gap-4">
       {steps.length > 0 && <StepList steps={steps} />}
+
+      {services.length > 0 && <ServiceStopList services={services} physical={report.physical_stop} />}
 
       {checks.length > 0 && (
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -140,6 +161,15 @@ export function OpsReportView({ report }: { report: OpsReport }) {
         </div>
       )}
 
+      {blocked.length > 0 && (
+        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-[12.5px] text-fg">
+          <Lock size={14} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+          {t('sysOps.modulesBlockedNow', { modules: blocked.join(', ') })}
+        </p>
+      )}
+
+      {report.suggest_restore && <SuggestRestoreBox s={report.suggest_restore} onRestore={onRestore} />}
+
       {report.elapsed_seconds != null && (
         <p className="text-[12px] text-fg-subtle">{t('sysHealth.repElapsed', { n: report.elapsed_seconds })}</p>
       )}
@@ -157,6 +187,60 @@ function Item({ ok, label, value }: { ok: boolean; label: string; value: string 
       )}
       <dt className="text-fg-muted">{label}:</dt>
       <dd className="text-fg">{value}</dd>
+    </div>
+  )
+}
+
+/** TZ E2 1690 «корректно останавливает службы» — har xizmat bo'yicha natija. */
+export function ServiceStopList({ services, physical }: { services: ServiceStop[]; physical?: string }) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <h4 className="mb-1.5 text-[13px] font-semibold text-fg">{t('sysOps.servicesStop')}</h4>
+      <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        {services.map((x) => (
+          <li key={x.service} className="flex items-start gap-2 rounded-lg border border-line px-3 py-2 text-[12.5px]">
+            {x.ok ? (
+              <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" aria-hidden />
+            ) : (
+              <XCircle size={14} className="mt-0.5 shrink-0 text-danger" aria-hidden />
+            )}
+            <span className="min-w-0">
+              <span className="block font-semibold text-fg">
+                {t(`sysOps.svc_${x.service}` as never, { defaultValue: x.service }) as string}
+                {x.action ? <span className="ml-1.5 font-mono text-[11px] font-normal text-fg-subtle">{x.action}</span> : null}
+              </span>
+              <span className="block break-words text-fg-muted">{x.detail || '—'}</span>
+              {x.workers && x.workers.length > 0 && (
+                <span className="block break-words font-mono text-[11px] text-fg-subtle">{x.workers.join(', ')}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {physical && <p className="mt-1.5 text-[11.5px] text-fg-subtle">{t('sysOps.physicalStop', { how: physical })}</p>}
+    </div>
+  )
+}
+
+/** TZ E3 1729 «Критическое повреждение БД — Система предлагает восстановление из резервной копии». */
+export function SuggestRestoreBox({ s, onRestore }: { s: SuggestRestore; onRestore?: (s: SuggestRestore) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-danger/35 bg-danger-soft px-3 py-2.5 text-[12.5px]">
+      <DatabaseBackup size={16} className="shrink-0 text-danger" aria-hidden />
+      <span className="min-w-0 flex-1 text-fg">
+        <b className="font-semibold">{t('sysOps.suggestTitle', { id: s.backup_id })}</b>
+        <span className="block text-fg-muted">
+          {[s.finished_at ? formatDateTime(s.finished_at) : null, s.file_name].filter(Boolean).join(' · ')}
+          {s.confirm_phrase ? ` · ${t('sysOps.suggestPhrase', { phrase: s.confirm_phrase })}` : ''}
+        </span>
+      </span>
+      {onRestore && (
+        <Button size="sm" variant="danger" onClick={() => onRestore(s)}>
+          {t('sysOps.suggestOpen')}
+        </Button>
+      )}
     </div>
   )
 }

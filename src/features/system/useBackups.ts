@@ -173,3 +173,71 @@ export function formatBytes(n?: number | null): string {
   }
   return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`
 }
+
+// ── TZ E1 1669 / E3 1729: zaxiradan to'liq / qisman tiklash ────────────────
+
+export const BACKUP_RESTORE = (id: number | string) => `system/backups/${id}/restore`
+export const RESTORE_COMPONENTS = 'system/backups/restore/components'
+
+/** Qisman tiklash komponenti: modul jadvallari + FK yopilmasi (birga tiklanadi). */
+export interface RestoreComponent {
+  code: string
+  label: string
+  tables: string[]
+  closure: string[]
+}
+
+/** Eng so'nggi tekshirilgan to'liq nusxa (butunlik buzilganda taklif qilinadi). */
+export interface VerifiedFull {
+  backup_id: number
+  finished_at?: string | null
+  file_name?: string | null
+  storage?: string | null
+  size_bytes?: number | null
+  confirm_phrase: string
+}
+
+export interface RestoreComponents {
+  components: RestoreComponent[]
+  protected_tables: string[]
+  latest_verified_full?: VerifiedFull | null
+}
+
+/** `POST …/restore` javobidagi reja (tekshiruvlardan o'tgan). */
+export interface RestorePlan {
+  backup_id: number
+  mode: 'full' | 'partial'
+  components: string[]
+  chain: number[]
+  tables: string[]
+  manifests?: { backup_id: number; type?: string; tables?: number }[]
+}
+
+/** Tugagan `backup_restore` vazifasining natijasi. */
+export interface RestoreReport {
+  backup_id?: number
+  mode?: string
+  chain?: number[]
+  safety_backup_id?: number
+  sessions?: unknown
+  tables?: string[]
+  row_counts?: Record<string, number>
+  detached_references?: { constraint: string; table: string; columns: string[]; parent: string; rows: number; action: string }[]
+  integrity?: { ok?: boolean; problems?: unknown[] }
+  elapsed_seconds?: number
+  system_mode?: string
+  incident_id?: number
+  rolled_back?: boolean
+}
+
+/** Tasdiqlash iborasi — server `confirm_phrase` bilan bir xil. */
+export const restorePhrase = (id: number) => `TIKLASH ${id}`
+
+export function useRestoreComponents(enabled: boolean) {
+  return useQuery({
+    queryKey: ['backups', 'restore-components'],
+    queryFn: () => apiGet<RestoreComponents>(RESTORE_COMPONENTS, NO_BRANCH),
+    enabled,
+    staleTime: 60_000,
+  })
+}

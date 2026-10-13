@@ -1,12 +1,12 @@
 import { useMemo, type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, RotateCcw, Settings2 } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Lock, RotateCcw, Settings2 } from 'lucide-react'
 import { AnchoredPanel } from '@/components/ui/AnchoredPanel'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { errorMessage } from '@/api/errorMessage'
+import { errorMessage, isModuleBlocked } from '@/api/errorMessage'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/cn'
 import { TD, TD_COMPACT, TH } from './tableStyles'
@@ -411,8 +411,14 @@ export function DataTable<T extends { id: number }>({
             <tr>
               <td colSpan={colCount}>
                 <EmptyState
-                  icon={<AlertTriangle size={22} className="text-danger" />}
-                  title={t('list.loadFailed')}
+                  icon={
+                    isModuleBlocked(error) ? (
+                      <Lock size={22} className="text-warning" />
+                    ) : (
+                      <AlertTriangle size={22} className="text-danger" />
+                    )
+                  }
+                  title={isModuleBlocked(error) ? t('sysOps.moduleBlockedTitle') : t('list.loadFailed')}
                   description={errorMessage(error, t('list.loadFailedHint'))}
                   action={
                     onRetry ? (

@@ -18,7 +18,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { formatDateTime } from '@/lib/format'
 import * as roles from '@/auth/roles'
 import { useAuthStore } from '@/store/authStore'
-import { useLmsLogs, useLmsMutations, useLmsSettings } from '@/features/system/useLms'
+import { useLmsLogs, useLmsMutations, useLmsSettings, type LmsSyncResult } from '@/features/system/useLms'
 
 /**
  * LMS INTEGRATSIYASI — where the training records come from.
@@ -44,6 +44,8 @@ function LmsPageInner() {
   const [enabled, setEnabled] = useState(false)
   const [autoSync, setAutoSync] = useState(false)
   const [test, setTest] = useState<{ ok?: boolean; message?: string } | null>(null)
+  /** Hozirgina bajarilgan sinxronizatsiya natijasi (olindi / qo'shildi / yangilandi / o'tkazildi). */
+  const [lastRun, setLastRun] = useState<LmsSyncResult | null>(null)
 
   useEffect(() => {
     if (!settings) return
@@ -101,6 +103,7 @@ function LmsPageInner() {
     if (!(await confirm({ kind: 'action', confirmLabel: t('lms.syncNow') }))) return
     try {
       const r = await mut.syncNow.mutateAsync()
+      setLastRun(r)
       if (r?.status === 'ok') {
         toast.ok(t('lms.syncDone', { created: r.created ?? 0, updated: r.updated ?? 0 }))
       } else {
@@ -127,6 +130,8 @@ function LmsPageInner() {
             <Button
               variant="secondary"
               loading={mut.syncNow.isPending}
+              disabled={!settings?.is_enabled}
+              title={!settings?.is_enabled ? t('sysOps.lmsSyncDisabled') : undefined}
               onClick={runSync}
               leftIcon={<RefreshCw size={15} />}
             >
@@ -143,7 +148,10 @@ function LmsPageInner() {
               <Select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
-                options={(settings?.providers ?? ['generic']).map((p) => ({ value: p, label: p }))}
+                options={(settings?.providers ?? ['generic']).map((p) => ({
+                  value: p,
+                  label: t(`sysOps.lmsProv_${p}` as never, { defaultValue: p }) as string,
+                }))}
               />
             </Field>
             <Field label={t('lms.baseUrl')} hint={t('lms.baseUrlHint')}>
@@ -168,7 +176,12 @@ function LmsPageInner() {
 
           <div className="mt-4 space-y-2.5">
             <Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} label={t('lms.enabled')} />
-            <Checkbox checked={autoSync} onChange={(e) => setAutoSync(e.target.checked)} label={t('lms.autoSync')} />
+            <Checkbox
+              checked={autoSync}
+              disabled={!enabled}
+              onChange={(e) => setAutoSync(e.target.checked)}
+              label={t('lms.autoSync')}
+            />
             <p className="text-[11.5px] text-fg-subtle">{t('lms.autoSyncHint')}</p>
           </div>
 
@@ -191,6 +204,22 @@ function LmsPageInner() {
         </Card>
 
         <div className="space-y-4">
+          {lastRun && (
+            <Card className="p-5" aria-live="polite">
+              <p className="mb-2 text-[13px] font-semibold text-fg">{t('sysOps.lmsRunResult')}</p>
+              <Badge tone={lastRun.status === 'ok' ? 'success' : 'danger'}>
+                {lastRun.status === 'ok' ? t('lms.statusOk') : t('lms.statusFail')}
+              </Badge>
+              {lastRun.message && <p className="mt-2 text-[12px] text-fg-muted">{lastRun.message}</p>}
+              <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                <Stat label={t('lms.fetched')} value={lastRun.fetched ?? 0} />
+                <Stat label={t('lms.created')} value={lastRun.created ?? 0} />
+                <Stat label={t('lms.updated')} value={lastRun.updated ?? 0} />
+                <Stat label={t('lms.skipped')} value={lastRun.skipped ?? 0} />
+              </div>
+              {(lastRun.skipped ?? 0) > 0 && <p className="mt-2 text-[11.5px] text-fg-subtle">{t('sysOps.lmsSkippedHint')}</p>}
+            </Card>
+          )}
           <Card className="p-5">
             <p className="mb-3 text-[13px] font-semibold text-fg">{t('lms.lastSync')}</p>
             {settings?.last_sync_at ? (
@@ -239,11 +268,21 @@ function LmsPageInner() {
                       </span>
                       <span className="block text-[11px] tabular-nums text-fg-subtle">
                         {formatDateTime(l.started_at)}
-                        {l.triggered_by ? ` · ${l.triggered_by}` : ''}
+                        {l.triggered_by
+                          ? ` · ${t(`sysOps.lmsBy_${l.triggered_by}` as never, { defaultValue: l.triggered_by }) as string}`
+                          : ''}
                       </span>
                     </span>
-                    <span className="shrink-0 text-[11.5px] tabular-nums text-fg-muted">
-                      +{l.created ?? 0} / ~{l.updated ?? 0}
+                    <span
+                      className="shrink-0 text-right text-[11px] tabular-nums text-fg-muted"
+                      title={`${t('lms.fetched')} / ${t('lms.created')} / ${t('lms.updated')} / ${t('lms.skipped')}`}
+                    >
+                      {t('sysOps.lmsLogStats', {
+                        fetched: l.fetched ?? 0,
+                        created: l.created ?? 0,
+                        updated: l.updated ?? 0,
+                        skipped: l.skipped ?? 0,
+                      })}
                     </span>
                   </li>
                 ))}

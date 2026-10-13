@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, AlertTriangle, CheckCircle2, ChevronRight, RefreshCw, ShieldAlert } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Activity, AlertTriangle, CheckCheck, CheckCircle2, ChevronRight, RefreshCw, ShieldAlert } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -13,7 +13,10 @@ import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { RequireRole } from '@/components/layout/RequireRole'
 import * as roles from '@/auth/roles'
 import { useAuthStore } from '@/store/authStore'
-import { apiGet } from '@/api/http'
+import { apiGet, apiPost } from '@/api/http'
+import { useToast } from '@/components/ui/Toast'
+import { RestoreWizard, type RestoreTarget } from '@/features/system/RestoreWizard'
+import { BlockedModulesCard, IntegrityCard, OpsSettingsCard } from '@/features/system/OpsExtras'
 import { SystemOpsPanel } from '@/features/system/SystemOpsPanel'
 import { OpsReportView } from '@/features/system/OpsReportView'
 import {
@@ -25,6 +28,7 @@ import {
   type Incident,
   type OpsReport,
   type OpsState,
+  type SuggestRestore,
 } from '@/features/system/systemOps'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/cn'
@@ -45,6 +49,20 @@ function SystemHealthPageInner() {
   const qc = useQueryClient()
   const [report, setReport] = useState<{ title: string; data: OpsReport } | null>(null)
   const [openIncident, setOpenIncident] = useState<Incident | null>(null)
+  const [restoring, setRestoring] = useState<RestoreTarget | null>(null)
+  const toast = useToast()
+  const openRestore = (s: SuggestRestore) =>
+    setRestoring({ id: s.backup_id, type: 'full', when: s.finished_at, file_name: s.file_name })
+
+  /** TZ E2 1699: tasdiqlangan hodisa eskalatsiya qilinmaydi. */
+  const ack = useMutation({
+    mutationFn: (id: number) => apiPost<Incident>(OPS.acknowledge(id), {}),
+    onSuccess: (inc) => {
+      toast.ok(t('sysOps.ackDone'))
+      setOpenIncident((cur) => (cur && cur.id === inc.id ? { ...cur, acknowledged: true } : cur))
+      void qc.invalidateQueries({ queryKey: ['sysops', 'incidents'] })
+    },
+  })
 
   const state = useQuery({ queryKey: ['sysops', 'state'], queryFn: () => apiGet<OpsState>(OPS.state) })
   const diag = useQuery({ queryKey: ['sysops', 'diagnostics'], queryFn: () => apiGet<Diagnostics>(OPS.diagnostics) })
@@ -80,6 +98,11 @@ function SystemHealthPageInner() {
       ) : (
         <SystemOpsPanel state={state.data} onReport={setReport} />
       )}
+
+      <div className="mb-4 grid gap-4 xl:grid-cols-2">
+        <IntegrityCard onRestore={openRestore} />
+        <BlockedModulesCard />
+      </div>
 
       {/* ── O'z-o'zini tekshiruv ─────────────────────────────────────── */}
       <Card className="mb-4 p-card">
@@ -146,7 +169,7 @@ function SystemHealthPageInner() {
               {t('common.close')}
             </Button>
           </div>
-          <OpsReportView report={report.data} />
+          <OpsReportView report={report.data} onRestore={openRestore} />
         </Card>
       )}
 
@@ -166,11 +189,11 @@ function SystemHealthPageInner() {
         ) : (
           <ul className="divide-y divide-line/60">
             {(incidents.data ?? []).map((i) => (
-              <li key={i.id}>
+              <li key={i.id} className="flex items-center">
                 <button
                   type="button"
                   onClick={() => setOpenIncident(i)}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-2"
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-2"
                 >
                   <Badge tone={SEV_TONE[i.severity ?? ''] ?? 'neutral'} className="shrink-0">
                     {t(`sysHealth.sev_${i.severity}` as never, { defaultValue: i.severity_label || i.severity || '—' })}
@@ -186,6 +209,24 @@ function SystemHealthPageInner() {
                   </span>
                   <ChevronRight size={15} className="shrink-0 text-fg-subtle" aria-hidden />
                 </button>
+                {i.severity === 'critical' && !i.resolved_at && (
+                  <span className="shrink-0 pr-3">
+                    {i.acknowledged ? (
+                      <span className="inline-flex items-center gap-1 text-[12px] text-success">
+                        <CheckCheck size={13} aria-hidden /> {t('sysOps.acked')}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        loading={ack.isPending && ack.variables === i.id}
+                        onClick={() => ack.mutate(i.id)}
+                      >
+                        {t('sysOps.ack')}
+                      </Button>
+                    )}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -212,13 +253,39 @@ function SystemHealthPageInner() {
         }
         size="lg"
         footer={
-          <Button variant="ghost" onClick={() => setOpenIncident(null)}>
-            {t('common.close')}
-          </Button>
+          <>
+            {openIncident && !openIncident.acknowledged && (
+              <Button
+                variant="outline"
+                leftIcon={<CheckCheck size={14} />}
+                loading={ack.isPending}
+                onClick={() => ack.mutate(openIncident.id)}
+              >
+                {t('sysOps.ack')}
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setOpenIncident(null)}>
+              {t('common.close')}
+            </Button>
+          </>
         }
       >
-        {openIncident && <OpsReportView report={openIncident.report ?? {}} />}
+        {openIncident && (
+          <OpsReportView
+            report={openIncident.report ?? {}}
+            onRestore={(s) => {
+              setOpenIncident(null)
+              openRestore(s)
+            }}
+          />
+        )}
       </Modal>
+
+      <div className="mt-4">
+        <OpsSettingsCard />
+      </div>
+
+      <RestoreWizard target={restoring} onClose={() => setRestoring(null)} />
     </PageContainer>
   )
 }

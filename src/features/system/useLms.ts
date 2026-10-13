@@ -38,6 +38,16 @@ export interface LmsSyncLog {
   skipped?: number
 }
 
+/** `POST /lms/sync` javobi — `LmsService.sync`. O'chirilgan integratsiyada 409 `lms_disabled`. */
+export interface LmsSyncResult {
+  status?: string
+  message?: string
+  fetched?: number
+  created?: number
+  updated?: number
+  skipped?: number
+}
+
 export function useLmsSettings() {
   const q = useQuery({
     queryKey: [URL, 'settings'],
@@ -72,11 +82,7 @@ export function useLmsMutations() {
       mutationFn: () => apiPost<{ ok?: boolean; message?: string }>(`${URL}/test`, {}),
     }),
     syncNow: useMutation({
-      mutationFn: () =>
-        apiPost<{ status?: string; message?: string; created?: number; updated?: number }>(
-          `${URL}/sync`,
-          {},
-        ),
+      mutationFn: () => apiPost<LmsSyncResult>(`${URL}/sync`, {}),
       onSuccess: refresh,
     }),
   }

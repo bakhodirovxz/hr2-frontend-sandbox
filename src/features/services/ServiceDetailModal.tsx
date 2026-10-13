@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Ban, Check, Download, FileText, MessageSquare, Pencil, Save, X } from 'lucide-react'
+import { Ban, Check, Download, FileText, MessageSquare, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import axios from 'axios'
 import { Button, Field, Input, Modal, Textarea, useToast } from '@/components/ui'
@@ -15,6 +15,7 @@ import {
   DOCUMENT_STATUSES,
   EDITABLE_STATUS,
   JOB_APPLICATION,
+  RESUBMIT_STATUSES,
   STATUS_CHAIN,
   TRANSITIONS,
   canReviewServices,
@@ -55,11 +56,14 @@ export function ServiceDetailModal({
   id,
   onClose,
   fromInbox,
+  onResubmit,
 }: {
   id: number | null
   onClose: () => void
   /** «Kiruvchi so'rovlar» dan ochilgan — kadr o'z so'rovini ham ko'rib chiqa oladi. */
   fromInbox?: boolean
+  /** TZ I1 «Повторная подача»: yakunlangan o'z so'rovidan yangi so'rov formasi. */
+  onResubmit?: (r: ServiceRequestDetail) => void
 }) {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
@@ -78,9 +82,20 @@ export function ServiceDetailModal({
       title={title}
       description={request?.applicant_name ?? undefined}
       footer={
-        <Button variant="ghost" onClick={onClose}>
-          {t('common.close')}
-        </Button>
+        <>
+          {onResubmit &&
+            request &&
+            !fromInbox &&
+            isOwnRequest(user, request) &&
+            RESUBMIT_STATUSES.includes(request.status) && (
+              <Button variant="outline" leftIcon={<RotateCcw size={14} />} onClick={() => onResubmit(request)}>
+                {t('sysOps.resubmit')}
+              </Button>
+            )}
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        </>
       }
     >
       {error ? (

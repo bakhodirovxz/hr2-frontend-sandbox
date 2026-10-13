@@ -15,6 +15,7 @@ import {
   Lock,
   Plus,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   XCircle,
@@ -42,6 +43,7 @@ import { downloadFile } from '@/lib/download'
 import { formatDateTime, inTashkent } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { LABEL_CLS } from '@/components/ui/control'
+import { RestoreWizard, type RestoreTarget } from '@/features/system/RestoreWizard'
 import {
   BACKUP,
   BACKUP_DOWNLOAD,
@@ -84,6 +86,8 @@ function BackupsPageInner() {
   const [createOpen, setCreateOpen] = useState(false)
   const [deleting, setDeleting] = useState<Backup | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  // TZ E1 1669 / E3 1729: tanlangan nusxadan tiklash ustasi.
+  const [restoring, setRestoring] = useState<RestoreTarget | null>(null)
   // A write refused with 503 `system_backup_in_progress` while the list has
   // not caught up yet (a scheduled backup started in the background).
   const [blocked, setBlocked] = useState(false)
@@ -214,13 +218,23 @@ function BackupsPageInner() {
     {
       key: 'actions',
       header: '',
-      headerClassName: 'w-24',
+      headerClassName: 'w-32',
       className: 'pr-4 text-right',
       skeleton: 'w-12',
       cell: (b) => {
         const when = b.started_at ? formatDateTime(b.started_at) : `#${b.id}`
         return (
           <span className="inline-flex justify-end gap-1">
+            <IconButton
+              size="sm"
+              label={`${t('sysOps.restore')}: ${when}`}
+              disabled={b.status !== 'done' || running}
+              onClick={() =>
+                setRestoring({ id: b.id, type: b.type, when: b.finished_at || b.started_at, file_name: b.file_name })
+              }
+            >
+              <RotateCcw size={15} />
+            </IconButton>
             <IconButton
               size="sm"
               label={`${t('common.download')}: ${when}`}
@@ -296,6 +310,8 @@ function BackupsPageInner() {
           void qc.invalidateQueries({ queryKey: ['backups', 'list'] })
         }}
       />
+
+      <RestoreWizard target={restoring} onClose={() => setRestoring(null)} />
 
       <ConfirmDialog
         open={!!deleting}
