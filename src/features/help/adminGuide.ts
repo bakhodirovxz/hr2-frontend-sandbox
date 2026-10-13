@@ -52,6 +52,7 @@ export const ADMIN_GUIDE: GuideSection[] = [
       h('guide.filiallar.b2'),
       list('guide.filiallar.b3_1', 'guide.filiallar.b3_2', 'guide.filiallar.b3_3'),
       warn('guide.filiallar.b4'),
+      p('guide.filiallar.b5'),
     ],
   },
   {
@@ -66,6 +67,8 @@ export const ADMIN_GUIDE: GuideSection[] = [
       p('guide.shtat.b5'),
       note('guide.shtat.b6'),
       p('guide.shtat.b7'),
+      h('guide.shtat.b8'),
+      list('guide.shtat.b9_1', 'guide.shtat.b9_2', 'guide.shtat.b9_3', 'guide.shtat.b9_4'),
     ],
   },
   {
@@ -74,7 +77,7 @@ export const ADMIN_GUIDE: GuideSection[] = [
     routes: ["/dictionaries"],
     blocks: [
       p('guide.malumotnomalar.b1'),
-      list('guide.malumotnomalar.b2_1', 'guide.malumotnomalar.b2_2', 'guide.malumotnomalar.b2_3', 'guide.malumotnomalar.b2_4'),
+      list('guide.malumotnomalar.b2_1', 'guide.malumotnomalar.b2_2', 'guide.malumotnomalar.b2_3', 'guide.malumotnomalar.b2_4', 'guide.malumotnomalar.b2_5'),
       warn('guide.malumotnomalar.b3'),
     ],
   },
@@ -89,6 +92,8 @@ export const ADMIN_GUIDE: GuideSection[] = [
       p('guide.xodimlar.b4'),
       note('guide.xodimlar.b5'),
       warn('guide.xodimlar.b6'),
+      h('guide.xodimlar.b7'),
+      list('guide.xodimlar.b8_1', 'guide.xodimlar.b8_2'),
     ],
   },
   {
@@ -97,7 +102,7 @@ export const ADMIN_GUIDE: GuideSection[] = [
     routes: ["/employee-attendance", "/my-attendance", "/timesheet-settings", "/holidays"],
     blocks: [
       p('guide.davomat.b1'),
-      list('guide.davomat.b2_1', 'guide.davomat.b2_2', 'guide.davomat.b2_3', 'guide.davomat.b2_4', 'guide.davomat.b2_5'),
+      list('guide.davomat.b2_1', 'guide.davomat.b2_2', 'guide.davomat.b2_3', 'guide.davomat.b2_4', 'guide.davomat.b2_5', 'guide.davomat.b2_6'),
     ],
   },
   {
@@ -108,6 +113,8 @@ export const ADMIN_GUIDE: GuideSection[] = [
       p('guide.hujjatlar.b1'),
       list('guide.hujjatlar.b2_1', 'guide.hujjatlar.b2_2', 'guide.hujjatlar.b2_3', 'guide.hujjatlar.b2_4', 'guide.hujjatlar.b2_5', 'guide.hujjatlar.b2_6'),
       note('guide.hujjatlar.b3'),
+      h('guide.hujjatlar.b4'),
+      list('guide.hujjatlar.b5_1', 'guide.hujjatlar.b5_2', 'guide.hujjatlar.b5_3'),
     ],
   },
   {
@@ -117,6 +124,8 @@ export const ADMIN_GUIDE: GuideSection[] = [
     blocks: [
       p('guide.kpi.b1'),
       list('guide.kpi.b2_1', 'guide.kpi.b2_2', 'guide.kpi.b2_3', 'guide.kpi.b2_4'),
+      h('guide.kpi.b3'),
+      list('guide.kpi.b4_1', 'guide.kpi.b4_2', 'guide.kpi.b4_3', 'guide.kpi.b4_4', 'guide.kpi.b4_5', 'guide.kpi.b4_6'),
     ],
   },
   {
@@ -125,7 +134,7 @@ export const ADMIN_GUIDE: GuideSection[] = [
     routes: ["/audit-logs"],
     blocks: [
       p('guide.audit.b1'),
-      list('guide.audit.b2_1', 'guide.audit.b2_2', 'guide.audit.b2_3'),
+      list('guide.audit.b2_1', 'guide.audit.b2_2', 'guide.audit.b2_3', 'guide.audit.b2_4', 'guide.audit.b2_5'),
     ],
   },
   {
@@ -141,6 +150,9 @@ export const ADMIN_GUIDE: GuideSection[] = [
       warn('guide.foydalanuvchilar.b6'),
       h('guide.foydalanuvchilar.b7'),
       p('guide.foydalanuvchilar.b8'),
+      h('guide.foydalanuvchilar.b9'),
+      list('guide.foydalanuvchilar.b10_1', 'guide.foydalanuvchilar.b10_2', 'guide.foydalanuvchilar.b10_3', 'guide.foydalanuvchilar.b10_4'),
+      note('guide.foydalanuvchilar.b11'),
     ],
   },
   {
@@ -151,6 +163,9 @@ export const ADMIN_GUIDE: GuideSection[] = [
       p('guide.zaxira.b1'),
       list('guide.zaxira.b2_1', 'guide.zaxira.b2_2', 'guide.zaxira.b2_3', 'guide.zaxira.b2_4'),
       warn('guide.zaxira.b3'),
+      h('guide.zaxira.b4'),
+      p('guide.zaxira.b5'),
+      warn('guide.zaxira.b6'),
     ],
   },
   {
@@ -163,6 +178,8 @@ export const ADMIN_GUIDE: GuideSection[] = [
       list('guide.tizimHolati.b3_1', 'guide.tizimHolati.b3_2'),
       h('guide.tizimHolati.b4'),
       p('guide.tizimHolati.b5'),
+      h('guide.tizimHolati.b6'),
+      list('guide.tizimHolati.b7_1', 'guide.tizimHolati.b7_2', 'guide.tizimHolati.b7_3'),
     ],
   },
   {
@@ -172,6 +189,9 @@ export const ADMIN_GUIDE: GuideSection[] = [
     blocks: [
       p('guide.statistika.b1'),
       list('guide.statistika.b2_1', 'guide.statistika.b2_2', 'guide.statistika.b2_3', 'guide.statistika.b2_4', 'guide.statistika.b2_5'),
+      h('guide.statistika.b3'),
+      list('guide.statistika.b4_1', 'guide.statistika.b4_2', 'guide.statistika.b4_3', 'guide.statistika.b4_4'),
+      note('guide.statistika.b5'),
     ],
   },
   {
@@ -180,7 +200,17 @@ export const ADMIN_GUIDE: GuideSection[] = [
     routes: ["/services", "/vacancies"],
     blocks: [
       p('guide.xizmatlar.b1'),
-      list('guide.xizmatlar.b2_1', 'guide.xizmatlar.b2_2', 'guide.xizmatlar.b2_3', 'guide.xizmatlar.b2_4', 'guide.xizmatlar.b2_5'),
+      list('guide.xizmatlar.b2_1', 'guide.xizmatlar.b2_2', 'guide.xizmatlar.b2_3', 'guide.xizmatlar.b2_4', 'guide.xizmatlar.b2_5', 'guide.xizmatlar.b2_6', 'guide.xizmatlar.b2_7', 'guide.xizmatlar.b2_8'),
+    ],
+  },
+  {
+    id: 'lms',
+    titleKey: 'guide.lms.title',
+    routes: ["/lms"],
+    blocks: [
+      p('guide.lms.b1'),
+      list('guide.lms.b2_1', 'guide.lms.b2_2', 'guide.lms.b2_3'),
+      note('guide.lms.b3'),
     ],
   },
   {

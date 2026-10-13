@@ -7813,7 +7813,7 @@ const rest = {
 
     kirish: {
       title: "Kirish va rollar",
-      b1: "Tizimga kirish login va parol bilan yoki QR-kod orqali amalga oshiriladi. Parol unutilganda «Parolingizni unutdingizmi?» havolasi elektron pochtaga tiklash havolasini yuboradi.",
+      b1: 'Tizimga kirish login va parol bilan yoki QR-kod orqali amalga oshiriladi. Parol unutilganda «Parolingizni unutdingizmi?» havolasi login yoki elektron pochta bo‘yicha hisobdagi pochtaga tiklash havolasini yuboradi. Uzoq vaqt harakatsiz qolgan sessiya avtomatik yopiladi (oldindan ogohlantiriladi).',
       b2: "Rollar",
       b3_1: "Administrator (master-admin) — barcha filiallar va barcha modullar, jumladan tizim holati konsoli.",
       b3_2: "Filial administratori — o‘z filiali darajasidagi texnik boshqaruv: filial ma’lumotlari, ro‘yxatdan o‘tish arizalari, rollar.",
@@ -7832,6 +7832,7 @@ const rest = {
       b3_2: "So‘ng bo‘limlarni qo‘shing va har biriga rahbarini belgilang — bo‘lim boshlig‘i o‘z xodimlarini shu orqali ko‘radi.",
       b3_3: "Lavozimlarni qo‘shing va har biriga toifa belgilang (rahbar / mutaxassis / xizmatchi / ishchi) — hisobotlar shu toifa bo‘yicha guruhlanadi.",
       b4: "Bo‘lim yoki lavozimni o‘chirishdan oldin unga biriktirilgan xodimlarni ko‘chiring: o‘chirish xodimlarning biriktirmasini bo‘shatib qo‘yadi.",
+      b5: 'Xodimi bor bo‘limni o‘chirish yoki qisqartirishda tizim «Xodimlarni o‘tkazish» oynasini taklif qiladi: maqsad bo‘limni va xodimlarni tanlang (kerak bo‘lsa arxivdagilarni ham); boshqa tashkilotga o‘tkazishda har lavozim uchun yangi lavozim tanlanadi. So‘ng bo‘lim o‘chiriladi yoki qisqartiriladi.',
     },
     shtat: {
       title: "Shtat jadvali va vakansiyalar",
@@ -7844,6 +7845,11 @@ const rest = {
       b5: "Eksport uch formatda: Excel va PDF — tahlil uchun, XML — uzgidro.uz portaliga import uchun. «Faqat bo‘sh o‘rinlar» eksportiga va XML ga faqat BO‘SH, e’loni OCHIQ («Ochiq» holat) va yopilmagan o‘rinlar tushadi; XML ga yana «portalga chiqarilsin» belgisi ham shart.",
       b6: "E’lon holatini o‘zgartirish (ochish/yopish) uchun «O‘zgartirish sababi» majburiy; maosh «dan» qiymati «gacha» dan katta bo‘lmasligi, ariza muddati esa o‘tgan sana bo‘lmasligi kerak.",
       b7: "Vakansiya hisobotining muntazamligi «Eksport sozlamalari» → «Vakansiya hisobotini yuborish»da: tashkilot (filial kadri — o‘z filiali, bosh kadr — istalgan filial yoki tashkilot standarti), davriylik (har kuni / har hafta — hafta kuni / har oy — oy kuni), soat va oluvchilar.",
+      b8: 'Vakansiya: nusxa, holat va job-portallar',
+      b9_1: '«Nusxa olish» — talablar, sharoitlar, aloqa va mas’ul rekruter boshqa bo‘lim/lavozim uchun yangi vakansiyaga ko‘chiriladi. Yopilgan vakansiyani tahrirlab bo‘lmaydi — nusxa oling yoki sabab bilan qayta oching.',
+      b9_2: '«To‘xtatib turish» / «Davom ettirish» — to‘xtatilgan vakansiya ommaviy ro‘yxatda ko‘rinmaydi va ariza qabul qilmaydi; har holat o‘zgarishi sababi bilan tarixga yoziladi.',
+      b9_3: '«Mas’ul rekruter» — xodim tanlanadi va u yangi arizalar haqida bildirishnoma oladi.',
+      b9_4: '«Job-portallar» (bosh administrator) — portal manzili, format va avtorizatsiya sarlavhasi; e’lon ochilganda, o‘zgarganda yoki yopilganda ma’lumot portallarga yuboriladi, natija «Yuborish jurnali»da.',
     },
     malumotnomalar: {
       title: "Ma’lumotnomalar (spravochniklar)",
@@ -7853,6 +7859,7 @@ const rest = {
       b2_3: "Ommaviy to‘ldirish uchun «Import»: Excel’dan ustunlarni nusxalab qo‘ying (TAB bilan ajratiladi).",
       b2_4: "«Tekshirish» tugmasi majburiy ro‘yxatni qayta ko‘radi va yetishmaganini qo‘shadi; mavjud yozuvlarga TEGMAYDI.",
       b3: "Ishlatilayotgan yozuvni o‘chirib bo‘lmaydi — tizim bog‘liqliklar ro‘yxatini ko‘rsatadi. Bunday yozuvni o‘chirish o‘rniga «Faolsiz» qiling: eski hujjatlar unga tayanib qolgan bo‘lishi mumkin.",
+      b2_5: '«Qayerda ishlatiladi» — ma’lumotnoma kodlari saqlanadigan jadval va ustunlar (bog‘liqliklar registri); «Chop etish» — joriy filtr bo‘yicha bosma shakl.',
     },
     xodimlar: {
       title: "Xodimlar va T-2 kartochkasi",
@@ -7864,6 +7871,9 @@ const rest = {
       b4: "Profil ichidagi «T-2 kartochka» bo‘limida harbiy majburiyat, partiyaviylik, ma’lumoti, tug‘ilgan va yashash joyi, chet tillari, davlat mukofotlari, saylov organlari, rag‘batlantirish va jazolar hamda oila a’zolari yuritiladi.",
       b5: "Har bo‘limning o‘z «Saqlash» tugmasi bor va u BUTUN ro‘yxatni yuboradi. Rag‘batlantirishni saqlash jazolarga ta’sir qilmaydi.",
       b6: "Oila a’zolari — uchinchi shaxs ma’lumoti. U shifrlangan holda saqlanadi va faqat kadr bo‘limiga ko‘rinadi.",
+      b7: 'Bir vaqtda tahrir va arxivdan tiklash',
+      b8_1: 'Kartani siz ochgandan keyin boshqa foydalanuvchi uni saqlagan bo‘lsa, saqlashda «Ma’lumot boshqa foydalanuvchi tomonidan o‘zgartirildi» oynasi chiqadi: «Yangisini yuklash» oxirgi ma’lumotni ochadi, o‘zgarishlaringizni qayta kiriting.',
+      b8_2: 'Arxivlangan xodimni belgilangan muddat ichida (sukut 30 kun, «Arxivdan tiklash muddati») «Tiklash» bilan oldingi bo‘lim va lavozimiga qaytarish mumkin. Muddat o‘tgan yoki lavozim band bo‘lsa — qayta ishga qabul qilish.',
     },
     davomat: {
       title: "Davomat",
@@ -7873,6 +7883,7 @@ const rest = {
       b2_3: "Xodim ishga qabul qilingan sanadan OLDINGI va ishdan bo‘shagan sanadan KEYINGI kunlar «Kelmadi» deb sanalmaydi.",
       b2_4: "Qo‘lda kiritilgan «Ish kuni» ham kechikishga tekshiriladi: kelish vaqti ish boshlanishidan 6 daqiqadan ko‘p keyin bo‘lsa, kun «Kechikdi» bo‘ladi.",
       b2_5: "Ish vaqti xodim kartasida belgilanadi. Tabel sarlavhasi, tasdiqlovchi va imzolovchilar «Tabel sozlamalari»da; tasdiqlovchi kiritilmagan bo‘lsa filial direktori (bo‘lmasa o‘rinbosari) olinadi.",
+      b2_6: '«Ommaviy to‘ldirish» — tanlangan xodimlarning (yoki butun bo‘limning) sanalar oralig‘idagi har kuniga bir xil kun turi yoziladi; natija har xodim va kun bo‘yicha ko‘rsatiladi, yopilgan davr kunlari rad etiladi.',
     },
     hujjatlar: {
       title: "Buyruqlar",
@@ -7884,6 +7895,10 @@ const rest = {
       b2_5: "Tasdiqlangan buyruq kartasida kadr «Qo‘llash» tugmasini bosadi: ishdan bo‘shatish buyrug‘i xodimni arxivga o‘tkazadi (sabab: buyruq raqami), qabul/o‘tkazish bo‘lim va lavozimni yangilaydi, ta’til/safar davomatga yoziladi.",
       b2_6: "Tahrirlashda buyruq raqami, sanasi va muallifi o‘zgartirilishi mumkin — har o‘zgarish sababi bilan tarixga yoziladi. «Taklif qilish» keyingi bo‘sh raqamni beradi.",
       b3: "Buyruq turlari va ularning sukut imzolovchilari «Buyruq turlari» sahifasida boshqariladi.",
+      b4: 'Tasdiqlangan buyruqni tuzatish va eksport',
+      b5_1: 'Tasdiqlangan buyruqni tahrirlab yoki o‘chirib bo‘lmaydi — «Tuzatuvchi buyruq yaratish»: forma asl buyruq ma’lumotlari bilan to‘ldiriladi, ikkala buyruq bir-biriga havola bilan bog‘lanadi.',
+      b5_2: '«Kelishuvdan qaytarib olish» — kelishuvdagi buyruq qoralamaga qaytadi, qo‘yilgan imzolar bekor qilinadi, kelishuvchilarga xabar ketadi.',
+      b5_3: 'Xodim topilmasa, buyruq formasidan «Kadrlar yozuvini yaratish» mumkin. Buyruqlar ro‘yxati «Eksport» bilan Excel yoki PDF ga ekrandagi filtrlar bo‘yicha chiqariladi.',
     },
     kpi: {
       title: "KPI moduli",
@@ -7892,6 +7907,13 @@ const rest = {
       b2_2: "Ish rejasi vazifasi KPI ko‘rsatkichiga bog‘lanishi mumkin — bajarilgan vazifa fakt qiymatiga asos bo‘ladi.",
       b2_3: "Hisobot filtrlari bilan Excel’ga chiqariladi va foydalanuvchining O‘Z nomidan tasdiqlanadi.",
       b2_4: "Ko‘rsatkichlar katalogini FAQAT administrator va kadr yuritadi; rahbar o‘z xodimlarining varaqalarini tasdiqlaydi.",
+      b3: 'Import, tarqatish, ish rejasi va hisobotlar',
+      b4_1: 'Ko‘rsatkichlar «Excel’dan import» bilan yuklanadi: shablonni yuklab oling, to‘ldiring, «Tekshirish» (hech narsa yaratmaydi), so‘ng «Import qilish». Nomi takrorlangan ko‘rsatkich yaratilmaydi.',
+      b4_2: '«Quyi bo‘linmalarga tarqatish» — bo‘linmaga biriktirilgan ko‘rsatkich uning (kerak bo‘lsa barcha darajadagi) quyi bo‘linmalari xodimlariga yoziladi.',
+      b4_3: 'Ish rejasi: «Rejani nusxalash» oldingi davr vazifalarini yangi davrga ko‘chiradi; «Kelishuvga yuborish» → rahbar «Kelishish uchun» tabida «Kelishish» yoki sabab bilan «Qaytarish»; vazifani 3 darajagacha kichik vazifalarga bo‘lish mumkin.',
+      b4_4: 'KPI hisobotlari: «Shablon sifatida saqlash», «Davrlarni solishtirish», «Pochtaga yuborish» (tashkilot SMTP serveri sozlangan bo‘lsa); «Xodimlar guruhi» filtri ma’muriy va yordamchi xodimlarni ajratadi.',
+      b4_5: 'Malaka oshirish yozuvida «KPI ko‘rsatkichi» tanlansa, yakunlangan va muvaffaqiyatli o‘qish shu ko‘rsatkich faktiga qo‘shiladi.',
+      b4_6: 'Auditlar: topilmadan «Tuzatuvchi vazifa» ish rejasiga qo‘shiladi; yakunlangan audit asosida «Takroriy audit yaratish» — ochiq kamchiliklar ko‘chiriladi.',
     },
     audit: {
       title: "Audit jurnali",
@@ -7899,6 +7921,8 @@ const rest = {
       b2_1: "Jurnal beshta toifaga bo‘lingan: Amallar, Kirish, Faoliyat, Xatoliklar, Tizim.",
       b2_2: "«Filial» ustuni ikki xil: amal tegishli filial va foydalanuvchi o‘sha paytda TANLAB turgan filial.",
       b2_3: "Xato javob tanasi ham jurnalga tushadi — nosozlikni tekshirishda shundan boshlang.",
+      b2_4: '10 000 dan ortiq yozuv eksporti fon rejimida tayyorlanadi: sahifani yopishingiz mumkin, fayl tayyor bo‘lgach bildirishnoma keladi va «Faylni yuklab olish» paydo bo‘ladi.',
+      b2_5: '«Real vaqtda» — yangi yozuvlar har 5 soniyada ro‘yxat boshiga qo‘shiladi (1-sahifada, avval yangilari tartibida).',
     },
     foydalanuvchilar: {
       title: "Foydalanuvchilar va rollar",
@@ -7913,6 +7937,12 @@ const rest = {
       b6: "Tizim rollarini (belgisi «Tizim») faqat bosh administrator tahrirlaydi va o‘chira olmaydi. Foydalanuvchiga biriktirilgan rolni o‘chirishdan oldin hisoblarni boshqa rolga o‘tkazing.",
       b7: "Ro‘yxatdan o‘tish arizalari",
       b8: "O‘zi ro‘yxatdan o‘tgan foydalanuvchi «Mehmon» bo‘ladi. «Tasdiqlash» oynasida tashkilot, bo‘lim, lavozim va ROL tanlanadi: tasdiqlangach xodim kartasi arizadagi barcha ma’lumotlar bilan yaratiladi va hisob tanlangan rolni oladi. «Rad etish» sababi foydalanuvchining holat sahifasida ko‘rinadi.",
+      b9: 'Xavfsizlik: blok, sessiyalar, ziddiyatlar',
+      b10_1: 'Ketma-ket noto‘g‘ri parollardan keyin hisob vaqtincha bloklanadi (sukut: 5 urinish, 30 daqiqa). Ro‘yxatda «Bloklangan: … gacha» belgisi; «Blokdan chiqarish» yoki parolni tiklash hisobni darhol ochadi.',
+      b10_2: '«Sessiyalar» — foydalanuvchi kirgan qurilmalar; «Sessiyani yopish» yoki «Barcha sessiyalarni yopish» uni darhol tizimdan chiqaradi.',
+      b10_3: '«Xavfsizlik siyosati» (bosh administrator): bloklash chegarasi va muddati hamda harakatsizlikda avtomatik chiqish daqiqalari. Chiqishdan 60 soniya oldin foydalanuvchi ogohlantiriladi.',
+      b10_4: 'Huquqlar ziddiyati: modul ochiq, lekin u tayanadigan modul yopiq bo‘lsa (masalan buyruqlar — tahrirlash, kadrlar hisobi — yo‘q), matritsa ostida taklif chiqadi; «Barcha takliflarni qo‘llash» yoki ongli ravishda «Baribir saqlash».',
+      b11: 'Har foydalanuvchi «Profil» → «Bildirishnomalar» tabida qaysi turdagi bildirishnomalarni olishini tanlaydi; tizim va xavfsizlik xabarlarini o‘chirib bo‘lmaydi.',
     },
     zaxira: {
       title: "Zaxira nusxalash (E1)",
@@ -7922,6 +7952,9 @@ const rest = {
       b2_3: "Saqlash joyi oldindan tekshiriladi («Qayta tekshirish»): bo‘sh joy kutilgan hajmdan (oxirgi to‘liq nusxa yoki baza hajmi) kam bo‘lsa nusxa boshlanmaydi — «Saqlash joyida bo‘sh joy yetarli emas».",
       b2_4: "Har nusxa yakunida yaxlitlik (checksum) tekshiriladi. Tekshiruvdan o‘tmagan nusxa «Xato» holatini oladi va fayli o‘chiriladi — undan tiklab bo‘lmaydi.",
       b3: "Nusxa faylini «Yuklab olish» bilan tashqi joyga ham saqlang va SHA-256 qiymatini yozib qo‘ying — fayl ko‘chirilgandan keyin uning butunligini shu qiymat bilan solishtirib tekshirasiz.",
+      b4: 'Zaxira nusxadan tiklash',
+      b5: 'Nusxa qatoridagi «Tiklash» — tiklash ustasi: «To‘liq tiklash» yoki «Qisman tiklash» (modullar tanlanadi, bog‘liq jadvallar o‘zi qo‘shiladi). Boshlashdan oldin joriy holatning xavfsizlik nusxasi olinadi, nusxa butunligi, sxema versiyasi va inkremental zanjir tekshiriladi; tasdiq uchun parol va ibora kiritiladi.',
+      b6: 'Tiklash bitta tranzaksiyada bajariladi (xatoda hammasi bekor), boshqa foydalanuvchilar sessiyalari yopiladi va tizim tiklash rejimida qoladi — diagnostikadan so‘ng «Tizim holati» sahifasida ish rejimiga o‘zingiz qaytarasiz.',
     },
     tizimHolati: {
       title: "Tizim holati va tiklash (E2/E3)",
@@ -7931,6 +7964,10 @@ const rest = {
       b3_2: "«Yumshoq to‘xtatish» tugallanmagan tranzaksiyalarni tiklash jurnaliga yozib oladi; «Majburiy to‘xtatish» bu qadamni o‘tkazib yuboradi.",
       b4: "Tiklash",
       b5: "Tiklash rejimida «Tugallanmagan tranzaksiyalar» ro‘yxati ko‘rsatiladi: har biri uchun kim, qachon, qaysi amal. Ikki yo‘l: «Tegmaslik» (tranzaksiyalarni o‘z holicha qoldirish) yoki «Bekor qilish (rollback)». So‘ng «Tiklashni bajarish» (baza butunligi va modullar tekshiriladi) va «Ish rejimiga qaytarish».",
+      b6: 'Avtomatik qayta ishga tushirish, eskalatsiya va modullar',
+      b7_1: '«Avtomatik qayta ishga tushirish»: avariyaviy to‘xtatishdan belgilangan vaqt o‘tgach diagnostika boshlanadi va ketma-ket muvaffaqiyatli tekshiruvlardan so‘ng tizim o‘zi ish rejimiga qaytadi.',
+      b7_2: '«Hodisa eskalatsiyasi»: kritik hodisa belgilangan daqiqalar ichida «Ko‘rildi deb belgilash» qilinmasa, rahbariyatga va ko‘rsatilgan qabul qiluvchilarga xabar yuboriladi.',
+      b7_3: 'O‘z-o‘zini sinovdan o‘tmagan modul bosh administratordan boshqa hamma uchun yopiladi («Bloklangan modullar»); sababini bartaraf etgach «Blokdan chiqarish». Baza butunligi buzilsa, tekshirilgan nusxadan tiklash taklif qilinadi.',
     },
     statistika: {
       title: "Statistik hisobotlar",
@@ -7940,6 +7977,12 @@ const rest = {
       b2_3: "Eksport (Excel / PDF / Word) diagramma bilan chiqadi.",
       b2_4: "«Shablon sifatida saqlash» — tanlangan hisobot va parametrlarni saqlaydi; keyingi safar bir bosishda qayta quriladi.",
       b2_5: "Ma’lumot har doim sizning ko‘rish doirangiz (filial) bilan cheklanadi. «Shaxsiy ma’lumotlarsiz» eksportda ismlar taxallus bilan almashtiriladi, JShShIR/pasport/telefon chiqmaydi.",
+      b3: 'Yuborish, jadval, shakllar',
+      b4_1: '«Pochtaga yuborish» — hisobot ekrandagi parametrlar bilan ko‘rsatilgan manzillarga fayl sifatida yuboriladi; «Bir nechta format» — tanlangan formatlar bitta zip arxivda.',
+      b4_2: 'Saqlangan shablonda «Jadval» — hisobot har kuni / haftada / oyda belgilangan soatda (Toshkent vaqti) o‘zi shakllanadi va qabul qiluvchilarga yuboriladi; «So‘nggi ishga tushishlar»da natija va fayl.',
+      b4_3: 'Ko‘rsatkichlar paneli: vidjetni bosing — batafsil ro‘yxat ochiladi; «Sozlash» — qaysi ko‘rsatkich va diagrammalar ko‘rinishini tanlaysiz (faqat o‘zingiz uchun); «Excel» / «PDF» — panel eksporti.',
+      b4_4: '«Hisobot shakllari» — davlat va idoraviy hisobot shakllarining .docx shablonlari: o‘rin egalari (masalan tashkilot nomi, hisobot jami) statistika ma’lumotlari bilan to‘ldiriladi; «Shakllantirish» — Word yoki PDF.',
+      b5: 'Pochta orqali yuborish uchun tashkilotning SMTP serveri sozlangan bo‘lishi kerak; aks holda «Pochta (SMTP) serveri sozlanmagan» xabari chiqadi, jadval bo‘yicha fayl baribir saqlanadi.',
     },
     xizmatlar: {
       title: "Interaktiv xizmatlar",
@@ -7949,6 +7992,17 @@ const rest = {
       b2_3: "Ma’lumotnoma va tavsifnoma faqat TASDIQLANGAN shablon bo‘yicha shakllanadi («Hujjat shablonlari» tabi); standart shablon tizim nomidan tasdiqlangan.",
       b2_4: "Arizachi «Qabul qilindi» holatida so‘rovni tahrirlashi yoki bekor qilishi mumkin; bekor qilinganlar statistikada «Bekor qilingan» bo‘lib alohida sanaladi.",
       b2_5: "Vakansiyaga arizalar «Shtat va vakansiyalar» → «Arizalar» tabida ko‘rib chiqiladi: holatni o‘zgartiring va izoh qoldiring — nomzod uni «Mening arizalarim» da ko‘radi.",
+      b2_6: 'So‘rovga hujjat biriktirish mumkin (PDF, JPG, PNG, WEBP, DOC, DOCX, har biri 20 MB gacha) — kadr ularni so‘rov kartasida ochadi.',
+      b2_7: '«Xizmatlar mavjudligi» tabi (kadr): xizmatni sabab va ixtiyoriy muddat bilan «Vaqtincha yopish» — foydalanuvchilar sababni ko‘radi, yangi so‘rov qabul qilinmaydi; muddat o‘tgach yoki «Qayta ochish» bilan ochiladi.',
+      b2_8: '«Qayta topshirish» — yangi so‘rov formasi avvalgi so‘rov ma’lumotlari bilan to‘ldiriladi (ilovalar ko‘chirilmaydi).',
+    },
+    lms: {
+      title: 'LMS integratsiyasi',
+      b1: 'Tashqi onlayn o‘quv platformasidan (LMS) malaka oshirish yozuvlari «Malaka oshirish» moduliga olinadi. Faqat bosh administrator sozlaydi: Tizim boshqaruvi → LMS integratsiyasi.',
+      b2_1: 'Platforma turi (umumiy JSON yoki Moodle), manzil va API kalit kiriting; kalit shifrlangan holda saqlanadi va qayta ko‘rsatilmaydi (bo‘sh qoldirilsa o‘zgarmaydi).',
+      b2_2: '«Ulanishni tekshirish», so‘ng «Hozir sinxronlash»: yozuvlar xodimga JShShIR, bo‘lmasa elektron pochta orqali bog‘lanadi; topilmaganlari o‘tkazib yuboriladi, takroriy sinxronizatsiya dublikat yaratmaydi.',
+      b2_3: '«Avtomatik sinxronizatsiya» yoqilsa, yozuvlar har kuni o‘zi olinadi; har urinish natijasi «Sinxronizatsiya tarixi»da.',
+      b3: 'Haqiqiy LMS manzili va API kaliti tashkilotdan olinadi; ular kiritilmaguncha integratsiya o‘chiq turadi.',
     },
     tizimLugati: {
       title: "Tizim lug‘ati (interfeys matnlari)",
