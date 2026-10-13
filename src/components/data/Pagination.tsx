@@ -28,8 +28,12 @@ function pageList(page: number, pages: number): (number | null)[] {
   return out
 }
 
-export function Pagination({ page, size, total, pages, onPage, onSize, loading }: PaginationProps) {
+export function Pagination({ page, size, total, pages: pagesProp, onPage, onSize, loading }: PaginationProps) {
   const { t } = useTranslation()
+  // Ba'zi sandbox endpointlari `pages` qaytarmaydi (`{total, page, size}`) —
+  // hooklar `?? 1` beradi va sahifalagich 1-sahifada qotardi. Sahifalar soni
+  // `total`/`size` dan hisoblanadi; server bergan qiymat kattaroq bo'lsa o'sha.
+  const pages = Math.max(pagesProp || 1, size > 0 ? Math.ceil(total / size) : 1)
   const from = total === 0 ? 0 : (page - 1) * size + 1
   const to = Math.min(page * size, total)
 

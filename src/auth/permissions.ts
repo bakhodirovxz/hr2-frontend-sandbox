@@ -198,6 +198,10 @@ export function canOpenEmployeeCard(
   if (!isPlainEmployee(user)) return true
   if (employee.id === user?.employee?.id) return true
   if (readsOrg(user, 'employees')) return true
+  // Rahbar: bilvosita bo'ysunuvchilar zanjirini mijoz ko'rmaydi — havola
+  // qoldiriladi, ruxsatni server hal qiladi (yashirgandan ko'ra kamdan-kam
+  // «Ruxsat yo'q» yaxshiroq).
+  if (isLineManager(user)) return true
   return canManageEmployee(user, employee)
 }
 
