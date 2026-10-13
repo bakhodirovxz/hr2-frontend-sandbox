@@ -23,6 +23,7 @@ import { downloadStatisticsExport, type CatalogColumn, type CatalogReport, type 
 import { buildBody, initialValues, missingRequired, normalizeParams, ParamsForm, type ParamValues } from './ParamsForm'
 import { compareValues, formatCell, isNumericColumn, normalizeChart, normalizeColumns, reversed, type Row } from './reportUtils'
 import { useServerText } from './serverText'
+import { DeliveryActions, TemplateScheduleButton } from './ReportDelivery'
 import { useCatalogReport, useReportTemplates, useTemplateMutations } from './useStatistics'
 
 const ReportBarChart = lazy(() => import('./ReportBarChart'))
@@ -371,6 +372,7 @@ export function ReportCatalog({ catalog }: { catalog: CatalogReport[] }) {
                         >
                           {tpl.name}
                         </button>
+                        <TemplateScheduleButton tpl={tpl} />
                         {tpl.is_mine ? (
                           <button
                             type="button"
@@ -427,6 +429,16 @@ export function ReportCatalog({ catalog }: { catalog: CatalogReport[] }) {
                           {x.label}
                         </Button>
                       ))}
+                      <DeliveryActions
+                        fallbackName={selected.code}
+                        buildParams={() => ({
+                          ...body,
+                          columns: visibleKeys,
+                          title: selected.label,
+                          ...(sort ? { sort_by: sort.key, sort_dir: sort.dir } : {}),
+                          ...(anonymize ? { anonymize: true } : {}),
+                        })}
+                      />
                     </div>
                   )}
                 </div>

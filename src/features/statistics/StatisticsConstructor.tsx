@@ -57,6 +57,7 @@ import {
   type StatusKey,
 } from './api'
 import { renderChartPng } from './chartPng'
+import { DeliveryActions, TemplateScheduleButton } from './ReportDelivery'
 import { dmy } from './reportUtils'
 import { useServerText } from './serverText'
 import {
@@ -431,6 +432,7 @@ export function StatisticsConstructor() {
                 >
                   {tpl.name}
                 </button>
+                <TemplateScheduleButton tpl={tpl} />
                 {/* O'chirish faqat MUALLIFDA — begona shablonni o'chirishga
                     urinish backendda 403 bilan qaytariladi. */}
                 {tpl.is_mine && (
@@ -561,6 +563,16 @@ export function StatisticsConstructor() {
             >
               PDF
             </Button>
+            <DeliveryActions
+              fallbackName="statistika"
+              disabled={!rows.length}
+              buildParams={() => ({
+                ...params,
+                columns,
+                title: t('statistics.title'),
+                subtitle: `${dmy(dateFrom)} — ${dmy(dateTo)}`,
+              })}
+            />
           </div>
         </div>
       </Card>
