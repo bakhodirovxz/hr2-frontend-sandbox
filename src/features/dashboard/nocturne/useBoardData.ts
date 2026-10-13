@@ -4,8 +4,6 @@ import dayjs from 'dayjs'
 import { apiGet } from '@/api/http'
 import {
   DASHBOARD_EMPLOYEE_KPI,
-  DASHBOARD_OVERDUE_TASKS,
-  DASHBOARD_TODAY_VISITOR_COUNT,
   NEWS_POSTS,
   TASKS_OVERDUE,
   VISITOR_TURNSTILE_ATTENDANCE,
@@ -233,106 +231,8 @@ export function useGuestPasses(enabled: boolean, limit = 12) {
   return { guests, loading: q.isLoading }
 }
 
-/* ── Ijro intizomi bo'yicha jamlanma ────────────────────────────────────── */
-
-export interface OverdueSummary {
-  total?: number
-  by_department?: { department_name: string; count: number }[]
-}
-
-/**
- * Where the missed deadlines are concentrated. The per-task register above
- * answers "which ones"; this answers "whose department", which is the only
- * form of the question a branch head can act on.
- */
-export function useOverdueSummary(enabled: boolean) {
-  const branchId = useDashboardBranchId()
-  const q = useQuery({
-    queryKey: ['board', 'overdue-summary', branchId],
-    queryFn: () =>
-      apiGet<OverdueSummary>(DASHBOARD_OVERDUE_TASKS, { organization_branch_id: branchId }),
-    enabled,
-    retry: false,
-  })
-  const worst = useMemo(() => {
-    const rows = q.data?.by_department ?? []
-    return [...rows].sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0] ?? null
-  }, [q.data])
-  return { summary: q.data ?? {}, worstDepartment: worst, loading: q.isLoading }
-}
-
-/* ── Mehmon hisoblagichlari ─────────────────────────────────────────────── */
-
-/**
- * ⚠️ THREE ENDPOINT LITERALS INLINED. `src/api/endpoints.ts` carries
- * `DASHBOARD_TODAY_VISITOR_COUNT` but not the other two, and that file belongs
- * to another session today (2026-09-08), so the constants cannot be added
- * where they belong. They should be lifted into `endpoints.ts` as
- * `DASHBOARD_ALL_VISITOR_COUNT`, `DASHBOARD_VISITOR_SERVICE_TIME`,
- * `DASHBOARD_DEPARTMENTS_ATTENDANCE` and `DASHBOARD_KPI_SUMMARY`.
- */
-const DASHBOARD_ALL_VISITOR_COUNT = 'dashboard/all-visitor-count'
-const DASHBOARD_VISITOR_SERVICE_TIME = 'dashboard/visitor-service-time-stats'
 const DASHBOARD_DEPARTMENTS_ATTENDANCE = 'dashboard/departments-attendance'
 const DASHBOARD_KPI_SUMMARY = 'dashboard/kpi-summary'
-
-export interface VisitorCounters {
-  /** Everyone on file for this branch — no date filter at all. */
-  all?: number
-  /** Whose pass is valid today (NOT "who walked in today"). */
-  today?: number
-  /** How long a visit lasts, gate to gate, in whole minutes. */
-  avgServiceMinutes?: number
-}
-
-/**
- * The three figures web v1 prints above its guest feed ("Mehmonlar tashrifi"):
- * all guests on file, today's guests, and the average time a guest is served.
- *
- * They are three separate endpoints because they answer three different
- * questions — a branch with 4000 guests on file and 3 today is the normal
- * case, and collapsing them into one number would say nothing. Each is branch
- * scoped and takes no department filter, so the key deliberately carries only
- * the branch.
- */
-export function useVisitorCounters(enabled: boolean) {
-  const branchId = useDashboardBranchId()
-  const common = { enabled, retry: false as const }
-
-  const all = useQuery({
-    queryKey: ['board', 'visitors-all', branchId],
-    queryFn: () =>
-      apiGet<{ count: number }>(DASHBOARD_ALL_VISITOR_COUNT, {
-        organization_branch_id: branchId,
-      }),
-    ...common,
-  })
-
-  const today = useQuery({
-    queryKey: ['board', 'visitors-today', branchId],
-    queryFn: () =>
-      apiGet<{ count: number }>(DASHBOARD_TODAY_VISITOR_COUNT, {
-        organization_branch_id: branchId,
-      }),
-    ...common,
-  })
-
-  const service = useQuery({
-    queryKey: ['board', 'visitor-service-time', branchId],
-    queryFn: () =>
-      apiGet<{ average_service_time_minutes: number }>(DASHBOARD_VISITOR_SERVICE_TIME, {
-        organization_branch_id: branchId,
-      }),
-    ...common,
-  })
-
-  const counters: VisitorCounters = {
-    all: all.data?.count,
-    today: today.data?.count,
-    avgServiceMinutes: service.data?.average_service_time_minutes,
-  }
-  return { counters, loading: all.isLoading || today.isLoading || service.isLoading }
-}
 
 /* ── Bo'limlar bo'yicha davomat ─────────────────────────────────────────── */
 

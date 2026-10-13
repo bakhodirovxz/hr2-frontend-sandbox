@@ -4,8 +4,6 @@
 
 // Auth
 export const AUTH_LOGIN = 'auth/login'
-/** Self-hosted image challenge for the login form (`core/captcha.py`). */
-export const AUTH_CAPTCHA = 'auth/captcha'
 export const AUTH_REFRESH = 'auth/refresh'
 export const AUTH_LOGOUT = 'auth/logout'
 export const USER_INFO = 'auth/me'
@@ -19,9 +17,6 @@ export const ORGANIZATION_BRANCH_LEADER_DELETE = (pk: number | string, empId: nu
 /* The branch's own letterhead image, used on every document it generates. */
 export const ORGANIZATION_BRANCH_UPLOAD_LOGO = (pk: number | string) => `organization-branches/${pk}/upload-logo`
 export const ORGANIZATION_BRANCH_LOGO = (pk: number | string) => `organization-branches/${pk}/logo`
-/* A ready-made .docx blank the branch uploads for one document type. */
-export const ORGANIZATION_BRANCH_DOC_TEMPLATE = (pk: number | string, docType: string) =>
-  `organization-branches/${pk}/document-template/${docType}`
 
 // Employees
 export const EMPLOYEES_LIST = 'employees'
@@ -90,15 +85,12 @@ export const DASHBOARD_EMPLOYEE_KPI = 'dashboard/employee-kpi'
 export const DASHBOARD_AGE_STATS = 'dashboard/age-stats'
 export const DASHBOARD_NATIONALITY_STATS = 'dashboard/nationality-stats'
 export const DASHBOARD_KPI_MONTHLY_AVERAGE = 'dashboard/kpi-monthly-average'
-export const DASHBOARD_CARDS_SUMMARY = 'dashboard/cards-summary'
-export const DASHBOARD_TASK_EXECUTION_ATTENDANCE = 'dashboard/task-execution-attendance'
 
 // Dashboard
 export const DASHBOARD_MAIN = 'dashboard/main'
 export const DASHBOARD_EMPLOYEES_BY_CATEGORY = 'dashboard/employees-by-category'
 export const DASHBOARD_DEPARTMENTS_EMPLOYEE_COUNT = 'dashboard/departments-employee-count'
 export const DASHBOARD_JOB_POSITION_STATS = 'dashboard/job-position-stats'
-export const DASHBOARD_TODAY_VISITOR_COUNT = 'dashboard/today-visitor-count'
 
 // Projects (kanban workspaces)
 export const WORKSPACES_LIST = 'workspaces'
@@ -124,7 +116,6 @@ export const MOBILE_CHECKINS = 'mobile-checkins'
 export const MOBILE_CHECKIN_CANCEL = (id: number) => `mobile-checkins/${id}/cancel`
 
 // Monitoring (live wall)
-export const DASHBOARD_OVERDUE_TASKS = 'dashboard/overdue-tasks'
 export const DASHBOARD_LATE_EMPLOYEES_FREQUENT = 'dashboard/late-employees/frequent'
 export const TASKS_OVERDUE = 'tasks-overdue'
 
@@ -191,7 +182,6 @@ export const SESSION_DETAIL = (id: number | string) => `sessions/${id}`
 
 // ── Global qidiruv (TZ 4.1.7) ─────────────────────────────────────────────
 export const SEARCH = 'search'
-export const SEARCH_SOURCES = 'search/sources'
 
 // ── Ro'yxatdan o'tish moduli (TZ 4.2.2) ───────────────────────────────────
 export const REGISTER = 'auth/register'

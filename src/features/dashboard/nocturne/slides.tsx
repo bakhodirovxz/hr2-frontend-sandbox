@@ -4,21 +4,16 @@ import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { inTashkent } from '@/lib/format'
 import { Building2 } from 'lucide-react'
-import { formatTime } from '@/features/dashboard/attendance'
 import type { StatusCounts } from '@/features/dashboard/attendance'
 import type { LateRankRow } from '@/features/dashboard/useKadrBlocks'
-import type { Birthday, NewsPost, TurnstileEvent } from '@/types/dashboard'
+import type { Birthday, NewsPost } from '@/types/dashboard'
 import { Donut, DonutLegend, type DonutSlice } from './Donut'
 import { PanelEmpty } from './Panel'
 import { IconCell, ListRow, PersonCell, RowList, StatusPill, ToneText } from './rows'
-import { guestRow } from './guestRow'
 import type {
   DepartmentAttendance,
-  IjroTask,
   KpiSummary,
-  OverdueSummary,
   TopEmployee,
-  VisitorCounters,
 } from './useBoardData'
 
 /** The body of a carousel face: a padded column that fills the window. */
@@ -221,47 +216,6 @@ export function LateRankFace({ rows }: { rows: LateRankRow[] }) {
   )
 }
 
-/* ── Ijro intizomi (jamlanma) ───────────────────────────────────────────── */
-
-export function DisciplineFace({
-  tasks,
-  summary,
-  worstDepartment,
-}: {
-  tasks: IjroTask[]
-  summary: OverdueSummary
-  worstDepartment: { department_name: string; count: number } | null
-}) {
-  const { t } = useTranslation()
-  // Severity is the AGE of the miss, not its existence: a fortnight-old
-  // deadline and yesterday's are different problems.
-  const critical = tasks.filter((x) => x.state === 'overdue' && x.days > 7).length
-  const mid = tasks.filter((x) => x.state === 'overdue' && x.days <= 7).length
-  const low = tasks.filter((x) => x.state === 'today' || x.state === 'soon').length
-  const done = tasks.filter((x) => x.state === 'done').length
-  const total = summary.total ?? tasks.filter((x) => x.state === 'overdue').length
-
-  return (
-    <Face className="justify-evenly gap-3 px-4 pb-3 pt-1">
-      <div className="flex gap-2.5">
-        <Tally value={critical} label={t('dashboard.board.severeHigh')} tone="danger" />
-        <Tally value={mid} label={t('dashboard.board.severeMid')} tone="warning" />
-        <Tally value={low} label={t('dashboard.board.severeLow')} tone="neutral" />
-      </div>
-      <div className="flex flex-col gap-[7px]">
-        <Line label={t('dashboard.board.violationsThisMonth')} value={`${total}`} />
-        <Line label={t('dashboard.board.tasksClosed')} value={`${done}`} tone="success" />
-        {worstDepartment && (
-          <Line
-            label={t('dashboard.board.worstDepartment', { name: worstDepartment.department_name })}
-            value={`${worstDepartment.count}`}
-          />
-        )}
-      </div>
-    </Face>
-  )
-}
-
 function Tally({
   value,
   label,
@@ -311,115 +265,6 @@ function Line({
         {value}
       </span>
     </div>
-  )
-}
-
-/* ── Mehmonlar ──────────────────────────────────────────────────────────── */
-
-/**
- * Uchta raqam + so'nggi tashriflar — web v1 ning «Mehmonlar tashrifi»
- * kartochkasi.
- *
- * WHY THE COUNTERS SIT ABOVE THE FEED. The feed answers "who is here now",
- * which is worth nothing without the scale it sits in: a branch with three
- * passes today and four thousand guests on file is a quiet day, and the same
- * three passes with eleven guests on file is a busy one. v1 prints the three
- * together for exactly that reason, and each comes off its own endpoint —
- * they are not derivable from one another.
- *
- * A counter the role cannot read stays HIDDEN rather than printing 0: a
- * refused endpoint and an empty branch must never look the same.
- */
-function VisitorCounter({
-  value,
-  label,
-  tone,
-  suffix,
-}: {
-  value: number
-  label: string
-  tone: 'info' | 'success' | 'warning'
-  suffix?: string
-}) {
-  return (
-    <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-      <span
-        className={`text-[22px] font-bold leading-none [font-variant-numeric:tabular-nums] ${
-          tone === 'info' ? 'text-info' : tone === 'success' ? 'text-success' : 'text-warning'
-        }`}
-      >
-        {value}
-        {suffix && <span className="ml-0.5 text-[11px] font-semibold">{suffix}</span>}
-      </span>
-      <span className="min-w-0 flex-1 text-[10.5px] leading-tight text-fg-muted">{label}</span>
-    </div>
-  )
-}
-
-export function GuestsFace({
-  guests,
-  counters,
-}: {
-  guests: TurnstileEvent[]
-  counters?: VisitorCounters
-}) {
-  const { t } = useTranslation()
-  const strip =
-    counters &&
-    (counters.all != null || counters.today != null || counters.avgServiceMinutes != null) ? (
-      <div className="flex shrink-0 items-center gap-3 border-b border-fg/[0.07] px-3 pb-2.5 pt-1">
-        {counters.all != null && (
-          <VisitorCounter value={counters.all} label={t('dashboard.board.guestsAll')} tone="info" />
-        )}
-        {counters.today != null && (
-          <VisitorCounter
-            value={counters.today}
-            label={t('dashboard.board.guestsToday')}
-            tone="success"
-          />
-        )}
-        {counters.avgServiceMinutes != null && (
-          <VisitorCounter
-            value={counters.avgServiceMinutes}
-            suffix={t('dashboard.board.minutesShort')}
-            label={t('dashboard.board.guestsAvgService')}
-            tone="warning"
-          />
-        )}
-      </div>
-    ) : null
-
-  if (guests.length === 0) {
-    return (
-      <Face>
-        {strip}
-        <PanelEmpty text={t('dashboard.board.guestsEmpty')} />
-      </Face>
-    )
-  }
-  return (
-    <Face>
-      {strip}
-      <RowList className="pt-1">
-      {guests.slice(0, 6).map((g, i) => {
-        const entry = g.direction_type === 'entrance' || g.check_in_out_type === 1
-        const guest = guestRow(g, t)
-        return (
-          <ListRow key={g.id ?? i} filled className="max-h-[58px]">
-            <PersonCell name={guest.name} sub={guest.sub} photo={guest.photo} photoFull={guest.photoFull} size={30} />
-            <span className="flex shrink-0 flex-col items-end leading-tight">
-              <span className="text-[12px] text-fg-muted [font-variant-numeric:tabular-nums]">
-                {formatTime(g.happen_time)}
-              </span>
-              <ToneText tone={entry ? 'success' : 'neutral'} className="text-[10px] font-semibold">
-                {entry ? t('dashboard.passIn') : t('dashboard.passOut')}
-              </ToneText>
-            </span>
-          </ListRow>
-        )
-      })}
-      </RowList>
-    </Face>
   )
 }
 
