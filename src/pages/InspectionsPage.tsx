@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Activity, AlertTriangle, CalendarClock, CheckCircle2, FileDown, FileText, Play, Plus, X, XCircle } from 'lucide-react'
+import { Activity, AlertTriangle, CalendarClock, CheckCircle2, FileDown, FileText, ListPlus, Play, Plus, Repeat, X, XCircle } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -30,6 +30,7 @@ import { EmployeePicker } from '@/features/employees/EmployeePicker'
 import { EmployeeMultiPicker, type PickedPerson } from '@/features/employees/EmployeeMultiPicker'
 import { useEmployeeSearch } from '@/features/employees/useEmployeeSearch'
 import { KpiSnapshot } from '@/features/inspections/KpiSnapshot'
+import { FindingTaskModal, FindingTasks, FollowUpModal } from '@/features/inspections/InspectionExtras'
 import {
   ASSESSMENTS,
   FINDING_SEVERITIES,
@@ -195,7 +196,7 @@ export function InspectionsPage() {
       </Card>
 
       <CreateModal open={creating} onClose={() => setCreating(false)} />
-      <DetailDrawer id={openId} canManage={canManage} onClose={() => setOpen(null)} onComplete={setCompleting} onCancel={setCancelling} />
+      <DetailDrawer id={openId} canManage={canManage} onClose={() => setOpen(null)} onOpen={setOpen} onComplete={setCompleting} onCancel={setCancelling} />
       <CompleteModal row={completing} onClose={() => setCompleting(null)} />
       <CancelModal row={cancelling} onClose={() => setCancelling(null)} />
     </PageContainer>
@@ -384,12 +385,14 @@ function DetailDrawer({
   id,
   canManage,
   onClose,
+  onOpen,
   onComplete,
   onCancel,
 }: {
   id: number | null
   canManage: boolean
   onClose: () => void
+  onOpen: (id: number) => void
   onComplete: (r: Inspection) => void
   onCancel: (r: Inspection) => void
 }) {
@@ -405,6 +408,8 @@ function DetailDrawer({
   const [extend, setExtend] = useState<{ end: string; reason: string } | null>(null)
   const [extendError, setExtendError] = useState('')
   const [reporting, setReporting] = useState<string | null>(null)
+  const [taskFor, setTaskFor] = useState<Finding | null>(null)
+  const [followUpFor, setFollowUpFor] = useState<Inspection | null>(null)
 
   useEffect(() => {
     setExtend(null)
@@ -469,6 +474,36 @@ function DetailDrawer({
             <Button size="sm" variant="outline" leftIcon={<FileText size={13} />} loading={reporting === 'docx'} onClick={() => download('docx')}>Word</Button>
             <Button size="sm" variant="outline" leftIcon={<FileDown size={13} />} loading={reporting === 'pdf'} onClick={() => download('pdf')}>PDF</Button>
           </div>
+
+          {(d.parent_inspection_id || (d.follow_ups ?? []).length > 0) && (
+            <div className="flex flex-col gap-1 text-[12.5px] text-fg-muted">
+              {d.parent_inspection_id && (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Repeat size={13} className="text-brand" aria-hidden />
+                  {t('kpiExt.followUpOf')}:
+                  <button type="button" className="font-medium text-brand hover:underline" onClick={() => onOpen(d.parent_inspection_id as number)}>
+                    {d.parent_inspection_title || `#${d.parent_inspection_id}`}
+                  </button>
+                </span>
+              )}
+              {(d.follow_ups ?? []).map((f) => (
+                <span key={f.id} className="flex flex-wrap items-center gap-1.5">
+                  <Repeat size={13} className="text-brand" aria-hidden />
+                  {t('kpiExt.followUpAudit')}:
+                  <button type="button" className="font-medium text-brand hover:underline" onClick={() => onOpen(f.id)}>
+                    {f.title}
+                  </button>
+                  <Badge tone={STATUS_TONE[f.status] ?? 'neutral'}>{t(`inspections.status_${f.status}` as never, { defaultValue: f.status_label ?? f.status })}</Badge>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {canManage && d.status === 'completed' && (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" leftIcon={<Repeat size={13} />} onClick={() => setFollowUpFor(d)}>{t('kpiExt.followUpTitle')}</Button>
+            </div>
+          )}
 
           {canManage && open && (
             <div className="flex flex-wrap gap-2">
@@ -581,6 +616,7 @@ function DetailDrawer({
                   <Badge tone={f.status === 'resolved' ? 'success' : 'warning'}>{f.status === 'resolved' ? t('inspections.resolved') : t('inspections.open')}</Badge>
                 </div>
                 {f.recommendation && <p className="mt-1 text-[12px] text-fg-muted">{t('inspections.recommendation')}: {f.recommendation}</p>}
+                <FindingTasks finding={f} />
                 {f.resolution_note && <p className="mt-1 text-[12px] text-success">{t('inspections.resolutionNote')}: {f.resolution_note}</p>}
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
                   <Badge tone={SEV_TONE[f.severity] ?? 'neutral'}>{t(`inspections.sev_${f.severity}` as never, { defaultValue: f.severity })}</Badge>
@@ -591,7 +627,12 @@ function DetailDrawer({
                     </span>
                   )}
                   {f.status !== 'resolved' && canFindings && (
-                    <Button size="sm" variant="ghost" className="ml-auto" leftIcon={<CheckCircle2 size={13} />} onClick={() => setResolving(f)}>
+                    <Button size="sm" variant="ghost" className="ml-auto" leftIcon={<ListPlus size={13} />} onClick={() => setTaskFor(f)}>
+                      {t('kpiExt.correctiveTaskAdd')}
+                    </Button>
+                  )}
+                  {f.status !== 'resolved' && canFindings && (
+                    <Button size="sm" variant="ghost" leftIcon={<CheckCircle2 size={13} />} onClick={() => setResolving(f)}>
                       {t('inspections.resolve')}
                     </Button>
                   )}
@@ -605,6 +646,8 @@ function DetailDrawer({
         </div>
       )}
       <ResolveModal inspectionId={d?.id ?? null} finding={resolving} onClose={() => setResolving(null)} />
+      <FindingTaskModal inspection={d} finding={taskFor} onClose={() => setTaskFor(null)} />
+      <FollowUpModal inspection={followUpFor} onClose={() => setFollowUpFor(null)} onCreated={onOpen} />
     </Modal>
   )
 }

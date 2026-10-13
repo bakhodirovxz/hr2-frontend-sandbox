@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ClipboardCheck, ListPlus, Repeat } from 'lucide-react'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
@@ -59,9 +60,9 @@ export function FindingTasks({ finding }: { finding: Finding }) {
       <ul className="flex flex-col gap-1">
         {tasks.map((x) => (
           <li key={x.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
-            <a href={`/work-plans?from=&to=`} className="min-w-0 flex-1 truncate text-fg hover:text-brand hover:underline" title={x.title}>
+            <Link to="/work-plans" className="min-w-0 flex-1 truncate text-fg hover:text-brand hover:underline" title={x.title}>
               {x.title}
-            </a>
+            </Link>
             {x.end_date && <span className="tabular-nums text-fg-subtle">{t('inspections.dueUntil', { date: dmy(x.end_date) })}</span>}
             <Badge tone={TASK_TONE[x.status] ?? 'neutral'}>{t(`workPlan.status_${x.status}` as never, { defaultValue: x.status_label ?? x.status })}</Badge>
           </li>
