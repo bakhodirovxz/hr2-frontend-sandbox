@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +13,8 @@ import { useToast } from '@/components/ui/Toast'
 import type { SelectOption } from '@/components/ui/Select'
 import { errorMessage } from '@/api/errorMessage'
 import { EmployeeBasisFields } from '../EmployeeBasisFields'
-import { isBasisComplete, type EditBasis, type T2Section as T2SectionCode } from '../types'
+import { isBasisComplete, type EditBasis, type T2Card, type T2Section as T2SectionCode } from '../types'
+import { editConflictOf, recordOwnWrite, resolveBase, useEditConflictHost } from '../editConflict'
 import { fmtDate } from '../format'
 import { useT2Mutations } from './useT2'
 
@@ -45,23 +47,48 @@ export function useRequireBasis() {
  * Save helpers of the T-2 tabs: the basis is taken from the card session,
  * the result replaces the cached card, success / failure is toasted.
  * `saving` names the section being written.
+ *
+ * TZ C3 1062: `begin(key)` (called when a section opens for editing) keeps the
+ * card's `updated_at`; the save sends it as `expected_updated_at`. A 409
+ * `edit_conflict` opens the card's conflict dialog — «Yangisini yuklash»
+ * reloads the card and `onReload(key)` closes that section's editor.
  */
-export function useT2Save(employeeId: number) {
+export function useT2Save(employeeId: number, onReload?: (key: string) => void) {
   const { t } = useTranslation()
   const toast = useToast()
+  const qc = useQueryClient()
+  const conflicts = useEditConflictHost()
   const requireBasis = useRequireBasis()
   const m = useT2Mutations(employeeId)
   const [saving, setSaving] = useState('')
-  const run = async (key: string, fn: (basis: EditBasis) => Promise<unknown>): Promise<boolean> => {
+  const bases = useRef<Record<string, string | null | undefined>>({})
+  const cached = () => qc.getQueryData<T2Card>(['employee-t2', employeeId])?.updated_at ?? null
+  const begin = (key: string) => {
+    bases.current[key] = cached()
+  }
+  const run = async (key: string, fn: (basis: EditBasis, expected?: string) => Promise<T2Card>): Promise<boolean> => {
     const basis = requireBasis()
     if (!basis) return false
     setSaving(key)
+    const before = cached()
+    const expected = resolveBase(employeeId, key in bases.current ? bases.current[key] : before)
     try {
-      await fn(basis)
+      const card = await fn(basis, expected)
+      recordOwnWrite(employeeId, expected ?? before, card?.updated_at)
       toast.ok(t('common.saved'))
       return true
     } catch (e) {
-      toast.error(errorMessage(e, t('common.actionFailed')))
+      const conflict = editConflictOf(e)
+      if (conflict && conflicts) {
+        conflicts.show(conflict, async () => {
+          await qc.refetchQueries({ queryKey: ['employee-t2', employeeId] })
+          void qc.invalidateQueries({ queryKey: ['employee', employeeId] })
+          delete bases.current[key]
+          onReload?.(key)
+        })
+      } else {
+        toast.error(errorMessage(e, t('common.actionFailed')))
+      }
       return false
     } finally {
       setSaving('')
@@ -69,10 +96,11 @@ export function useT2Save(employeeId: number) {
   }
   return {
     saving,
+    begin,
     patch: (values: Record<string, unknown>, key: string) =>
-      run(key, (basis) => m.saveScalars.mutateAsync({ values, basis })),
+      run(key, (basis, expected) => m.saveScalars.mutateAsync({ values, basis, expected })),
     put: (section: T2SectionCode, body: Record<string, unknown>, key: string) =>
-      run(key, (basis) => m.saveSection.mutateAsync({ section, body, basis })),
+      run(key, (basis, expected) => m.saveSection.mutateAsync({ section, body, basis, expected })),
   }
 }
 

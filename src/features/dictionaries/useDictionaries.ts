@@ -62,6 +62,36 @@ export interface DictionaryUsageRef {
   label_ru?: string | null
   count: number
   sample: string[]
+  /** Source table and column (JSONB path) — `services/dictionary_usage.py`;
+   *  absent for child entries of a hierarchical dictionary. */
+  table?: string | null
+  column?: string | null
+}
+
+/** One row of `GET /dictionaries/usage-registry` (TZ D1 1558 / D2 1583). */
+export interface UsageRegistryRef {
+  type_code: string
+  table: string
+  column: string
+  kind: string
+  path: string[]
+  key?: string | null
+  label: string
+}
+
+export interface UsageRegistry {
+  refs: UsageRegistryRef[]
+  coverage: { scanned?: string[]; uncovered?: string[]; ignored?: Record<string, string> }
+}
+
+/** Where the codes of every dictionary are stored (same for everybody). */
+export function useUsageRegistry(enabled: boolean) {
+  return useQuery({
+    queryKey: ['dictionary-usage-registry'],
+    queryFn: () => apiGet<UsageRegistry>('dictionaries/usage-registry'),
+    enabled,
+    staleTime: 30 * 60_000,
+  })
 }
 
 export interface DictionaryUsage {

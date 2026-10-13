@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Archive, ArrowLeft, ArrowRightLeft, FileDown, Info, Pencil, Trash2, UserCheck } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRightLeft, FileDown, Info, Pencil, Trash2, UserCheck } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { ForbiddenState } from '@/components/layout/RequireRole'
 import { Button } from '@/components/ui/Button'
@@ -20,7 +20,9 @@ import { PlacementModal } from '@/features/employees/PlacementModal'
 import { CARD_TABS, CardTabs, type CardTab } from '@/features/employees/profile/CardTabs'
 import { ProfileInfo } from '@/features/employees/profile/ProfileInfo'
 import { useT2Card } from '@/features/employees/t2/useT2'
-import { useEmployeeDetail, useEmployeeMutations } from '@/features/employees/useEmployees'
+import { useArchivedRow, useEmployeeDetail, useEmployeeMutations } from '@/features/employees/useEmployees'
+import { RestoreEmployeeModal, canRestoreUntil } from '@/features/employees/RestoreEmployeeModal'
+import { inUtc } from '@/lib/format'
 import { fmtDate } from '@/features/employees/format'
 
 const LEGACY_TABS: Record<string, CardTab> = { t2: 'general' }
@@ -46,6 +48,24 @@ export function EmployeeProfilePage() {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [placement, setPlacement] = useState<'rehire' | 'migrate' | null>(null)
   const [exporting, setExporting] = useState<'' | 'docx' | 'pdf'>('')
+  const [restoreOpen, setRestoreOpen] = useState(false)
+  // TZ C4: the archive list's «Tiklash» dialog sends here with `?action=rehire`
+  // when the server says the card can only be rehired.
+  const wantsRehire = params.get('action') === 'rehire'
+  const canFullEarly = canWriteOrg(user, 'employees', 'full')
+  const archivedRow = useArchivedRow(q.data, canFullEarly)
+  useEffect(() => {
+    if (!wantsRehire || !q.data?.is_archived) return
+    setPlacement('rehire')
+    setParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev)
+        sp.delete('action')
+        return sp
+      },
+      { replace: true },
+    )
+  }, [wantsRehire, q.data?.is_archived, setParams])
 
   const rawTab = params.get('tab') ?? ''
   const mapped = LEGACY_TABS[rawTab] ?? rawTab
@@ -80,8 +100,11 @@ export function EmployeeProfilePage() {
   const employee = q.data
   const archived = !!employee.is_archived
   const canEdit = !archived && canManageEmployee(user, employee)
-  // C4: archive / delete / rehire / migrate — `employees = full` (HR).
-  const canFull = canWriteOrg(user, 'employees', 'full')
+  // C4: archive / delete / rehire / migrate / restore — `employees = full` (HR).
+  const canFull = canFullEarly
+  // TZ C4 1087: restoring is possible until `restore_until` (archive row).
+  const restoreUntil = archivedRow.data?.restore_until ?? null
+  const restorable = archived && canFull && canRestoreUntil(restoreUntil)
 
   const exportT2 = async (format: 'docx' | 'pdf') => {
     setExporting(format)
@@ -153,6 +176,9 @@ export function EmployeeProfilePage() {
             {employee.archived_at ? ` — ${fmtDate(employee.archived_at)}` : ''}
             {t2.data?.archive?.reason ? ` · ${t2.data.archive.reason}` : ''}
           </span>
+          {restorable && (
+            <span className="text-[12.5px] font-semibold text-fg">{t('hrExt.restore.until', { date: inUtc(restoreUntil) })}</span>
+          )}
         </div>
       )}
 
@@ -173,9 +199,16 @@ export function EmployeeProfilePage() {
                   </Button>
                 </>
               ) : (
-                <Button size="sm" leftIcon={<UserCheck size={14} />} onClick={() => setPlacement('rehire')}>
-                  {t('personnel.actions.rehire')}
-                </Button>
+                <>
+                  {restorable && (
+                    <Button size="sm" leftIcon={<ArchiveRestore size={14} />} onClick={() => setRestoreOpen(true)}>
+                      {t('hrExt.restore.title')}
+                    </Button>
+                  )}
+                  <Button size="sm" variant={restorable ? 'outline' : 'primary'} leftIcon={<UserCheck size={14} />} onClick={() => setPlacement('rehire')}>
+                    {t('personnel.actions.rehire')}
+                  </Button>
+                </>
               )}
             </div>
           )}
@@ -186,6 +219,11 @@ export function EmployeeProfilePage() {
       <EmployeeFormDrawer open={editOpen} editId={employee.id} onClose={() => setEditOpen(false)} />
       <ArchiveEmployeeModal employee={archiveOpen ? employee : null} onClose={() => setArchiveOpen(false)} />
       <PlacementModal mode={placement} employee={employee} onClose={() => setPlacement(null)} />
+      <RestoreEmployeeModal
+        target={restoreOpen ? { id: employee.id, legal_name: employee.legal_name, restore_until: restoreUntil } : null}
+        onClose={() => setRestoreOpen(false)}
+        onRehire={() => setPlacement('rehire')}
+      />
     </PageContainer>
   )
 }

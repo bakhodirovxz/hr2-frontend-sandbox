@@ -46,6 +46,8 @@ export interface EducationRow {
 /** `GET /employees/{pk}` (`EmployeeReadFull`) — kabinetda ishlatiladigan qismi. */
 export interface MyEmployee {
   id: number
+  /** TZ C3 1062: sent back as `expected_updated_at`. */
+  updated_at?: string | null
   legal_name?: string | null
   photo_path?: string | null
   photo_thumb_path?: string | null

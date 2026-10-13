@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, LockOpen, MonitorSmartphone, Pencil, Plus, Power, PowerOff, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArchiveRestore, KeyRound, LockOpen, MonitorSmartphone, Pencil, Plus, Power, PowerOff, ShieldCheck, Trash2 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
@@ -24,6 +24,7 @@ import { SetPasswordModal } from '@/features/users/SetPasswordModal'
 import { isLocked, useRoles, useUserList, useUserMutations, type UserAdminRow } from '@/features/users/useUserAdmin'
 import { UserSessionsModal } from '@/features/users/UserSessionsModal'
 import { SecurityPolicyModal } from '@/features/users/SecurityPolicyModal'
+import { ArchiveSettingsModal } from '@/features/employees/ArchiveSettingsModal'
 
 const FILTER_KEYS = ['role', 'active', 'branch'] as const
 const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
@@ -68,6 +69,7 @@ export function UsersPage() {
   const { setActive, remove, unlock } = useUserMutations()
   const [sessionsTarget, setSessionsTarget] = useState<UserAdminRow | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
+  const [archiveSettingsOpen, setArchiveSettingsOpen] = useState(false)
 
   const [drawer, setDrawer] = useState<{ open: boolean; initial: UserAdminRow | null }>({ open: false, initial: null })
   const [pwTarget, setPwTarget] = useState<UserAdminRow | null>(null)
@@ -283,6 +285,12 @@ export function UsersPage() {
                   {t('userAdmin.policyTitle')}
                 </Button>
               )}
+              {/* TZ C4 1087: arxivdan tiklash muddati — tizim sozlamasi. */}
+              {isSiteMasterAdmin(me) && (
+                <Button variant="secondary" leftIcon={<ArchiveRestore size={16} />} onClick={() => setArchiveSettingsOpen(true)}>
+                  {t('hrExt.archiveSettings.title')}
+                </Button>
+              )}
               {canEdit && (
                 <Button leftIcon={<Plus size={16} />} onClick={() => setDrawer({ open: true, initial: null })}>
                   {t('userAdmin.createTitle')}
@@ -365,6 +373,7 @@ export function UsersPage() {
       <SetPasswordModal target={pwTarget} onClose={() => setPwTarget(null)} />
       <UserSessionsModal target={sessionsTarget} onClose={() => setSessionsTarget(null)} />
       <SecurityPolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
+      <ArchiveSettingsModal open={archiveSettingsOpen} onClose={() => setArchiveSettingsOpen(false)} />
     </PageContainer>
   )
 }

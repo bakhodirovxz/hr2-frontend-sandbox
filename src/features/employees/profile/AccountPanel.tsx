@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { apiPatch } from '@/api/http'
 import { EMPLOYEE_SELF_UPDATE, USER_INFO } from '@/api/endpoints'
+import { EditConflictDialog, editConflictOf, recordOwnWrite, resolveBase, type EditConflictInfo } from '../editConflict'
 import { errorCode, errorMessage } from '@/api/errorMessage'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -254,6 +255,12 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
     setForm(JSON.parse(seed) as typeof initial)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed])
+  // TZ C3 1062: the card's `updated_at` the form was filled from.
+  const [base, setBase] = useState<string | null | undefined>(employee?.updated_at)
+  const [conflict, setConflict] = useState<EditConflictInfo | null>(null)
+  useEffect(() => {
+    setBase(employee?.updated_at)
+  }, [seed, employee?.updated_at])
 
   const credentialsChanged =
     form.username.trim() !== (user?.username || '') || form.email.trim() !== accountEmail(user)
@@ -299,13 +306,22 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
 
     setSaving(true)
     try {
-      if (hasEmployee) await apiPatch(EMPLOYEE_SELF_UPDATE, payload)
-      else await apiPatch(USER_INFO, payload)
+      if (hasEmployee) {
+        const empId = user!.employee!.id
+        const expected = resolveBase(empId, base)
+        const res = await apiPatch<{ employee?: { updated_at?: string | null } }>(EMPLOYEE_SELF_UPDATE, { ...payload, expected_updated_at: expected })
+        recordOwnWrite(empId, expected, res?.employee?.updated_at)
+      } else await apiPatch(USER_INFO, payload)
       await refresh(user?.employee?.id)
       setCurrentPassword('')
       setPhoto(null)
       toast.ok(t('account.saved'))
     } catch (err) {
+      const clash = editConflictOf(err)
+      if (clash) {
+        setConflict(clash)
+        return
+      }
       const code = errorCode(err)
       const msg = errorMessage(err, t('account.saveFailed'))
       if (code === 'username_taken' || code === 'user_username_exists' || code === 'username_too_short') setErrors({ username: msg })
@@ -397,6 +413,14 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
             </Button>
           </div>
         </form>
+        <EditConflictDialog
+          conflict={conflict}
+          onReload={async () => {
+            setPhoto(null)
+            await refresh(user?.employee?.id)
+          }}
+          onClose={() => setConflict(null)}
+        />
       </CardBody>
     </Card>
   )

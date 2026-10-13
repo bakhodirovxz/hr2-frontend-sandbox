@@ -4,6 +4,7 @@ import { Link2 } from 'lucide-react'
 import { Button, Modal, Spinner } from '@/components/ui'
 import { useServerText } from '@/features/statistics/serverText'
 import { useExtraKindLabel } from './DictionaryEntryModal'
+import { DictionaryUsageList } from './DictionaryUsageList'
 import { localizedName, useEntryUsage, type DictionaryEntry, type DictionaryType } from './useDictionaries'
 
 /** Labels for the known `extra` keys; an unknown key shows as it is. */
@@ -108,18 +109,7 @@ export function DictionaryEntryCard({
             ) : usage.isLoading ? (
               <Spinner />
             ) : usage.data?.used ? (
-              <ul className="flex flex-col gap-1 text-[13px]">
-                {usage.data.refs.map((r, i) => (
-                  <li key={i} className="text-fg">
-                    <span className="font-medium">{lang === 'ru' && r.label_ru ? r.label_ru : st(r.label)}</span>
-                    {' — '}
-                    {t('orgRef.countItems', { count: r.count })}
-                    {r.sample?.length ? (
-                      <span className="text-fg-subtle">{` (${r.sample.slice(0, 5).join(', ')}${r.count > 5 ? '…' : ''})`}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              <DictionaryUsageList refs={usage.data.refs} />
             ) : (
               <p className="text-[13px] text-fg-muted">{t('orgRef.noLinkedObjects')}</p>
             )}

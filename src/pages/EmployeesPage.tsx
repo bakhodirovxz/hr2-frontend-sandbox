@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { Archive, FileSpreadsheet, KeyRound, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { Archive, FileSpreadsheet, KeyRound, Pencil, Plus, Settings2, Trash2, Users } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
@@ -21,9 +21,10 @@ import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
 import { useAuthStore } from '@/store/authStore'
-import { canManageEmployee, canManageEmployees, canWrite, canWriteOrg, isLineManager, readsOrg } from '@/auth/permissions'
+import { canManageEmployee, canManageEmployees, canWrite, canWriteOrg, isLineManager, isSiteMasterAdmin, readsOrg } from '@/auth/permissions'
 import { ArchivedTable } from '@/features/employees/ArchivedTable'
 import { ArchiveEmployeeModal } from '@/features/employees/ArchiveEmployeeModal'
+import { ArchiveSettingsModal } from '@/features/employees/ArchiveSettingsModal'
 import { EmployeeExportModal } from '@/features/employees/EmployeeExportModal'
 import { EmployeeFormDrawer } from '@/features/employees/EmployeeFormDrawer'
 import { EmployeePasswordModal } from '@/features/employees/EmployeePasswordModal'
@@ -88,6 +89,7 @@ export function EmployeesPage() {
   const [archiveTarget, setArchiveTarget] = useState<Target | null>(null)
   const [pwdTarget, setPwdTarget] = useState<Target | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [archiveSettingsOpen, setArchiveSettingsOpen] = useState(false)
 
   // Archive tab keeps the search and the department; the rest only narrows the active roster.
   const filterCount = activeFilterCount - (filters.status ? 1 : 0)
@@ -210,6 +212,12 @@ export function EmployeesPage() {
               ]}
             />
           )}
+          {/* TZ C4 1087: the restore term — a site-wide setting (master only). */}
+          {archiveTab && isSiteMasterAdmin(user) && (
+            <Button size="sm" variant="ghost" className="ml-auto" leftIcon={<Settings2 size={14} />} onClick={() => setArchiveSettingsOpen(true)}>
+              {t('hrExt.archiveSettings.title')}
+            </Button>
+          )}
         </div>
         <div className="flex flex-col gap-2.5 border-b border-line p-4 lg:flex-row lg:flex-wrap lg:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder={t('personnel.list.search')} className="flex-1 lg:max-w-xs" />
@@ -265,6 +273,7 @@ export function EmployeesPage() {
             setSize={setSize}
             filtered={filterCount > 0}
             emptyAction={filterReset}
+            canRestore={canFull}
           />
         ) : (
           <>
@@ -336,6 +345,7 @@ export function EmployeesPage() {
       />
       <ArchiveEmployeeModal employee={archiveTarget} onClose={() => setArchiveTarget(null)} />
       <EmployeePasswordModal target={pwdTarget} onClose={() => setPwdTarget(null)} />
+      <ArchiveSettingsModal open={archiveSettingsOpen} onClose={() => setArchiveSettingsOpen(false)} />
       <EmployeeExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}

@@ -29,15 +29,21 @@ export function useT2Mutations(employeeId: number) {
     void qc.invalidateQueries({ queryKey: ['employee-quality'] })
   }
   const opts = { params: { _no_branch_inject: true } }
+  // TZ C3 1062: `expected_updated_at` — the card's `updated_at` when the section
+  // was opened (409 `edit_conflict` otherwise). Errors are reported by
+  // `useT2Save` (conflict dialog / toast), not by the global toast.
+  const meta = { silent: true }
   return {
     saveScalars: useMutation({
-      mutationFn: ({ values, basis }: { values: T2Values & Record<string, unknown>; basis: EditBasis }) =>
-        apiPatch<T2Card>(`employees/${employeeId}/t2`, { ...values, basis: cleanBasis(basis) }, opts),
+      meta,
+      mutationFn: ({ values, basis, expected }: { values: T2Values & Record<string, unknown>; basis: EditBasis; expected?: string }) =>
+        apiPatch<T2Card>(`employees/${employeeId}/t2`, { ...values, basis: cleanBasis(basis), expected_updated_at: expected }, opts),
       onSuccess: write,
     }),
     saveSection: useMutation({
-      mutationFn: ({ section, body, basis }: { section: T2Section; body: Record<string, unknown>; basis: EditBasis }) =>
-        apiPut<T2Card>(`employees/${employeeId}/t2/${section}`, { ...body, basis: cleanBasis(basis) }, opts),
+      meta,
+      mutationFn: ({ section, body, basis, expected }: { section: T2Section; body: Record<string, unknown>; basis: EditBasis; expected?: string }) =>
+        apiPut<T2Card>(`employees/${employeeId}/t2/${section}`, { ...body, basis: cleanBasis(basis), expected_updated_at: expected }, opts),
       onSuccess: write,
     }),
     saveAttestation: useMutation({

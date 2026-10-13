@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { BarChart3, BookOpen, LayoutDashboard, ShieldQuestion } from 'lucide-react'
+import { BarChart3, BookOpen, FileSpreadsheet, LayoutDashboard, ShieldQuestion } from 'lucide-react'
 import { canSeeStatisticsDashboard } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
@@ -21,8 +21,10 @@ const StatisticsConstructor = lazy(() =>
   import('@/features/statistics/StatisticsConstructor').then((m) => ({ default: m.StatisticsConstructor })),
 )
 const StatsDashboard = lazy(() => import('@/features/statistics/StatsDashboard').then((m) => ({ default: m.StatsDashboard })))
+// TZ 4.2.7 · 2139 — davlat / idoraviy hisobot shakllari (.docx shablonlar).
+const StatisticsForms = lazy(() => import('@/features/statistics/StatisticsForms').then((m) => ({ default: m.StatisticsForms })))
 
-type Tab = 'catalog' | 'builder' | 'dashboard'
+type Tab = 'catalog' | 'builder' | 'forms' | 'dashboard'
 
 /**
  * STATISTIK HISOBOT — TZ 4.2.11, R1 «Формирование отчётов», R2 «Просмотр
@@ -46,7 +48,12 @@ export function StatisticsPage() {
   const catalog = meta.data?.report_catalog ?? []
   const dashboardAllowed = canSeeStatisticsDashboard(user)
 
-  const tabs: Tab[] = [...(catalog.length || meta.isLoading ? (['catalog'] as Tab[]) : []), 'builder', ...(dashboardAllowed ? (['dashboard'] as Tab[]) : [])]
+  const tabs: Tab[] = [
+    ...(catalog.length || meta.isLoading ? (['catalog'] as Tab[]) : []),
+    'builder',
+    'forms',
+    ...(dashboardAllowed ? (['dashboard'] as Tab[]) : []),
+  ]
   const requested = params.get('tab') as Tab | null
   const tab: Tab = requested && tabs.includes(requested) ? requested : tabs[0]
 
@@ -64,7 +71,7 @@ export function StatisticsPage() {
     <PageContainer>
       <PageHeader
         title={t('statistics.title')}
-        subtitle={tab === 'builder' ? t('statReports.subtitleBuilder') : t('statReports.subtitle')}
+        subtitle={tab === 'builder' ? t('statReports.subtitleBuilder') : tab === 'forms' ? t('hrExt.forms.subtitle') : t('statReports.subtitle')}
       />
 
       {status === 403 ? (
@@ -84,8 +91,17 @@ export function StatisticsPage() {
             onChange={switchTab}
             options={tabs.map((k) => ({
               value: k,
-              label: t(`statReports.tab_${k}` as 'statReports.tab_catalog'),
-              icon: k === 'catalog' ? <BookOpen size={14} /> : k === 'builder' ? <BarChart3 size={14} /> : <LayoutDashboard size={14} />,
+              label: k === 'forms' ? t('hrExt.forms.tab') : t(`statReports.tab_${k}` as 'statReports.tab_catalog'),
+              icon:
+                k === 'catalog' ? (
+                  <BookOpen size={14} />
+                ) : k === 'builder' ? (
+                  <BarChart3 size={14} />
+                ) : k === 'forms' ? (
+                  <FileSpreadsheet size={14} />
+                ) : (
+                  <LayoutDashboard size={14} />
+                ),
             }))}
           />
           <Suspense fallback={fallback}>
@@ -93,6 +109,8 @@ export function StatisticsPage() {
               meta.isLoading ? fallback : <ReportCatalog catalog={catalog} />
             ) : tab === 'builder' ? (
               <StatisticsConstructor />
+            ) : tab === 'forms' ? (
+              <StatisticsForms />
             ) : (
               <StatsDashboard />
             )}

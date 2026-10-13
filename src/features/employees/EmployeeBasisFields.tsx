@@ -21,21 +21,24 @@ export function EmployeeBasisFields({
   onChange,
   error,
   title,
+  required = true,
 }: {
   value: EditBasis
   onChange: (next: EditBasis) => void
   error?: string | null
   title?: string
+  /** `false` — an optional basis (TZ C4 restore): no asterisks. */
+  required?: boolean
 }) {
   const { t } = useTranslation()
   return (
     <fieldset className="rounded-lg border border-brand/30 bg-brand-soft/40 p-3">
       <legend className="px-1.5 text-[13px] font-semibold text-fg">
         {title ?? t('personnel.basis.title')}
-        <span className="text-danger"> *</span>
+        {required && <span className="text-danger"> *</span>}
       </legend>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label={t('personnel.basis.docType')} required>
+        <Field label={t('personnel.basis.docType')} required={required}>
           <Combobox
             value={value.doc_type}
             onChange={(v) => onChange({ ...value, doc_type: (v || 'order') as BasisDocType })}
@@ -44,7 +47,7 @@ export function EmployeeBasisFields({
             clearable={false}
           />
         </Field>
-        <Field label={t('personnel.basis.number')} required>
+        <Field label={t('personnel.basis.number')} required={required}>
           <Input
             value={value.number}
             maxLength={64}
@@ -52,7 +55,7 @@ export function EmployeeBasisFields({
             onChange={(e) => onChange({ ...value, number: e.target.value })}
           />
         </Field>
-        <Field label={t('personnel.basis.date')} required>
+        <Field label={t('personnel.basis.date')} required={required}>
           <DateInput
             value={value.date}
             invalid={!!error && !value.date}
