@@ -16,7 +16,7 @@ import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
 import { RequireRole } from '@/components/layout/RequireRole'
 import { useListParams } from '@/hooks/useListParams'
-import * as roles from '@/auth/roles'
+import { isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { apiGet, apiPost, apiPut } from '@/api/http'
 import { DICTIONARY_ENTRIES, DICTIONARY_ENTRY } from '@/api/endpoints'
@@ -450,7 +450,7 @@ export function UiDictionaryPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   return (
-    <RequireRole allowed={roles.isSiteMasterAdmin(user)} title={t('uiDict.title')}>
+    <RequireRole allowed={isSiteMasterAdmin(user)} title={t('uiDict.title')}>
       <UiDictionaryPageInner />
     </RequireRole>
   )
