@@ -148,7 +148,10 @@ function LmsPageInner() {
               <Select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
-                options={(settings?.providers ?? ['generic']).map((p) => ({ value: p, label: p }))}
+                options={(settings?.providers ?? ['generic']).map((p) => ({
+                  value: p,
+                  label: t(`sysOps.lmsProv_${p}` as never, { defaultValue: p }) as string,
+                }))}
               />
             </Field>
             <Field label={t('lms.baseUrl')} hint={t('lms.baseUrlHint')}>

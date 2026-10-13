@@ -12,7 +12,7 @@ export function jobStageLabel(t: TFunction, stage?: string | null): string {
 }
 
 /** Progress chizig'i + joriy bosqich (zaxiradan tiklash, tizimni tiklash). */
-export function JobProgress({ job, label }: { job?: BackgroundJob | null; label?: string }) {
+export function JobProgress({ job, label }: { job?: BackgroundJob<object> | null; label?: string }) {
   const { t } = useTranslation()
   const status = job?.status ?? 'queued'
   const pct = status === 'done' ? 100 : Math.max(0, Math.min(100, Number(job?.progress ?? 0)))

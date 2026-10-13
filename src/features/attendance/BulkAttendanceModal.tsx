@@ -304,10 +304,10 @@ export function BulkAttendanceModal({ open, onClose }: { open: boolean; onClose:
                 </Field>
                 <div className="flex items-end">
                   {minutes != null && !timeInvalid && (
-                    <div className="flex h-control w-full items-center gap-2 rounded-inner border border-brand/25 bg-brand-soft px-3 text-[12.5px]">
-                      <Clock size={13} className="text-brand" />
-                      <span className="text-fg-muted">{t('davomat.worked')}:</span>
-                      <span className="font-semibold text-fg">{formatHm(minutes, t)}</span>
+                    <div className="flex h-control w-full items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-inner border border-brand/25 bg-brand-soft px-3 text-[12px]">
+                      <Clock size={13} className="shrink-0 text-brand" />
+                      <span className="truncate text-fg-muted">{t('davomat.worked')}:</span>
+                      <span className="shrink-0 font-semibold text-fg">{formatHm(minutes, t)}</span>
                     </div>
                   )}
                 </div>

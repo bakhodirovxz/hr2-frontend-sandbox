@@ -1,8 +1,8 @@
 import axios from 'axios'
-import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/api/client'
 import { apiGet } from '@/api/http'
 import { downloadFromUrl } from '@/lib/download'
+import { useJob, type BackgroundJob } from '@/features/system/useJob'
 
 /**
  * TZ A4 919 «Экспорт большого объёма данных — запускается при экспорте более
@@ -29,18 +29,7 @@ export interface ExportJobStart {
   status?: string
 }
 
-export interface BackgroundJob {
-  id: number
-  kind?: string
-  status: 'queued' | 'running' | 'done' | 'failed' | string
-  progress?: number | null
-  error?: string | null
-  file_name?: string | null
-  row_count?: number | null
-  has_file?: boolean
-  created_at?: string | null
-  finished_at?: string | null
-}
+export type { BackgroundJob } from '@/features/system/useJob'
 
 async function blobJson(data: unknown): Promise<unknown> {
   if (data instanceof Blob) {
@@ -91,17 +80,7 @@ const RUNNING = new Set(['queued', 'running'])
 
 /** State of one background job, polled every 2 s while it is still running. */
 export function useBackgroundJob(id: number | null) {
-  return useQuery({
-    queryKey: ['jobs', id],
-    queryFn: () => apiGet<BackgroundJob>(`jobs/${id}`),
-    enabled: id != null,
-    retry: false,
-    refetchInterval: (q) => {
-      const s = q.state.data?.status
-      return !s || RUNNING.has(s) ? 2000 : false
-    },
-    meta: { silent: true },
-  })
+  return useJob(id, { interval: 2000, retry: false })
 }
 
 export const jobRunning = (j?: BackgroundJob | null) => !j || RUNNING.has(j.status)

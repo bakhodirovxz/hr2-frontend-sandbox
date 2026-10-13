@@ -25,7 +25,7 @@ import { useToast } from '@/components/ui/Toast'
 import { LoadError } from '@/components/data/LoadError'
 import { apiPost } from '@/api/http'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, inTashkent } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import {
   BACKUP_RESTORE,
@@ -35,7 +35,7 @@ import {
   type RestorePlan,
   type RestoreReport,
 } from './useBackups'
-import { JobProgress } from './JobProgress'
+import { JobProgress, jobStageLabel } from './JobProgress'
 import { isJobFinished, useJob } from './useJob'
 
 /** Tiklanadigan nusxa — ro'yxat qatoridan yoki butunlik tekshiruvi taklifidan. */
@@ -127,6 +127,8 @@ export function RestoreWizard({ target, onClose }: { target: RestoreTarget | nul
     if (!finished) return
     void qc.invalidateQueries({ queryKey: ['backups', 'list'] })
     void qc.invalidateQueries({ queryKey: ['sysops'] })
+    // Butunlik natijasi qo'lda so'raladi (`enabled:false`) — eski natija qolmasin.
+    qc.removeQueries({ queryKey: ['sysops', 'integrity'] })
   }, [finished, qc])
 
   const components = comps.data?.components ?? []
@@ -192,6 +194,12 @@ export function RestoreWizard({ target, onClose }: { target: RestoreTarget | nul
       else setFormError(restoreError(t, e))
     }
   }
+
+  /** Asosiy bosqichlar (har jadval nusxasi `copied:<jadval>` — faqat joriy holatda). */
+  const chainLen = plan?.chain.length ?? 1
+  const milestones = (job.data?.result?.stages ?? []).filter(
+    (x) => x.stage && !x.stage.startsWith('copied:') && (x.stage !== 'incremental_applied' || chainLen > 1),
+  )
 
   const running = step === 'run' && !finished
   const close = () => {
@@ -441,13 +449,14 @@ export function RestoreWizard({ target, onClose }: { target: RestoreTarget | nul
               })}
             </p>
           )}
-          {job.data?.result?.stages && job.data.result.stages.length > 0 && !finished && (
+          {milestones.length > 0 && (
             <ol className="grid gap-1 text-[12px] text-fg-muted">
-              {job.data.result.stages.map((s, i) => (
+              {milestones.map((s, i) => (
                 <li key={i} className="flex items-center gap-1.5">
                   <CheckCircle2 size={12} className="text-success" aria-hidden />
-                  {t(`sysOps.stage_${s.stage}` as never, { defaultValue: s.stage }) as string}
+                  {jobStageLabel(t, s.stage)}
                   {typeof s.backup_id === 'number' ? ` #${s.backup_id}` : ''}
+                  {s.at ? <span className="tabular-nums text-fg-subtle">· {formatTime(s.at)}</span> : null}
                 </li>
               ))}
             </ol>
@@ -468,6 +477,8 @@ export function RestoreWizard({ target, onClose }: { target: RestoreTarget | nul
     </Modal>
   )
 }
+
+const formatTime = (iso: string) => inTashkent(iso).format('HH:mm:ss')
 
 function StepDots({ step }: { step: Step }) {
   const { t } = useTranslation()
