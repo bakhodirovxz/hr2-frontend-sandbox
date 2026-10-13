@@ -2,18 +2,15 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { inTashkent } from '@/lib/format'
 import { Building2 } from 'lucide-react'
 import type { StatusCounts } from '@/features/dashboard/attendance'
 import type { LateRankRow } from '@/features/dashboard/useKadrBlocks'
-import type { Birthday, NewsPost } from '@/types/dashboard'
 import { Donut, DonutLegend, type DonutSlice } from './Donut'
 import { PanelEmpty } from './Panel'
-import { IconCell, ListRow, PersonCell, RowList, StatusPill, ToneText } from './rows'
+import { IconCell, ListRow, PersonCell, RowList, StatusPill } from './rows'
 import type {
   DepartmentAttendance,
   KpiSummary,
-  TopEmployee,
 } from './useBoardData'
 
 /** The body of a carousel face: a padded column that fills the window. */
@@ -99,96 +96,9 @@ export function StatusRingFace({
 
 /* ── Yangiliklar ────────────────────────────────────────────────────────── */
 
-export function NewsFace({ news }: { news: NewsPost[] }) {
-  const { t } = useTranslation()
-  if (news.length === 0) return <PanelEmpty text={t('dashboard.board.newsEmpty')} />
-  return (
-    <RowList className="gap-2 pt-1">
-      {news.map((n) => (
-        <div
-          key={n.id}
-          className="flex flex-1 flex-col justify-center gap-1 rounded-inner bg-fg/[0.035] px-3.5 py-3"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-[13px] font-semibold text-fg">{n.title ?? '—'}</span>
-            {n.created_at && (
-              <span className="shrink-0 text-[11px] text-fg-subtle">
-                {inTashkent(n.created_at).format('DD.MM.YYYY')}
-              </span>
-            )}
-          </div>
-          {n.description && (
-            <p className="m-0 line-clamp-3 text-[12px] leading-[1.45] text-fg-muted">
-              {n.description}
-            </p>
-          )}
-        </div>
-      ))}
-    </RowList>
-  )
-}
-
 /* ── Tug'ilgan kunlar ───────────────────────────────────────────────────── */
 
-export function BirthdaysFace({ birthdays }: { birthdays: Birthday[] }) {
-  const { t } = useTranslation()
-  if (birthdays.length === 0) return <PanelEmpty text={t('dashboard.birthdaysEmpty')} />
-  return (
-    <RowList className="pt-1">
-      {birthdays.slice(0, 6).map((b) => {
-        const jp = b.job_position
-        const days = b.days_left ?? 0
-        return (
-          <ListRow key={b.id} filled className="max-h-[58px]">
-            <PersonCell
-              name={b.legal_name ?? t('common.unknown')}
-              sub={typeof jp === 'object' ? (jp?.name ?? '') : (jp ?? '')}
-              photo={b.photo_thumb_path}
-              photoFull={b.photo_path}
-              size={30}
-            />
-            <ToneText
-              tone={days === 0 ? 'success' : 'neutral'}
-              className="shrink-0 text-[11px] font-semibold"
-            >
-              {days === 0
-                ? t('dashboard.birthdayToday')
-                : `${t('dashboard.daysCount', { count: days })} ${t('dashboard.daysLeftLabel')}`}
-            </ToneText>
-          </ListRow>
-        )
-      })}
-    </RowList>
-  )
-}
-
 /* ── Eng yaxshi xodimlar ────────────────────────────────────────────────── */
-
-export function TopEmployeesFace({ top }: { top: TopEmployee[] }) {
-  const { t } = useTranslation()
-  if (top.length === 0) return <PanelEmpty text={t('dashboard.board.topEmpty')} />
-  return (
-    <RowList className="pt-1">
-      {top.map((e, i) => (
-        <ListRow key={e.id ?? i} filled className="max-h-[58px]">
-          <span className="w-4 shrink-0 text-[12px] text-fg-subtle [font-variant-numeric:tabular-nums]">
-            {i + 1}.
-          </span>
-          <PersonCell
-            name={e.legal_name ?? t('common.unknown')}
-            sub={e.job_position_name ?? e.department_name ?? ''}
-            photo={e.photo_thumb_path}
-            photoFull={e.photo_path}
-            size={30}
-          />
-          <span className="shrink-0 text-[12px] font-bold text-success [font-variant-numeric:tabular-nums]">
-            {Math.round(Number(e.kpi_percentage ?? 0))}%
-          </span>
-        </ListRow>
-      ))}
-    </RowList>
-  )
-}
 
 /* ── Kechga qoluvchilar ─────────────────────────────────────────────────── */
 

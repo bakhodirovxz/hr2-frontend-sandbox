@@ -78,10 +78,8 @@ export const FILE_UPLOAD = 'files/upload'
 // Attendance / turnstile
 export const TURNSTILE_ATTENDANCE_EVENTS = 'turnstile-attendance-events'
 export const TURNSTILE_DAY_BOARD = 'turnstile-attendance-events/day-board'
-export const VISITOR_TURNSTILE_ATTENDANCE = 'turnstile-attendance-events/visitors'
 
 // Employees — KPI overview (rich HR page)
-export const DASHBOARD_EMPLOYEE_KPI = 'dashboard/employee-kpi'
 export const DASHBOARD_AGE_STATS = 'dashboard/age-stats'
 export const DASHBOARD_NATIONALITY_STATS = 'dashboard/nationality-stats'
 export const DASHBOARD_KPI_MONTHLY_AVERAGE = 'dashboard/kpi-monthly-average'
@@ -98,7 +96,6 @@ export const COLUMNS_LIST = 'columns'
 export const CARDS_LIST = 'cards'
 
 // Content
-export const NEWS_POSTS = 'news-posts'
 
 // Notifications
 export const NOTIFICATIONS_LIST = 'notifications'
@@ -117,7 +114,6 @@ export const MOBILE_CHECKIN_CANCEL = (id: number) => `mobile-checkins/${id}/canc
 
 // Monitoring (live wall)
 export const DASHBOARD_LATE_EMPLOYEES_FREQUENT = 'dashboard/late-employees/frequent'
-export const TASKS_OVERDUE = 'tasks-overdue'
 
 // Staffing (shtat jadvali / vakansiya) — the kadr headcount truth
 export const STAFF_POSITIONS = 'staff-positions'
