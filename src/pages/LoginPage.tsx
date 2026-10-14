@@ -8,7 +8,6 @@ import dayjs from 'dayjs'
 import { inTashkent } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { LogoMark } from '@/components/layout/Logo'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
 import { isTwoFactor, useFinishLogin, useLogin, useLogin2fa, type TwoFactorChallenge } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
@@ -183,7 +182,6 @@ export function LoginPage() {
         <div className="absolute right-4 top-4 flex items-center gap-1">
           <LowVisionPanel />
           <LanguageSwitcher />
-          <ThemeToggle />
         </div>
 
         <div className="w-full max-w-sm">

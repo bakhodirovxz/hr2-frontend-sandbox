@@ -3,9 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Must match --bg in src/styles/theme.css for each theme. -->
-    <meta name="theme-color" content="#EDEBE5" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#131430" media="(prefers-color-scheme: dark)" />
+    <!-- Must match --bg (light theme) in src/styles/theme.css. -->
+    <meta name="theme-color" content="#EDEBE5" />
     <title>Uzgidro HR</title>
     <!-- Favicon = OFFICIAL logo (public/logo.svg nusxasi). Brend belgisi
          brauzer tabida ham bir xil bo‘lishi kerak. -->
@@ -16,16 +15,11 @@
          declared in src/styles/fonts.css, which Vite emits as hashed
          assets/*.woff2 alongside the app CSS. -->
     <script>
-      // Apply the persisted theme before first paint to avoid a flash.
-      (function () {
-        try {
-          var t = localStorage.getItem('theme');
-          if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          document.documentElement.setAttribute('data-theme', t);
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
-      })();
+      // One interface style (TZ 1836): always the light theme. The former
+      // dark/light switch is not a TZ feature; high-contrast needs are served
+      // by the low-vision schemes (white on black etc.). Forget a saved choice.
+      document.documentElement.setAttribute('data-theme', 'light');
+      try { localStorage.removeItem('theme'); } catch (e) {}
     </script>
   </head>
   <body>

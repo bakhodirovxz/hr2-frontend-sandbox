@@ -18,22 +18,12 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-const STORAGE_KEY = 'theme'
-
+/**
+ * Always the light theme (TZ 1836 «Единый стиль оформления»). The dark/light
+ * switch was not asked for by the TZ and has been removed; readers who need a
+ * dark screen use the low-vision «white on black» scheme (src/a11y).
+ */
 function readInitialTheme(): Theme {
-  if (typeof document !== 'undefined') {
-    const attr = document.documentElement.getAttribute('data-theme')
-    if (attr === 'light' || attr === 'dark') return attr
-  }
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
-  } catch {
-    /* ignore */
-  }
-  if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
   return 'light'
 }
 
@@ -62,11 +52,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyTheme(theme)
-    try {
-      localStorage.setItem(STORAGE_KEY, theme)
-    } catch {
-      /* ignore */
-    }
   }, [theme, applyTheme])
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), [])
