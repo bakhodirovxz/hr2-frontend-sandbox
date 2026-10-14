@@ -1,3 +1,4 @@
+import { textMatches } from '@/i18n/translit'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { inTashkent } from '@/lib/format'
@@ -84,7 +85,7 @@ export function BranchesPage() {
     let rows = allowed ? branches.filter((b) => allowed.includes(Number(b.id))) : branches
     if (ownership) rows = rows.filter((b) => b.ownership_form === ownership)
     const q = search.trim().toLowerCase()
-    if (q) rows = rows.filter((b) => (b.name ?? '').toLowerCase().includes(q))
+    if (q) rows = rows.filter((b) => textMatches(b.name, q))
     return rows
   }, [branches, allowed, ownership, search])
   const pages = Math.max(1, Math.ceil(filtered.length / size))

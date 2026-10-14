@@ -309,10 +309,15 @@ export function setLanguage(lang: Lang): void {
   }
   // Sana/vaqt formatlash uchun — `Intl` shu atributni o'qimaydi, ammo
   // brauzerning o'z boshqaruvlari (sana tanlagich, imlo) o'qiydi.
-  document.documentElement.lang = lang === 'ru' ? 'ru' : 'uz'
+  document.documentElement.lang = htmlLang(lang)
 }
 
-document.documentElement.lang = readSavedLang() === 'ru' ? 'ru' : 'uz'
+/** BCP 47 tag for `<html lang>`: screen readers and hyphenation need the script. */
+export function htmlLang(lang: Lang): string {
+  return lang === 'ru' ? 'ru' : lang === 'uz_cyrl' ? 'uz-Cyrl' : 'uz'
+}
+
+document.documentElement.lang = htmlLang(readSavedLang())
 
 // Tuzatishlar fonda yangilanadi — UI kesh (yoki avtomatik tarjima) bilan darhol chiziladi.
 void reloadOverrides()

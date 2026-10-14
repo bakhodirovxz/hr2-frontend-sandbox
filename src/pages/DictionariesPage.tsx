@@ -1,3 +1,4 @@
+import { textMatches } from '@/i18n/translit'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -141,8 +142,8 @@ export function DictionariesPage() {
     if (!s) return types
     return types.filter(
       (x) =>
-        x.name.toLowerCase().includes(s) ||
-        localizedName(x, lang).toLowerCase().includes(s) ||
+        textMatches(x.name, s) ||
+        textMatches(localizedName(x, lang), s) ||
         (x.name_ru ?? '').toLowerCase().includes(s) ||
         x.code.toLowerCase().includes(s),
     )

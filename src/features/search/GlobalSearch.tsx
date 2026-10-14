@@ -1,3 +1,4 @@
+import { textMatches } from '@/i18n/translit'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -125,7 +126,7 @@ export function GlobalSearch() {
       .map((p) => ({ ...p, label: tk(`nav.${p.labelKey}`) }))
       .filter(
         (p) =>
-          p.label.toLowerCase().includes(term) || p.path.toLowerCase().includes(term),
+          textMatches(p.label, term) || p.path.toLowerCase().includes(term),
       )
     if (!hits.length) return null
     return {

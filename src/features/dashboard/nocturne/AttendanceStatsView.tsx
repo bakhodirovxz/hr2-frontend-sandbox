@@ -1,3 +1,4 @@
+import { textMatches } from '@/i18n/translit'
 import { useMemo, useState } from 'react'
 import { dayMonth } from '@/lib/format'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +102,7 @@ export function AttendanceStatsList({
         const id = typeof d === 'object' && d ? d.id : undefined
         if (!myDeptId || id !== myDeptId) return false
       }
-      if (needle && !(r.employee.legal_name ?? '').toLowerCase().includes(needle)) return false
+      if (needle && !textMatches(r.employee.legal_name, needle)) return false
       return true
     })
   }, [rows, scope, myDeptId, q])
