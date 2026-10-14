@@ -215,7 +215,12 @@ export function NotificationsBell() {
                       {n.title || t(notificationTitleKey(n.notification_type) as never)}
                     </p>
                     {(n.message || n.description) && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{notificationText(n)}</p>
+                      <p
+                        className="mt-0.5 line-clamp-2 text-xs text-fg-muted hover:line-clamp-none"
+                        title={notificationText(n)}
+                      >
+                        {notificationText(n)}
+                      </p>
                     )}
                     {n.created_at && (
                       <p className="mt-1 text-[11px] text-fg-subtle">

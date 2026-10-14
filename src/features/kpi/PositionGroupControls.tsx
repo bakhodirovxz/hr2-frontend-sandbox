@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
 import { useDictionaryOptions } from '@/features/dictionaries/useDictionaries'
 import { MultiPicker } from '@/features/reports/MultiPicker'
+import { localizedName } from '@/i18n/localized'
 import { errorMessage } from '@/api/errorMessage'
 import { cn } from '@/lib/cn'
 import { ADMIN_SUPPORT, useKpiSettings, usePositionGroups } from './extApi'
@@ -17,7 +18,7 @@ import { ADMIN_SUPPORT, useKpiSettings, usePositionGroups } from './extApi'
 function useCategoryOptions(enabled = true) {
   const { i18n } = useTranslation()
   const { options } = useDictionaryOptions(enabled ? 'position_categories' : null)
-  return options.map((c) => ({ value: c.code, label: i18n.language === 'ru' && c.name_ru ? c.name_ru : c.name }))
+  return options.map((c) => ({ value: c.code, label: localizedName(c, i18n.language) }))
 }
 
 /**

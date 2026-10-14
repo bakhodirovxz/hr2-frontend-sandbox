@@ -48,7 +48,8 @@ export function DepartmentCardModal({
   const log = Array.isArray(extra.change_log) ? extra.change_log : []
   const children = id == null ? [] : all.filter((x) => x.parent_id === id).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'uz'))
   const heads = (d?.heads ?? []).map((h) => h.legal_name).filter(Boolean)
-  const parentName = d?.parent_name ?? (d?.parent_id != null ? all.find((x) => x.id === d.parent_id)?.name : null)
+  const parentRow = d?.parent_id != null ? all.find((x) => x.id === d.parent_id) : undefined
+  const parentName = parentRow ? ln(parentRow) : d?.parent_name ? ln({ name: d.parent_name }) : null
   const fmt = (v?: string | null) => (v && dayjs(v).isValid() ? dayjs(v).format('DD.MM.YYYY') : '—')
 
   return (

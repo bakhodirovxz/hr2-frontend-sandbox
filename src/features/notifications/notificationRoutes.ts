@@ -97,6 +97,7 @@ export function resolveNotificationUrl(n: NotificationLike): string | null {
   if (type === 'department_head_changed') return '/structure'
   if (type === 'certificate_expiry') return '/trainings'
 
+  if (type.startsWith('work_plan')) return '/work-plans'
   if (type.startsWith('navbatchilik')) return '/navbatchilik'
   if (type.startsWith('learning_')) return '/oquv-markazi'
   if (type.startsWith('visitor')) return '/guests'

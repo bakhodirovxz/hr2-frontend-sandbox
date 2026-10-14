@@ -241,8 +241,12 @@ export async function allUzTexts(): Promise<string[]> {
 export async function autoTranslation(lang: 'ru' | 'uz_cyrl', text: string): Promise<string> {
   if (lang === 'uz_cyrl') return toCyrillic(text)
   const ru = (await import('./ru')).default
-  return ru[text] ?? Object.entries(ru).find(([k]) => normalizeKey(k) === normalizeKey(text))?.[1] ?? ''
+  // Normalised index built once: a linear scan per key froze the dictionary page.
+  autoRuNorm ??= new Map(Object.entries(ru).map(([k, v]) => [normalizeKey(k), v]))
+  return ru[text] ?? autoRuNorm.get(normalizeKey(text)) ?? ''
 }
+
+let autoRuNorm: Map<string, string> | null = null
 
 /** Normalised «Uzbek text → Russian» table, set once Russian has been loaded. */
 let ruByNorm: Map<string, string> | null = null

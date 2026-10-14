@@ -1,3 +1,4 @@
+import { ln } from '@/i18n/display'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -492,7 +493,7 @@ export function StatisticsConstructor() {
               onChange={(e) => setFilter('cbranch', e.target.value)}
               options={[
                 { value: ALL_BRANCHES, label: t('statistics.allBranches') },
-                ...branches.map((b) => ({ value: String(b.id), label: b.name })),
+                ...branches.map((b) => ({ value: String(b.id), label: ln(b) || `#${b.id}` })),
               ]}
             />
           </Field>

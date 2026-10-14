@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { lt } from '@/i18n/display'
+import { lt, ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
@@ -444,7 +444,7 @@ function RenderModal({ form, onClose }: { form: StatForm | null; onClose: () => 
     setError('')
   }, [open, selected])
 
-  const branchOptions = useMemo(() => branches.map((b) => ({ value: String(b.id), label: b.name ?? `#${b.id}` })), [branches])
+  const branchOptions = useMemo(() => branches.map((b) => ({ value: String(b.id), label: ln(b) || `#${b.id}` })), [branches])
 
   const submit = async () => {
     if (!form) return

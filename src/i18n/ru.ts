@@ -8736,6 +8736,21 @@ const ru: Record<string, string> = {
   "Savollar — sarlavhadagi «Qayta aloqa» yoki yordam telefoni.": "Вопросы — «Обратная связь» в шапке или телефон поддержки.",
   "Foydalanuvchi qo‘llanmasi": "Руководство пользователя",
   "Mehmon uchun qo‘llanma": "Памятка гостя",
+  // ---- FX-FINAL ----
+  "«Farhod GES» AJ": "АО «Фархадская ГЭС»",
+  "Tashkilot yaratish": "Создать организацию",
+  "Yangi tashkilot yaratish": "Создание новой организации",
+  "Tizimga yangi tashkilot qo‘shing": "Добавьте в систему новую организацию",
+  "Tashkilotni tahrirlash": "Редактирование организации",
+  "Tashkilot ma’lumotlarini tahrirlang": "Отредактируйте данные организации",
+  "Tashkilotlarni izlash...": "Поиск организаций...",
+  "Tashkilotlar topilmadi": "Организации не найдены",
+  "Tashkilot nomini kiriting": "Введите название организации",
+  "Tashkilot muvaffaqiyatli yaratildi": "Организация успешно создана",
+  "Tashkilot muvaffaqiyatli tahrirlandi": "Организация успешно отредактирована",
+  "Tashkilot muvaffaqiyatli o‘chirildi": "Организация успешно удалена",
+  "«{{name}}» tashkilotini o‘chirmoqchimisiz? Tashkilotga bog‘liq bo‘lim va xodimlar ta’sirlanadi.": "Удалить организацию «{{name}}»? Это затронет связанные с ней подразделения и сотрудников.",
+  "Qatorni bosing — tashkilot sarlavhadagi tanlovga o‘rnatiladi.": "Нажмите на строку — организация будет выбрана в заголовке.",
 }
 
 export default ru
