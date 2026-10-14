@@ -28,6 +28,7 @@ export interface DictionaryType {
   name: string
   name_ru?: string | null
   description?: string | null
+  description_ru?: string | null
   /** Set when this dictionary hangs off another one (districts → regions). */
   parent_type_code?: string | null
   is_system: boolean

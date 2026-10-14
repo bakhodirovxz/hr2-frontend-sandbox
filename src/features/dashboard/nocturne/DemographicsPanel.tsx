@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Briefcase, CalendarDays, ChevronRight, Globe2, Users } from 'lucide-react'
@@ -106,7 +107,7 @@ export function DemographicsPanel({ className }: { className?: string }) {
       [...(positionStats ?? [])]
         .filter((p) => p.count > 0)
         .sort((a, b) => b.count - a.count)
-        .map((p) => ({ label: p.job_position_name ?? '—', count: p.count })),
+        .map((p) => ({ label: lt(p.job_position_name) || '—', count: p.count })),
     [positionStats],
   )
 
@@ -668,12 +669,12 @@ function CompositionModal({
                   <PersonRow
                     key={r.id}
                     name={r.legal_name ?? t('common.unknown')}
-                    meta={[r.job_position_name, r.department_name].filter(Boolean).join(' · ')}
+                    meta={[lt(r.job_position_name), lt(r.department_name)].filter(Boolean).join(' · ')}
                     photo={r.photo_thumb_path}
                     right={right(r)}
                     onClick={() => {
                       onClose()
-                      openPerson({ id: r.id, name: r.legal_name, photo: r.photo_thumb_path, position: r.job_position_name, department: r.department_name })
+                      openPerson({ id: r.id, name: r.legal_name, photo: r.photo_thumb_path, position: lt(r.job_position_name), department: lt(r.department_name) })
                     }}
                   />
                 ))}

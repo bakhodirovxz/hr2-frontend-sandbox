@@ -63,7 +63,7 @@ export function ArchivedTable({
       ),
     },
     { key: 'department_name', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => lt(r.department_name) || '—' },
-    { key: 'branch_name', header: t('personnel.list.colBranch'), className: 'text-fg-muted', cell: (r) => r.branch_name ?? '—' },
+    { key: 'branch_name', header: t('personnel.list.colBranch'), className: 'text-fg-muted', cell: (r) => lt(r.branch_name) || '—' },
     {
       key: 'reason',
       header: t('personnel.list.colReason'),

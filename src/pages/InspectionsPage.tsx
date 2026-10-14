@@ -62,7 +62,7 @@ const isOpen = (s?: string) => s === 'planned' || s === 'in_progress'
 function useIndicatorLabel(all: AuditIndicator[]) {
   const { t } = useTranslation()
   const multi = new Set(all.map((i) => i.organization_branch_id ?? 'g')).size > 1
-  return (i: AuditIndicator) => (multi ? `${i.name} — ${i.organization_branch_name || t('inspections.central')}` : i.name)
+  return (i: AuditIndicator) => (multi ? `${i.name} — ${lt(i.organization_branch_name) || t('inspections.central')}` : i.name)
 }
 
 /**
@@ -583,7 +583,7 @@ function DetailDrawer({
             {d.branch_name && (
               <>
                 <dt className="text-fg-subtle">{t('inspections.organisation')}</dt>
-                <dd className="text-fg">{d.branch_name}</dd>
+                <dd className="text-fg">{lt(d.branch_name)}</dd>
               </>
             )}
           </dl>

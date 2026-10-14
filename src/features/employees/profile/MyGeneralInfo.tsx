@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ln } from '@/i18n/display'
+import { ln, lt } from '@/i18n/display'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
@@ -47,7 +47,7 @@ export function MyGeneralInfo({ employee }: { employee: MyEmployee }) {
 
   const passport = [e.pasport_series, e.pasport_number].filter(Boolean).join(' ')
   const gender = e.gender === 1 ? t('account.male') : e.gender === 2 ? t('account.female') : null
-  const branchName = e.department?.organization_branch?.name || e.organization_branches?.[0]?.name
+  const branchName = lt(e.department?.organization_branch?.name || e.organization_branches?.[0]?.name) || undefined
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -68,7 +68,7 @@ export function MyGeneralInfo({ employee }: { employee: MyEmployee }) {
         <CardHeader title={t('account.personalInfo')} icon={<UserIcon />} className="border-t" />
         <dl>
           <Row label={t('account.gender')} value={gender} />
-          <Row label={t('account.nationality')} value={e.nationality ? nationalityLabel(e.nationality) : null} />
+          <Row label={t('account.nationality')} value={e.nationality ? lt(nationalityLabel(e.nationality)) : null} />
           <Row label={t('account.maritalStatus')} value={maritalText(e.maritial_status, t)} />
           <Row label={t('account.passport')} value={passport} />
           <Row label={t('account.birthDate')} value={fmtDate(e.birth_date)} />

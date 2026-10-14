@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ln } from '@/i18n/display'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -404,8 +404,8 @@ export function OrdersPage() {
       label: t('orders.colSummary'),
       cell: (r) => (
         <span className="block min-w-0 max-w-[34rem]">
-          <span className={cn('block truncate text-[13px] font-semibold', waitingRow(r) ? 'text-warning' : 'text-fg')} title={r.summary || r.description || ''}>
-            {r.summary || r.description || '—'}
+          <span className={cn('block truncate text-[13px] font-semibold', waitingRow(r) ? 'text-warning' : 'text-fg')} title={lt(r.summary || r.description)}>
+            {lt(r.summary || r.description) || '—'}
           </span>
           <span className="block truncate text-[11.5px] text-fg-subtle">{ln(r.category_rel) || '—'}</span>
         </span>

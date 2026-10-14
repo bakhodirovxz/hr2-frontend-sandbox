@@ -25,6 +25,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { isSiteMasterAdmin, ownBranchIds } from '@/auth/permissions'
 import { useListParams } from '@/hooks/useListParams'
 import { foldIncludes, searchFold } from '@/lib/searchFold'
+import { ln, lt } from '@/i18n/display'
 import { paginateClient } from '@/lib/paginate'
 import { useAuthStore } from '@/store/authStore'
 import { useEmployeeOptions } from '@/features/employees/useEmployeeOptions'
@@ -238,7 +239,7 @@ function TabelConfigModal({ branch, onClose }: { branch: OrganizationBranch | nu
       onClose={onClose}
       size="lg"
       title={t('davomat.tsConfigTitle')}
-      description={branch?.name}
+      description={lt(branch?.name)}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -454,7 +455,7 @@ function BranchLeadersModal({ branch, onClose }: { branch: OrganizationBranch | 
       onClose={onClose}
       size="lg"
       title={t('davomat.tsLeadersTitle')}
-      description={branch?.name}
+      description={lt(branch?.name)}
       footer={
         <>
           {changed && <span className="mr-auto text-[12px] text-warning">{t('davomat.tsUnsaved')}</span>}
@@ -507,7 +508,7 @@ function BranchLeadersModal({ branch, onClose }: { branch: OrganizationBranch | 
                     <Avatar src={l.employee?.photo_thumb_path} fallbackSrc={l.employee?.photo_path} name={l.employee?.legal_name} size={32} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium text-fg">{l.employee?.legal_name ?? `#${l.employee_id}`}</p>
-                      <p className="truncate text-[11.5px] text-fg-muted">{l.employee?.job_position?.name ?? ''}</p>
+                      <p className="truncate text-[11.5px] text-fg-muted">{ln(l.employee?.job_position)}</p>
                     </div>
                     {l._new && <Badge tone="success">{t('davomat.tsNew')}</Badge>}
                     <div className="w-40 shrink-0">

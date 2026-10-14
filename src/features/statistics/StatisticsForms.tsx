@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
@@ -150,8 +151,8 @@ export function StatisticsForms() {
       skeleton: 'w-56',
       cell: (f) => (
         <span className="flex min-w-0 flex-col">
-          <span className="truncate font-semibold text-fg">{f.name}</span>
-          {f.description && <span className="truncate text-[11.5px] text-fg-muted">{f.description}</span>}
+          <span className="truncate font-semibold text-fg">{lt(f.name)}</span>
+          {f.description && <span className="truncate text-[11.5px] text-fg-muted">{lt(f.description)}</span>}
         </span>
       ),
     },

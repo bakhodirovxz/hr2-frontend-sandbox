@@ -165,7 +165,7 @@ export function EmployeesPage() {
   const plainColumns: Column<EmployeeRow>[] = [
     { key: 'name', header: t('personnel.list.colName'), skeleton: 'w-48', lockVisible: true, cell: (r) => nameCell(r, ln(r.job_position) || undefined) },
     { key: 'department', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => ln(r.department) || '—' },
-    { key: 'nationality', header: t('personnel.f.nationality'), className: 'text-fg-muted', cell: (r) => (r.nationality ? natLabel(r.nationality) : '—') },
+    { key: 'nationality', header: t('personnel.f.nationality'), className: 'text-fg-muted', cell: (r) => (r.nationality ? lt(natLabel(r.nationality)) : '—') },
     { key: 'birth', header: t('personnel.f.birthDate'), className: 'tabular-nums text-fg-muted', cell: (r) => fmtDate(r.birth_date) },
     { key: 'gender', header: t('personnel.f.gender'), className: 'text-fg-muted', cell: (r) => labels.gender(r.gender) || '—' },
     { key: 'contract', header: t('personnel.f.contractType'), className: 'whitespace-nowrap text-fg-muted', cell: (r) => labels.contract(r.contract_type) || '—' },

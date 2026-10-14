@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { lt } from '@/i18n/display'
 import { FormError } from '@/components/ui/FormError'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, ShieldQuestion, XCircle } from 'lucide-react'
@@ -90,9 +91,9 @@ export function RegistrationsPage() {
       cell: (r) =>
         r.is_uge_employee ? (
           <div className="min-w-0">
-            <p className="truncate text-sm text-fg">{r.claimed_branch_name || '—'}</p>
+            <p className="truncate text-sm text-fg">{lt(r.claimed_branch_name) || '—'}</p>
             <p className="truncate text-xs text-fg-muted">
-              {[r.claimed_department_name, r.claimed_job_position_name].filter(Boolean).join(' · ') ||
+              {[lt(r.claimed_department_name), lt(r.claimed_job_position_name)].filter(Boolean).join(' · ') ||
                 '—'}
             </p>
           </div>
@@ -394,14 +395,14 @@ function RegistrationDetail({
             />
             <Row label={t('register.birthPlace')} value={row.birth_place} />
             <Row label={t('register.birthCountry')} value={row.birth_country_name} />
-            <Row label={t('register.nationality')} value={row.nationality_name} />
+            <Row label={t('register.nationality')} value={lt(row.nationality_name)} />
             <Row label={t('register.citizenship')} value={row.citizenship_name} />
             <Row label={t('register.address')} value={row.address} />
             <Row
               label={t('registrations.colClaim')}
               value={
                 row.is_uge_employee
-                  ? [row.claimed_branch_name, row.claimed_department_name, row.claimed_job_position_name]
+                  ? [lt(row.claimed_branch_name), lt(row.claimed_department_name), lt(row.claimed_job_position_name)]
                       .filter(Boolean)
                       .join(' · ')
                   : t('registrations.guest')

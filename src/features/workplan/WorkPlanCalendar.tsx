@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -213,7 +214,7 @@ function Timeline({ items, scale, anchor, onOpen, statusLabel }: GridProps & { s
             <div key={r.id} className="grid border-b border-line/60 hover:bg-surface-2/50" style={{ gridTemplateColumns: template }}>
               <button type="button" onClick={() => onOpen(r)} className="truncate px-2.5 py-1.5 text-left text-[12.5px] text-fg hover:text-brand" title={r.title ?? ''}>
                 {r.title || '—'}
-                <span className="block truncate text-[10.5px] text-fg-subtle">{r.employee_name || r.department_name || ''}</span>
+                <span className="block truncate text-[10.5px] text-fg-subtle">{r.employee_name || lt(r.department_name)}</span>
               </button>
               <div className="relative py-2" style={{ gridColumn: `${a + 2} / ${b + 3}` }}>
                 <button

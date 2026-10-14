@@ -1,4 +1,5 @@
 import { textMatches } from '@/i18n/translit'
+import { lt } from '@/i18n/display'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { inTashkent } from '@/lib/format'
@@ -113,7 +114,7 @@ export function BranchesPage() {
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-inner bg-brand-soft text-brand-strong">
             <GitBranch size={15} aria-hidden />
           </span>
-          <span className="truncate font-semibold text-fg">{r.name}</span>
+          <span className="truncate font-semibold text-fg">{lt(r.name)}</span>
           {selectedBranchId === r.id && (
             <Badge tone="brand" className="shrink-0">
               <CheckCircle2 size={12} aria-hidden /> {t('branchAdmin.selected')}

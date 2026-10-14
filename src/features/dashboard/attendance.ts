@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { ln, lt } from '@/i18n/display'
 import type { Employee } from '@/types'
 import type {
   AttendanceCategory,
@@ -227,5 +228,5 @@ export function formatTime(iso?: string | null): string {
 export function jobTitle(emp: Employee): string {
   const jp = emp.job_position
   if (!jp) return ''
-  return typeof jp === 'object' ? jp.name || '' : jp
+  return typeof jp === 'object' ? ln(jp) : lt(jp)
 }

@@ -1,4 +1,5 @@
 import { textMatches } from '@/i18n/translit'
+import { lt } from '@/i18n/display'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -240,7 +241,7 @@ export function DictionariesPage() {
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-medium text-fg">{localizedName(r, lang)}</div>
-          {r.description && <div className="truncate text-xs text-fg-subtle">{st(r.description)}</div>}
+          {r.description && <div className="truncate text-xs text-fg-subtle">{lt(st(r.description))}</div>}
           {!!r.extra?.target && <div className="truncate text-xs text-brand-strong">{kindLabel(r.extra)}</div>}
         </div>
       ),
@@ -452,7 +453,7 @@ export function DictionariesPage() {
                 {type.description && (
                   <p className="mt-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
                     <Info size={12} className="mt-0.5 shrink-0" />
-                    {st(type.description)}
+                    {(lang === 'ru' && type.description_ru) || lt(st(type.description))}
                   </p>
                 )}
               </div>

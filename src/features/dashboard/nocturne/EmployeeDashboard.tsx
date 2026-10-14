@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { ln, lt } from '@/i18n/display'
 import { Activity, Building2, CalendarCheck, ClipboardCheck, ConciergeBell, Users, Zap } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useDashboard } from '@/features/dashboard/useDashboard'
@@ -142,8 +143,8 @@ export function EmployeeDashboard() {
                 id: emp.id,
                 name: emp.legal_name,
                 photo: emp.photo_thumb_path,
-                position: typeof emp.job_position === 'object' ? emp.job_position?.name : emp.job_position,
-                department: typeof emp.department === 'object' ? emp.department?.name : null,
+                position: typeof emp.job_position === 'object' ? ln(emp.job_position) || undefined : lt(emp.job_position),
+                department: typeof emp.department === 'object' ? ln(emp.department) || null : null,
               }
             : null
         }

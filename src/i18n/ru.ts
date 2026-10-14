@@ -7523,6 +7523,8 @@ const ru: Record<string, string> = {
   'Zaxiradan tiklangandan keyin avval yangi to‘liq nusxa oling': 'После восстановления из копии сначала создайте новую полную копию',
   'Bu inkremental nusxa zaxiradan tiklashdan keyingi holatni to‘liq aks ettirmaydi — to‘liq nusxadan tiklang': 'Эта инкрементальная копия не отражает состояние после восстановления — восстановите из полной копии',
   // ---- FX-LANG ----
+  'MA\'LUMOTNOMA': 'СПРАВКА',
+  'TAVSIFNOMA': 'ХАРАКТЕРИСТИКА',
   'Takroriy audit: ': 'Повторный аудит: ',
   'Rejani o‘zingiz (yoki reja egasi) kelisha olmaysiz': 'Вы (или владелец плана) не можете согласовать этот план',
   'Kelishuvchi topilmadi': 'Согласующий не найден',

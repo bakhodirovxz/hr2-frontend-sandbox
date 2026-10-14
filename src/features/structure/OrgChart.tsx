@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '@/lib/format'
+import { lt } from '@/i18n/display'
 import {
   GitBranch,
   Link2,
@@ -784,11 +785,11 @@ function NodeCard({
 
         {isTitle ? (
           <p className="px-4 py-3.5 pl-5 text-center text-[13px] font-bold text-fg">
-            {node.name}
+            {lt(node.name)}
           </p>
         ) : (
           <div className="flex flex-col gap-1 px-3.5 py-3 pl-5">
-            <h3 className="text-[14px] font-bold leading-tight text-fg">{node.name}</h3>
+            <h3 className="text-[14px] font-bold leading-tight text-fg">{lt(node.name)}</h3>
             {node.description && (
               <p className="text-[11px] leading-tight text-fg-subtle">{node.description}</p>
             )}

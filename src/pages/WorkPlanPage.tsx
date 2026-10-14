@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { AlertTriangle, CalendarDays, Check, CheckCircle2, CircleDashed, Copy, Inbox, List, ListChecks, ListTree, Loader, Pencil, Plus, Send, ShieldAlert, Target, Trash2, Undo2, XCircle } from 'lucide-react'
@@ -206,7 +207,7 @@ export function WorkPlanPage() {
       key: 'target',
       header: t('workPlan.colFor'),
       sortValue: (r) => r.employee_name || r.department_name || '',
-      cell: (r) => <span className="text-fg">{r.employee_name || r.department_name || '—'}</span>,
+      cell: (r) => <span className="text-fg">{r.employee_name || lt(r.department_name) || '—'}</span>,
     },
     {
       key: 'kpi',
@@ -579,7 +580,7 @@ function ApprovalsInbox({
         </div>
       ),
     },
-    { key: 'for', header: t('workPlan.colFor'), cell: (r) => <span className="text-fg">{r.employee_name || r.department_name || '—'}</span> },
+    { key: 'for', header: t('workPlan.colFor'), cell: (r) => <span className="text-fg">{r.employee_name || lt(r.department_name) || '—'}</span> },
     { key: 'dates', header: t('workPlan.colDates'), cell: (r) => <span className="whitespace-nowrap tabular-nums text-fg-muted">{formatRange(r.start_date, r.end_date)}</span> },
     { key: 'weight', header: t('workPlan.colWeight'), cell: (r) => <span className="tabular-nums">{r.weight ?? '—'}</span> },
     {
@@ -859,7 +860,7 @@ function PlanModal({
         </Field>
         {row || parent ? (
           <Field label={t('workPlan.colFor')} wide>
-            <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">{(row ?? parent)?.employee_name || (row ?? parent)?.department_name || '—'}</p>
+            <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">{(row ?? parent)?.employee_name || lt((row ?? parent)?.department_name) || '—'}</p>
           </Field>
         ) : (
           <>
