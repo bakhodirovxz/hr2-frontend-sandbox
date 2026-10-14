@@ -1,3 +1,4 @@
+import { ln } from '@/i18n/display'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -250,7 +251,7 @@ export function ParamsForm({
                 onChange={(e) => onChange({ ...values, [d.name]: e.target.value, department_ids: [] })}
                 options={[
                   { value: ALL_BRANCHES, label: t('statistics.allBranches') },
-                  ...branches.map((b) => ({ value: String(b.id), label: b.name })),
+                  ...branches.map((b) => ({ value: String(b.id), label: ln(b) || `#${b.id}` })),
                 ]}
               />
             )

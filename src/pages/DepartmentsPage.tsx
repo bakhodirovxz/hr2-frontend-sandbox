@@ -52,7 +52,7 @@ type ExportFormat = 'xlsx' | 'pdf' | 'docx'
  * `?open={id}` — global qidiruv natijasi bo'lim kartochkasini ochadi.
  */
 export function DepartmentsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const toast = useToast()
   const confirm = useConfirm()
   const user = useAuthStore((s) => s.user)
@@ -89,7 +89,7 @@ export function DepartmentsPage() {
     )
   }, [openParam, setParams])
 
-  const nameById = useMemo(() => new Map(all.map((d) => [d.id, d.name ?? `#${d.id}`])), [all])
+  const nameById = useMemo(() => new Map(all.map((d) => [d.id, ln(d) || `#${d.id}`])), [all, i18n.language])
   const parentName = (d: DepartmentRow) => (d.parent_id != null ? nameById.get(d.parent_id) ?? `#${d.parent_id}` : '')
   const headNames = (d: DepartmentRow) => (d.heads ?? []).map((h) => h.legal_name).filter(Boolean).join(', ')
 

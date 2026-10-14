@@ -1,3 +1,4 @@
+import { localizedName } from '@/i18n/localized'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Copy, ExternalLink, GitBranch, Pencil, Plus, Sparkles, Trash2, TrendingDown, TrendingUp, Upload, X } from 'lucide-react'
@@ -583,7 +584,7 @@ function IndicatorModal({
     }
   }
 
-  const catOptions = categories.map((c) => ({ value: c.code, label: i18n.language === 'ru' && c.name_ru ? c.name_ru : c.name }))
+  const catOptions = categories.map((c) => ({ value: c.code, label: localizedName(c, i18n.language) }))
 
   return (
     <Modal
