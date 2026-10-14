@@ -20,8 +20,10 @@ import { LevelChip, useModuleLabel } from '@/features/users/PermissionLevel'
 import { RoleModal } from '@/features/users/RoleModal'
 import { ReassignRoleModal } from '@/features/users/ReassignRoleModal'
 import { UserPermissionsPanel } from '@/features/users/UserPermissionsPanel'
+import { useDynamicT } from '@/i18n/dynamicKey'
 import {
   normalizePerms,
+  roleDisplayName,
   usePermissionRegistry,
   useRoleMutations,
   useRoles,
@@ -45,6 +47,7 @@ const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover
  */
 export function RolesPage() {
   const { t } = useTranslation()
+  const tk = useDynamicT()
   const toast = useToast()
   const confirm = useConfirm()
   const moduleLabel = useModuleLabel()
@@ -65,8 +68,12 @@ export function RolesPage() {
 
   const rows = useMemo(
     () =>
+      // System roles first in the TZ 1873-1880 order (the server sends them
+      // so), then custom roles by name.
       [...(list.data ?? [])].sort(
-        (a, b) => Number(!!b.is_system) - Number(!!a.is_system) || a.name.localeCompare(b.name, 'uz'),
+        (a, b) =>
+          Number(!!b.is_system) - Number(!!a.is_system) ||
+          (a.is_system ? 0 : a.name.localeCompare(b.name, 'uz')),
       ),
     [list.data],
   )
@@ -102,7 +109,7 @@ export function RolesPage() {
       skeleton: 'w-48',
       cell: (g) => (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-semibold text-fg">{g.name}</span>
+          <span className="font-semibold text-fg">{roleDisplayName(g, tk)}</span>
           {g.is_system && (
             <Badge tone="neutral" title={t('roleAdmin.systemNoDelete')}>
               <Lock size={10} aria-hidden="true" /> {t('roleAdmin.system')}

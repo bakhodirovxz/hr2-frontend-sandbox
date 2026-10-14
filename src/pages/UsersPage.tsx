@@ -21,7 +21,8 @@ import { can, canAccessSystemAdmin, isBranchAdmin, isSiteMasterAdmin } from '@/a
 import { inTashkent } from '@/lib/format'
 import { UserDrawer } from '@/features/users/UserDrawer'
 import { SetPasswordModal } from '@/features/users/SetPasswordModal'
-import { isLocked, useRoles, useUserList, useUserMutations, type UserAdminRow } from '@/features/users/useUserAdmin'
+import { useDynamicT } from '@/i18n/dynamicKey'
+import { isLocked, roleDisplayName, useRoles, useUserList, useUserMutations, type UserAdminRow } from '@/features/users/useUserAdmin'
 import { UserSessionsModal } from '@/features/users/UserSessionsModal'
 import { SecurityPolicyModal } from '@/features/users/SecurityPolicyModal'
 import { ArchiveSettingsModal } from '@/features/employees/ArchiveSettingsModal'
@@ -65,6 +66,7 @@ export function UsersPage() {
     branchId: lockedBranchId || filters.branch,
   })
   const roles = useRoles()
+  const tk = useDynamicT()
   const { branches } = useBranches()
   const { setActive, remove, unlock } = useUserMutations()
   const [sessionsTarget, setSessionsTarget] = useState<UserAdminRow | null>(null)
@@ -76,8 +78,16 @@ export function UsersPage() {
   const [busyId, setBusyId] = useState<number | null>(null)
 
   const roleOptions = useMemo(
-    () => (roles.data ?? []).map((r) => ({ value: String(r.id), label: r.name })),
-    [roles.data],
+    () => (roles.data ?? []).map((r) => ({ value: String(r.id), label: roleDisplayName(r, tk) })),
+    [roles.data, tk],
+  )
+  /** TZ A2 869: the create/edit form offers only the roles the caller may grant. */
+  const assignableRoleOptions = useMemo(
+    () =>
+      (roles.data ?? [])
+        .filter((r) => r.assignable !== false)
+        .map((r) => ({ value: String(r.id), label: roleDisplayName(r, tk), code: r.code ?? null })),
+    [roles.data, tk],
   )
   const branchOptions = useMemo(
     () =>
@@ -146,7 +156,17 @@ export function UsersPage() {
       key: 'username',
       header: t('userAdmin.login'),
       skeleton: 'w-28',
-      cell: (u) => <span className="block min-w-[9rem] max-w-[12rem] break-all font-semibold text-fg">{u.username}</span>,
+      // TZ C4: an archived card's login is a technical sentinel — show the
+      // original login with an «archived» mark instead.
+      cell: (u) =>
+        u.archived ? (
+          <span className="block min-w-[9rem] max-w-[12rem] break-all">
+            <span className="font-semibold text-fg-muted">{u.archived_username || '—'}</span>
+            <Badge tone="neutral" className="ml-1">{t('userAdmin.archivedMark')}</Badge>
+          </span>
+        ) : (
+          <span className="block min-w-[9rem] max-w-[12rem] break-all font-semibold text-fg">{u.username}</span>
+        ),
     },
     {
       key: 'full_name',
@@ -173,7 +193,7 @@ export function UsersPage() {
       skeleton: 'w-32',
       cell: (u) =>
         u.role?.name ? (
-          <Badge tone="brand">{u.role.name}</Badge>
+          <Badge tone="brand">{roleDisplayName(u.role, tk)}</Badge>
         ) : (
           <span className="text-fg-subtle">{t('userAdmin.noRole')}</span>
         ),
@@ -371,8 +391,9 @@ export function UsersPage() {
         open={drawer.open}
         initial={drawer.initial}
         isSelf={!!drawer.initial && drawer.initial.id === me?.id}
-        roleOptions={roleOptions}
+        roleOptions={assignableRoleOptions}
         branchOptions={branchOptions}
+        branches={branches}
         lockedBranchId={lockedBranchId}
         onClose={() => setDrawer({ open: false, initial: null })}
       />

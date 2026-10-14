@@ -116,6 +116,10 @@ export function accountEmail(user: User | null | undefined): string {
 
 /** Rol nomi: `role.name`, bo'lmasa hisob turidan. */
 export function roleLabel(user: User | null | undefined, t: TFunction): string {
+  const code = user?.role?.code ?? ''
+  // TZ 1873-1880 system roles are translated by code (the server has one name).
+  if (['system_admin', 'management', 'hr_central', 'hr_branch', 'ca_staff', 'subsidiary_staff', 'branch_staff', 'guest'].includes(code))
+    return t(`roleAdmin.sysName.${code}` as never)
   if (user?.role?.name) return user.role.name
   if (isGuest(user)) return t('account.roleGuest')
   if (isSiteMasterAdmin(user)) return t('account.roleAdmin')

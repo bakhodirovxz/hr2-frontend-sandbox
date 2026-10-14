@@ -11,10 +11,13 @@ import { LoadError } from '@/components/data/LoadError'
 import { TD_COMPACT as TD, TH } from '@/components/data/tableStyles'
 import { errorMessage } from '@/api/errorMessage'
 import type { ModuleCode, PermissionLevel } from '@/auth/permissions'
+import { useDynamicT } from '@/i18n/dynamicKey'
 import { LevelChip, LevelControl, useModuleLabel, type LevelChoice } from './PermissionLevel'
 import {
   normalizePerms,
+  roleDisplayName,
   useUserDetail,
+  useUserList,
   useUserMutations,
   useUserSearch,
   type PermissionMap,
@@ -58,6 +61,10 @@ export function UserPermissionsPanel({
   const moduleLabel = useModuleLabel()
   const [term, setTerm] = useState('')
   const found = useUserSearch(term)
+  const tk = useDynamicT()
+  /** TZ A2 852 «Система отображает список ролей и пользователей». */
+  const [listPage, setListPage] = useState(1)
+  const list = useUserList({ page: listPage, size: 15, search: term.trim().length >= 2 ? term : undefined })
   const detail = useUserDetail(userId)
   const user = detail.data ?? null
   const { setPermissions } = useUserMutations()
@@ -118,17 +125,17 @@ export function UserPermissionsPanel({
     const opts = rows.map((u) => ({
       value: String(u.id),
       label: u.full_name || u.username,
-      subLabel: [u.username, u.role?.name].filter(Boolean).join(' · '),
+      subLabel: [u.username, u.role ? roleDisplayName(u.role, tk) : ''].filter(Boolean).join(' · '),
     }))
     if (user && !opts.some((o) => o.value === String(user.id))) {
       opts.unshift({
         value: String(user.id),
         label: user.full_name || user.username,
-        subLabel: [user.username, user.role?.name].filter(Boolean).join(' · '),
+        subLabel: [user.username, user.role ? roleDisplayName(user.role, tk) : ''].filter(Boolean).join(' · '),
       })
     }
     return opts
-  }, [found.data, user])
+  }, [found.data, user, tk])
 
   const save = async (force = false) => {
     if (!user) return
@@ -160,8 +167,62 @@ export function UserPermissionsPanel({
       </Field>
 
       {!userId ? (
-        <Card className="p-10">
-          <EmptyState icon={<UserCog size={24} />} title={t('roleAdmin.pickUserEmpty')} />
+        <Card className="overflow-hidden">
+          {(list.data?.items ?? []).length === 0 ? (
+            <div className="p-10">
+              <EmptyState icon={<UserCog size={24} />} title={t('roleAdmin.pickUserEmpty')} />
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className={TH}>{t('userAdmin.fullName')}</th>
+                    <th className={TH}>{t('userAdmin.login')}</th>
+                    <th className={TH}>{t('userAdmin.role')}</th>
+                    <th className={TH}>{t('roleAdmin.personalLevels')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(list.data?.items ?? []).map((u) => {
+                    const own = Object.keys(normalizePerms(u.permissions)).length
+                    return (
+                      <tr
+                        key={u.id}
+                        tabIndex={0}
+                        className="cursor-pointer border-t border-line hover:bg-surface-2"
+                        onClick={() => onPick(String(u.id))}
+                        onKeyDown={(e) => e.key === 'Enter' && onPick(String(u.id))}
+                      >
+                        <td className={TD}>{u.full_name || u.username}</td>
+                        <td className={TD}>{u.archived ? u.archived_username || u.username : u.username}</td>
+                        <td className={TD}>{u.role ? roleDisplayName(u.role, tk) : t('userAdmin.noRole')}</td>
+                        <td className={TD}>{own ? own : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {(list.data?.pages ?? 1) > 1 && (
+                <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-2 text-xs text-fg-muted">
+                  <Button size="sm" variant="ghost" disabled={listPage <= 1} onClick={() => setListPage((p) => p - 1)}>
+                    {t('common.previous')}
+                  </Button>
+                  <span>
+                    {listPage} / {list.data?.pages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={listPage >= (list.data?.pages ?? 1)}
+                    onClick={() => setListPage((p) => p + 1)}
+                  >
+                    {t('common.next')}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </Card>
       ) : detail.error ? (
         <Card className="p-6">
@@ -176,7 +237,7 @@ export function UserPermissionsPanel({
             <div className="min-w-0">
               <p className="m-0 truncate text-sm font-semibold text-fg">{user.full_name || user.username}</p>
               <p className="m-0 truncate text-xs text-fg-muted">
-                {user.username} · {t('userAdmin.role')}: {user.role?.name || t('userAdmin.noRole')}
+                {user.username} · {t('userAdmin.role')}: {user.role?.name ? roleDisplayName(user.role, tk) : t('userAdmin.noRole')}
               </p>
             </div>
             {editable && (
