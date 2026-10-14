@@ -1,3 +1,5 @@
+import { ln } from '@/i18n/display'
+import { textMatches } from '@/i18n/translit'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -48,7 +50,7 @@ interface FeedItem {
 
 function deptName(row: { employee?: { department?: unknown } | null }): string {
   const d = row.employee?.department
-  return typeof d === 'object' && d ? ((d as { name?: string }).name ?? '') : ''
+  return typeof d === 'object' && d ? ln(d as { name?: string; name_ru?: string | null }) : ''
 }
 
 /**
@@ -204,7 +206,7 @@ export function LiveFeed({
   }, [activeTab, events, rows, t])
 
   const needle = q.trim().toLowerCase()
-  const shown = needle ? items.filter((i) => i.name.toLowerCase().includes(needle)) : items
+  const shown = needle ? items.filter((i) => textMatches(i.name, needle)) : items
 
   /* The whole day is in memory (search covers every pass), but a morning of
      a large branch is a thousand rows with a photo each — they are drawn in

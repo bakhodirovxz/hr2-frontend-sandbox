@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { Copy, History, Lock, Megaphone, Send } from 'lucide-react'
@@ -344,7 +345,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
   )
   const lineOptions = lineRows.map((r) => ({
     value: String(r.id),
-    label: r.job_position_name || `#${r.id}`,
+    label: lt(r.job_position_name) || `#${r.id}`,
     subLabel: t('ordVac.freeUnits', { units: fmtUnits(r.vacant_units) }),
   }))
   const pickedLine = lineFixed ? row : lineRows.find((r) => String(r.id) === form.line_id) ?? null
@@ -372,8 +373,8 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
           <div className="grid gap-4 sm:grid-cols-2">
             {lineFixed ? (
               <div className="flex flex-col gap-1 rounded-inner border border-line bg-surface-2/40 px-4 py-3 sm:col-span-2">
-                <span className="text-[14px] font-semibold text-fg">{row?.department_name}</span>
-                <span className="text-[13px] text-fg-muted">{row?.job_position_name}</span>
+                <span className="text-[14px] font-semibold text-fg">{lt(row?.department_name)}</span>
+                <span className="text-[13px] text-fg-muted">{lt(row?.job_position_name)}</span>
               </div>
             ) : (
               <>
@@ -426,8 +427,8 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
           </div>
         ) : isEdit ? (
           <div className="flex flex-col gap-1.5 rounded-inner border border-line bg-surface-2/40 px-4 py-3">
-            <span className="text-[14px] font-semibold text-fg">{row?.department_name}</span>
-            <span className="text-[13px] text-fg-muted">{row?.job_position_name}</span>
+            <span className="text-[14px] font-semibold text-fg">{lt(row?.department_name)}</span>
+            <span className="text-[13px] text-fg-muted">{lt(row?.job_position_name)}</span>
             <RequiredLanguagesChips value={row?.required_languages} />
             <div className="mt-1 flex gap-4 text-[12px] text-fg-muted">
               <span>

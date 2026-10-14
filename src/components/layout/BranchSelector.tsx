@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { foldIncludes, searchFold } from '@/lib/searchFold'
 import { useTranslation } from 'react-i18next'
 import { Building2, Check, ChevronDown, Layers, Search, Users, X } from 'lucide-react'
@@ -55,7 +56,7 @@ export function BranchSelector() {
   const totalEmployees = allowedBranches.reduce((s, b) => s + (b.employee_count || 0), 0)
 
   const label =
-    selectedBranchId == null ? t('header.allBranches') : current?.name ?? t('header.selectBranch')
+    selectedBranchId == null ? t('header.allBranches') : (current?.name ? lt(current.name) : t('header.selectBranch'))
 
   const pick = (id: number | null) => {
     setSelectedBranchId(id)
@@ -79,7 +80,7 @@ export function BranchSelector() {
   if (isStatic) {
     // A branch-scoped account (e.g. a branch administrator) never sees «all
     // branches» — the chip names the one organisation it works in.
-    const staticLabel = allowedBranches[0]?.name ?? label
+    const staticLabel = allowedBranches[0]?.name ? lt(allowedBranches[0].name) : label
     return (
       <div
         ref={chipRef}
@@ -187,7 +188,7 @@ export function BranchSelector() {
                             : 'border-line bg-surface text-fg-muted hover:border-brand/40 hover:text-fg',
                         )}
                       >
-                        <span className="max-w-[130px] truncate">{b.name}</span>
+                        <span className="max-w-[130px] truncate">{lt(b.name)}</span>
                         <span
                           className={cn(
                             'tabnum rounded-xs px-1 text-[10px] font-bold',
@@ -227,7 +228,7 @@ export function BranchSelector() {
                 <BranchOption
                   key={b.id}
                   icon={<Users size={15} className="text-fg-subtle" />}
-                  name={b.name}
+                  name={lt(b.name)}
                   count={b.employee_count ?? 0}
                   active={b.id === selectedBranchId}
                   onClick={() => pick(b.id)}

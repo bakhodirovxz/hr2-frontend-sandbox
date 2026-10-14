@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { Building2, Calendar, Clock, MapPin } from 'lucide-react'
@@ -66,9 +67,10 @@ export function PassDetailModal({
   const snapshot = event?.photo_path || event?.photo_thumb_path || null
   const locBranch = loc as { organization_branch?: { name?: string | null } | null; organization_branch_id?: number | null } | null
   const branchName =
-    locBranch?.organization_branch?.name ??
-    branches.find((b) => b.id === locBranch?.organization_branch_id)?.name ??
-    null
+    lt(
+      locBranch?.organization_branch?.name ??
+        branches.find((b) => b.id === locBranch?.organization_branch_id)?.name,
+    ) || null
 
   return (
     <Modal open={open} onClose={onClose} title={t('dashboard.board.passDetail')} size="sm">

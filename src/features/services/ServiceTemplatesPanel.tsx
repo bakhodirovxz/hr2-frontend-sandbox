@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Clock, FileText, Pencil, Save, X } from 'lucide-react'
 import { Button, Card, Field, Input, Textarea, useToast } from '@/components/ui'
@@ -23,7 +24,7 @@ function placeholderLabel(key: string, fallback: string): string {
 function Preview({ title, body, signature }: { title: string; body: string; signature?: string | null }) {
   return (
     <div className="rounded-inner border border-line bg-surface-2 px-4 py-3 text-[12.5px] text-fg">
-      <p className="mb-2 text-center font-semibold">{title}</p>
+      <p className="mb-2 text-center font-semibold">{lt(title)}</p>
       <p className="whitespace-pre-wrap leading-relaxed">{body}</p>
       {signature && <p className="mt-3 text-fg-muted">{signature} ____________</p>}
     </div>

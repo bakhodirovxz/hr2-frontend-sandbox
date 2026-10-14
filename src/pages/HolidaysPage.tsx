@@ -1,3 +1,4 @@
+import { lt } from '@/i18n/display'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
@@ -49,7 +50,7 @@ export function HolidaysPage() {
   const { rows: all, loading, error, refetch } = useHolidayList()
   const { branches } = useBranches()
   const branchName = (id?: number | null) =>
-    id == null ? t('davomat.wholeOrg') : branches.find((b) => b.id === Number(id))?.name ?? `#${id}`
+    id == null ? t('davomat.wholeOrg') : lt(branches.find((b) => b.id === Number(id))?.name) || `#${id}`
 
   const filtered = useMemo(() => {
     const q = searchFold(search.trim())
@@ -179,7 +180,7 @@ function HolidayModal({
   const scopeOptions = useMemo(() => {
     const list = branches
       .filter((b) => own == null || own.includes(Number(b.id)))
-      .map((b) => ({ value: String(b.id), label: b.name }))
+      .map((b) => ({ value: String(b.id), label: lt(b.name) }))
     return global ? [{ value: ALL, label: t('davomat.wholeOrg') }, ...list] : list
   }, [branches, own, global, t])
 

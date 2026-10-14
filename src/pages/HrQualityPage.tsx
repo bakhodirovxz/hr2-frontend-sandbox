@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -184,7 +185,7 @@ function HrQualityPageInner() {
                     on && 'ring-2 ring-brand ring-offset-1 ring-offset-surface',
                   )}
                 >
-                  {r.rule_title || r.rule}
+                  {lt(r.rule_title) || r.rule}
                   <span className="rounded-pill bg-surface/70 px-1.5 tabular-nums">{r.count}</span>
                 </button>
               )
@@ -240,7 +241,7 @@ function HrQualityPageInner() {
                       )}
                     >
                       <span className={cn('h-1.5 w-1.5 rounded-full', r.severity === 'error' ? 'bg-danger' : 'bg-warning')} />
-                      {r.rule_title}
+                      {lt(r.rule_title)}
                       {r.detail ? <span className="font-normal opacity-80">· {r.detail}</span> : null}
                     </span>
                   ))}

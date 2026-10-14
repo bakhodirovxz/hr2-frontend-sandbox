@@ -38,6 +38,7 @@ export interface OrderSigner {
 export interface OrderCategory {
   id: number
   name?: string | null
+  name_ru?: string | null
   /** Internal `OrderActCategoryType` int. */
   type?: number | null
   /** TZ O1 type code: hire | dismissal | transfer | vacation | business_trip. */

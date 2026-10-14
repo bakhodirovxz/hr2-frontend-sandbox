@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { UserRoundSearch } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -91,7 +92,7 @@ export function OccupancyHistoryModal({ position, onClose }: { position: Positio
               {rows.map((r, i) => (
                 <tr key={`${r.employee?.id ?? ''}-${r.from ?? ''}-${i}`} className="border-b border-line/60">
                   <td className={TD_COMPACT}>{r.employee?.name || '—'}</td>
-                  <td className={`${TD_COMPACT} text-fg-muted`}>{r.department?.name || '—'}</td>
+                  <td className={`${TD_COMPACT} text-fg-muted`}>{ln(r.department) || '—'}</td>
                   <td className={`${TD_COMPACT} tabular-nums`}>{fmt(r.from)}</td>
                   <td className={`${TD_COMPACT} tabular-nums`}>
                     {r.to ? fmt(r.to) : <span className="text-success">{t('orgAdmin.occNow')}</span>}

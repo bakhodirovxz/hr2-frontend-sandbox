@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { History, Pencil, Plus, Trash2, UserRoundSearch, Wand2 } from 'lucide-react'
@@ -109,7 +110,7 @@ export function JobPositionsPage() {
 
   const departmentsOf = (p: PositionRow) => {
     const m = staffMap.get(p.id)
-    return m ? [...m.values()].join(', ') : ''
+    return m ? [...m.values()].map((v) => lt(v)).join(', ') : ''
   }
 
   const columns: Column<PositionRow>[] = [
@@ -128,14 +129,14 @@ export function JobPositionsPage() {
       lockVisible: true,
       skeleton: 'w-56',
       sortValue: serverOrder,
-      cell: (p) => <span className="font-semibold text-fg">{p.name || '—'}</span>,
+      cell: (p) => <span className="font-semibold text-fg">{ln(p) || '—'}</span>,
     },
     {
       key: 'short',
       header: t('orgAdmin.posShortName'),
       className: 'text-fg-muted',
       skeleton: 'w-28',
-      cell: (p) => p.short_name || '—',
+      cell: (p) => lt(p.short_name) || '—',
     },
     {
       key: 'department',

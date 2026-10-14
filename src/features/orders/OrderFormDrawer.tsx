@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { FilePen, Paperclip, ScanSearch, Trash2, UserPlus, UserRoundPlus, Wand2, X } from 'lucide-react'
@@ -143,7 +144,7 @@ function useLeadershipCandidates(branchId: number | null, enabled: boolean) {
       pinned.length > 0
         ? pinned
         : (byPosition.data ?? []).filter((e) => {
-            const pos = (typeof e.job_position === 'object' ? e.job_position?.name : e.job_position) ?? ''
+            const pos = (typeof e.job_position === 'object' ? ln(e.job_position) : lt(e.job_position)) ?? ''
             return !String(pos).toLowerCase().includes('maslahatch')
           })
     const seen = new Set<number>()
@@ -239,7 +240,7 @@ export function OrderFormDrawer({
     enabled: open,
   })
   const categories = categoriesQ.data ?? []
-  const categoryOptions = categories.map((c) => ({ value: String(c.id), label: c.name ?? `#${c.id}` }))
+  const categoryOptions = categories.map((c) => ({ value: String(c.id), label: ln(c) || `#${c.id}` }))
   const category = categories.find((c) => String(c.id) === form.category_id) ?? (detail?.category_rel && String(detail.category_rel.id) === form.category_id ? detail.category_rel : null)
   const orderType = orderTypeOfCategory(category)
 

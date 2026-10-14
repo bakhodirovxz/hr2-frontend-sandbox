@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Link } from 'react-router-dom'
@@ -178,7 +179,7 @@ export function OrderDetailDrawer({
   }
 
   const title = order
-    ? `${order.act_number ? t('orders.orderNo', { n: order.act_number }) : t('orders.noNumber')} — ${order.category_rel?.name || t('orders.order')}`
+    ? `${order.act_number ? t('orders.orderNo', { n: order.act_number }) : t('orders.noNumber')} — ${ln(order.category_rel) || t('orders.order')}`
     : t('orders.detailTitle')
 
   const approve = async () => {
@@ -310,14 +311,14 @@ export function OrderDetailDrawer({
             <Meta label={t('orders.colNumberFull')}>{order.act_number || '—'}</Meta>
             <Meta label={t('orders.colDateFull')}>{fmtDate(order.act_date)}</Meta>
             <Meta label={t('orders.colTypeFull')}>
-              {order.category_rel?.name || '—'}
-              {orderType && !sameText(orderTypeLabel(t, orderType), order.category_rel?.name) && (
+              {ln(order.category_rel) || '—'}
+              {orderType && !sameText(orderTypeLabel(t, orderType), ln(order.category_rel)) && (
                 <Badge tone="brand" className="ml-2">{orderTypeLabel(t, orderType)}</Badge>
               )}
             </Meta>
             <Meta label={t('orders.colStatus')}><OrderStatusBadge order={order} /></Meta>
             {(order.department_name || order.department_id) && (
-              <Meta label={t('orders.fDepartment')}>{order.department_name || <DepartmentName id={order.department_id} branchId={order.organization_branch_id} />}</Meta>
+              <Meta label={t('orders.fDepartment')}>{lt(order.department_name) || <DepartmentName id={order.department_id} branchId={order.organization_branch_id} />}</Meta>
             )}
             {(order.created_by?.legal_name || order.employee?.legal_name) && (
               <Meta label={t('orders.fAuthor')}>{order.created_by?.legal_name || order.employee?.legal_name}</Meta>

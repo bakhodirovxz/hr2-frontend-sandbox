@@ -16,6 +16,7 @@ import { useUnreadNotifications } from '@/hooks/useMenuBadges'
 import { cn } from '@/lib/cn'
 import { POPOVER } from '@/components/ui/control'
 import { AnchoredPanel } from '@/components/ui/AnchoredPanel'
+import { notificationText } from '@/features/notifications/notificationText'
 import {
   notificationTitleKey,
   resolveNotificationUrl,
@@ -213,8 +214,8 @@ export function NotificationsBell() {
                           turns a bare `card_member_added` into a sentence. */}
                       {n.title || t(notificationTitleKey(n.notification_type) as never)}
                     </p>
-                    {n.description && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{n.description}</p>
+                    {(n.message || n.description) && (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{notificationText(n)}</p>
                     )}
                     {n.created_at && (
                       <p className="mt-1 text-[11px] text-fg-subtle">

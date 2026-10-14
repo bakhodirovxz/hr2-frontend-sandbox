@@ -38,6 +38,7 @@ export function PositionFormModal({
   const isEdit = !!value
 
   const [name, setName] = useState('')
+  const [nameRu, setNameRu] = useState('')
   const [shortName, setShortName] = useState('')
   const [razryad, setRazryad] = useState('')
   const [category, setCategory] = useState('')
@@ -54,6 +55,7 @@ export function PositionFormModal({
       return
     }
     setName(value?.name ?? '')
+    setNameRu(value?.name_ru ?? (value as { extra?: { name_ru?: string | null } } | null | undefined)?.extra?.name_ru ?? '')
     setShortName(value?.short_name ?? '')
     setRazryad(value?.razryad != null ? String(value.razryad) : '')
     setCategory(value?.category ?? '')
@@ -87,6 +89,7 @@ export function PositionFormModal({
     setFormError('')
     const body: Record<string, unknown> = {
       name: name.trim(),
+      name_ru: nameRu.trim() || null,
       short_name: shortName.trim() || null,
       razryad: razryad === '' ? null : Number(razryad),
       category: category || null,
@@ -139,6 +142,9 @@ export function PositionFormModal({
               setNameError('')
             }}
           />
+        </Field>
+        <Field label={t('fields.name_ru')} wide>
+          <Input value={nameRu} onChange={(e) => setNameRu(e.target.value)} />
         </Field>
         <Field label={t('orgAdmin.posShortName')} hint={t('orgAdmin.posShortNameHint')} wide>
           <Input value={shortName} onChange={(e) => setShortName(e.target.value)} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Pause, Play } from 'lucide-react'
 import { Button, Field, Input, Modal, useToast } from '@/components/ui'
@@ -53,7 +54,7 @@ export function VacancyStatusModal({
       onClose={onClose}
       size="sm"
       title={pausing ? t('ordVac.pauseTitle') : t('ordVac.resumeTitle')}
-      description={target ? `${target.row.department_name ?? ''} · ${target.row.job_position_name ?? ''}` : undefined}
+      description={target ? `${lt(target.row.department_name)} · ${lt(target.row.job_position_name)}` : undefined}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={update.isPending}>

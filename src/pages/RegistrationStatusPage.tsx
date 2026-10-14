@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { lt } from '@/i18n/display'
 import { Avatar } from '@/components/ui/Avatar'
 import { CheckCircle2, Clock, LogOut, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -142,14 +143,14 @@ export function RegistrationStatusPage() {
           <Row label={t('register.birthDate')} value={row.birth_date ? dayjs(row.birth_date).format('DD.MM.YYYY') : null} />
           <Row label={t('register.pinfl')} value={row.pinfl} />
           <Row label={t('register.passport')} value={row.passport_number} />
-          <Row label={t('register.nationality')} value={row.nationality_name} />
+          <Row label={t('register.nationality')} value={lt(row.nationality_name)} />
           <Row label={t('register.citizenship')} value={row.citizenship_name} />
           <Row label={t('register.address')} value={row.address} />
           <Row
             label={t('registrations.colClaim')}
             value={
               row.is_uge_employee
-                ? [row.claimed_branch_name, row.claimed_department_name, row.claimed_job_position_name]
+                ? [lt(row.claimed_branch_name), lt(row.claimed_department_name), lt(row.claimed_job_position_name)]
                     .filter(Boolean)
                     .join(' · ')
                 : t('registrations.guest')

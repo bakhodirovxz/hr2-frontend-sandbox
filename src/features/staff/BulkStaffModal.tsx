@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -111,7 +112,7 @@ export function BulkStaffModal({
         {rows.map((r) => (
           <div key={keyOf(r)} className="flex items-center gap-3">
             <span className="flex-1 truncate text-sm text-fg" title={r.job_position_name ?? ''}>
-              {r.job_position_name ?? `#${r.job_position_id}`}
+              {r.job_position_name ? lt(r.job_position_name) : `#${r.job_position_id}`}
             </span>
             <Input
               type="number"

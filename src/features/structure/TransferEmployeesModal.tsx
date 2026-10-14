@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ArrowRight, Users } from 'lucide-react'
@@ -275,7 +276,7 @@ export function TransferEmployeesModal({
                       <Checkbox inLabel checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                       <span className="min-w-0">
                         <span className="block truncate text-[13px] text-fg">{r.legal_name || `#${r.id}`}</span>
-                        <span className="block truncate text-[11px] text-fg-muted">{r.job_position?.name || '—'}</span>
+                        <span className="block truncate text-[11px] text-fg-muted">{ln(r.job_position) || '—'}</span>
                       </span>
                     </label>
                   </li>

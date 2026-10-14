@@ -1,3 +1,4 @@
+import { textMatches } from '@/i18n/translit'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -280,7 +281,7 @@ export function DrillEmpty({ text }: { text: string }) {
 /** Filters any list of people by the modal's search needle. */
 export function matchNeedle(needle: string, ...fields: (string | null | undefined)[]) {
   if (!needle) return true
-  return fields.some((f) => (f ?? '').toLowerCase().includes(needle))
+  return fields.some((f) => textMatches(f, needle))
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

@@ -1,3 +1,4 @@
+import i18n from 'i18next'
 import axios, {
   type AxiosError,
   type InternalAxiosRequestConfig,
@@ -112,6 +113,10 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
   const token = getToken()
   if (token) config.headers.set('Authorization', `Bearer ${token}`)
 
+  // Interface language for every server-produced text (errors, exports,
+  // catalogue labels) — core/i18n_server.LangMiddleware, TZ 4.1.7.
+  config.headers.set('X-Lang', i18n.language || 'uz')
+
   const params = mergeOrganizationBranchId(
     config.url || '',
     (config.params as Record<string, unknown>) || {},
@@ -204,4 +209,10 @@ export const publicClient = axios.create({
   timeout: 30_000,
   withCredentials: true,
   paramsSerializer: { indexes: null },
+})
+
+// Login / registration errors come from the public instance — same language header.
+publicClient.interceptors.request.use((config) => {
+  config.headers.set('X-Lang', i18n.language || 'uz')
+  return config
 })

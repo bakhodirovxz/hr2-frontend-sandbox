@@ -1,3 +1,5 @@
+import { textMatches } from '@/i18n/translit'
+import { lt } from '@/i18n/display'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { inTashkent } from '@/lib/format'
@@ -84,7 +86,7 @@ export function BranchesPage() {
     let rows = allowed ? branches.filter((b) => allowed.includes(Number(b.id))) : branches
     if (ownership) rows = rows.filter((b) => b.ownership_form === ownership)
     const q = search.trim().toLowerCase()
-    if (q) rows = rows.filter((b) => (b.name ?? '').toLowerCase().includes(q))
+    if (q) rows = rows.filter((b) => textMatches(b.name, q))
     return rows
   }, [branches, allowed, ownership, search])
   const pages = Math.max(1, Math.ceil(filtered.length / size))
@@ -112,7 +114,7 @@ export function BranchesPage() {
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-inner bg-brand-soft text-brand-strong">
             <GitBranch size={15} aria-hidden />
           </span>
-          <span className="truncate font-semibold text-fg">{r.name}</span>
+          <span className="truncate font-semibold text-fg">{lt(r.name)}</span>
           {selectedBranchId === r.id && (
             <Badge tone="brand" className="shrink-0">
               <CheckCircle2 size={12} aria-hidden /> {t('branchAdmin.selected')}

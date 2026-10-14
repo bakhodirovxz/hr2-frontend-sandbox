@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCodeOptions } from '@/features/employees/t2/useT2'
+import { lt } from '@/i18n/display'
 
 /**
  * Nationality code → the name people read.
@@ -17,7 +18,7 @@ import { useCodeOptions } from '@/features/employees/t2/useT2'
  * as written.
  */
 export function useNationalityLabel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const nationalities = useCodeOptions('nationalities')
   return useMemo(() => {
     const byCode = new Map(nationalities.map((n) => [n.value.toLowerCase(), n.label]))
@@ -27,7 +28,9 @@ export function useNationalityLabel() {
       const exact = byCode.get(v)
       if (exact) return exact
       const hits = [...byCode.entries()].filter(([code]) => code.startsWith(v))
-      return hits.length === 1 ? hits[0][1] : (raw as string)
+      // A stored full name («O'zbek») rather than a code: the shared
+      // dictionary lookup gives its Russian / Cyrillic form.
+      return hits.length === 1 ? hits[0][1] : lt(raw as string)
     }
-  }, [nationalities, t])
+  }, [nationalities, t, i18n.language])
 }

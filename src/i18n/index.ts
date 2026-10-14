@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import core from './uz.core'
-import { toCyrillic } from './translit'
+import { normalizeUzApostrophes, toCyrillic } from './translit'
 import { joinApiUrl } from '@/api/apiBase'
 
 /**
@@ -110,7 +110,8 @@ function mapTree(node: Tree, fn: (s: string) => string): Tree {
  * The Cyrillic and Russian trees are DERIVED from the full tree, so building
  * them waits for `rest` too.
  */
-let uzTree: Tree = core as unknown as Tree
+const coreTree: Tree = mapTree(core as unknown as Tree, normalizeUzApostrophes)
+let uzTree: Tree = coreTree
 let restLoaded = false
 const restListeners = new Set<() => void>()
 
@@ -127,7 +128,7 @@ export function loadRest(): Promise<void> {
   if (!restPromise) {
     restPromise = import('./uz.rest')
       .then((m) => {
-        const rest = m.default as unknown as Tree
+        const rest = mapTree(m.default as unknown as Tree, normalizeUzApostrophes)
         // Deep merge is not needed: core and rest hold DISJOINT top-level namespaces.
         uzTree = { ...uzTree, ...rest }
         i18n.addResourceBundle('uz', 'translation', rest, true, true)
@@ -243,6 +244,20 @@ export async function autoTranslation(lang: 'ru' | 'uz_cyrl', text: string): Pro
   return ru[text] ?? Object.entries(ru).find(([k]) => normalizeKey(k) === normalizeKey(text))?.[1] ?? ''
 }
 
+/** Normalised «Uzbek text → Russian» table, set once Russian has been loaded. */
+let ruByNorm: Map<string, string> | null = null
+
+/**
+ * Russian for a fixed Uzbek text that came from the SERVER (a seeded catalogue
+ * row, a system role name, a built-in form name…) — the same `ru.ts` table the
+ * interface uses. `undefined` when Russian is not loaded or the text is not in
+ * the table (user-entered data).
+ */
+export function ruLookup(text: string | null | undefined): string | undefined {
+  if (!text || !ruByNorm) return undefined
+  return overrideFor('ru', text) ?? ruByNorm.get(normalizeKey(text))
+}
+
 async function ensureLanguage(lang: Lang): Promise<void> {
   if (loaded.has(lang)) return
 
@@ -261,6 +276,7 @@ async function ensureLanguage(lang: Lang): Promise<void> {
       const n = normalizeKey(k)
       if (!byNorm.has(n)) byNorm.set(n, v)
     }
+    ruByNorm = byNorm
     const translate = (text: string): string =>
       overrideFor('ru', text) ?? ru[text] ?? byNorm.get(normalizeKey(text)) ?? text
     i18n.addResourceBundle('ru', 'translation', mapTree(uzTree, translate), true, true)
@@ -272,7 +288,7 @@ async function ensureLanguage(lang: Lang): Promise<void> {
 i18n.use(initReactI18next).init({
   // Only the Uzbek CORE is inlined; `restReady` adds the rest of Uzbek and
   // `ensureLanguage` registers the other languages.
-  resources: { uz: { translation: core } },
+  resources: { uz: { translation: coreTree } },
   lng: readSavedLang(),
   fallbackLng: 'uz',
   supportedLngs: LANGS.map((l) => l.code),
@@ -309,10 +325,15 @@ export function setLanguage(lang: Lang): void {
   }
   // Sana/vaqt formatlash uchun — `Intl` shu atributni o'qimaydi, ammo
   // brauzerning o'z boshqaruvlari (sana tanlagich, imlo) o'qiydi.
-  document.documentElement.lang = lang === 'ru' ? 'ru' : 'uz'
+  document.documentElement.lang = htmlLang(lang)
 }
 
-document.documentElement.lang = readSavedLang() === 'ru' ? 'ru' : 'uz'
+/** BCP 47 tag for `<html lang>`: screen readers and hyphenation need the script. */
+export function htmlLang(lang: Lang): string {
+  return lang === 'ru' ? 'ru' : lang === 'uz_cyrl' ? 'uz-Cyrl' : 'uz'
+}
+
+document.documentElement.lang = htmlLang(readSavedLang())
 
 // Tuzatishlar fonda yangilanadi — UI kesh (yoki avtomatik tarjima) bilan darhol chiziladi.
 void reloadOverrides()

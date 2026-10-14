@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import { localizedName } from '@/i18n/localized'
 import { useQuery } from '@tanstack/react-query'
 import { fetchAllPages } from '@/api/fetchAll'
 import { REFERENCE_QUERY } from '@/api/queryClient'
@@ -11,6 +13,7 @@ interface NamedRef {
   // `| null` because the server's Department/JobPosition rows declare it so —
   // without it every caller with the real row type fails the constraint.
   name?: string | null
+  name_ru?: string | null
 }
 
 /**
@@ -50,9 +53,10 @@ function useNamedRecords<T extends NamedRef>(
 
 function useNamedOptions(key: string, url: string, forBranchId?: number | null): SelectOption[] {
   const rows = useNamedRecords<NamedRef>(key, url, forBranchId)
+  const { i18n } = useTranslation()
   return useMemo(
-    () => rows.map((d) => ({ value: String(d.id), label: d.name || `#${d.id}` })),
-    [rows],
+    () => rows.map((d) => ({ value: String(d.id), label: localizedName(d, i18n.language) || `#${d.id}` })),
+    [rows, i18n.language],
   )
 }
 

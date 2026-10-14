@@ -8,6 +8,7 @@ export type CreatorRole = 'employee' | 'hr'
 export interface OrderType {
   id: number
   name?: string | null
+  name_ru?: string | null
   creator_role?: CreatorRole | null
 }
 

@@ -14,6 +14,8 @@ export interface AppNotification {
   id: number
   notification_type?: string
   description?: string
+  /** `{code, params}` — the text in the reader's language (FX-LANG, TZ 4.1.7). */
+  message?: { code: string; params?: Record<string, unknown> } | null
   title?: string
   is_read?: boolean
   created_at?: string

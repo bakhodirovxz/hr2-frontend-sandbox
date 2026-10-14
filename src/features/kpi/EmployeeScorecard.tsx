@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Building2, CalendarRange, ChevronRight, Clock, Download, Users } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
@@ -64,10 +65,10 @@ export function EmployeeScorecard({ employeeId, onOpenEntry }: { employeeId: num
         <Avatar src={profile?.photo_path} name={profile?.legal_name} size={88} />
         <div className="text-center">
           <p className="text-[15px] font-semibold leading-snug text-fg">{profile?.legal_name ?? (loading ? '…' : '—')}</p>
-          <p className="text-[12px] text-fg-subtle">{[profile?.job_position_name, profile?.department_name].filter(Boolean).join(', ')}</p>
+          <p className="text-[12px] text-fg-subtle">{[lt(profile?.job_position_name), lt(profile?.department_name)].filter(Boolean).join(', ')}</p>
         </div>
         <dl className="flex w-full flex-col gap-2.5 border-t border-line pt-4">
-          <Info icon={<Building2 size={14} />} label={t('kpi.colDepartment')} value={profile?.department_name} />
+          <Info icon={<Building2 size={14} />} label={t('kpi.colDepartment')} value={lt(profile?.department_name) || undefined} />
           <Info
             icon={<CalendarRange size={14} />}
             label={t('kpi.colPeriod')}
@@ -245,7 +246,7 @@ export function TeamTab() {
           </Button>
           <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold text-fg">{picked.legal_name}</p>
-            {picked.job_position_name && <p className="truncate text-[12px] text-fg-subtle">{picked.job_position_name}</p>}
+            {picked.job_position_name && <p className="truncate text-[12px] text-fg-subtle">{lt(picked.job_position_name)}</p>}
           </div>
         </div>
         <EmployeeScorecard employeeId={picked.employee_id} />
@@ -302,11 +303,11 @@ export function TeamTab() {
                       <Avatar src={m.photo_path} name={m.legal_name} size={32} />
                       <span className="min-w-0">
                         <span className="block truncate font-medium text-fg">{m.legal_name}</span>
-                        {m.job_position_name && <span className="block truncate text-[11.5px] text-fg-subtle">{m.job_position_name}</span>}
+                        {m.job_position_name && <span className="block truncate text-[11.5px] text-fg-subtle">{lt(m.job_position_name)}</span>}
                       </span>
                     </span>
                   </td>
-                  <td className={cn(TD, 'text-fg-muted')}>{m.department_name || '—'}</td>
+                  <td className={cn(TD, 'text-fg-muted')}>{lt(m.department_name) || '—'}</td>
                   <td className={cn(TD, 'text-center tabular-nums text-fg-muted')}>{m.entries_count}</td>
                   <td className={cn(TD, 'text-center')}>
                     <span className={cn('inline-block min-w-12 rounded-pill px-2 py-0.5 text-[12px] font-bold tabular-nums', TONE_TEXT[percentTone(m.result_percent)])}>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { Mail, Phone, RefreshCw, Save } from 'lucide-react'
@@ -149,7 +150,7 @@ function ApplicationRow({
 
   const vacancy =
     app.vacancy_title ||
-    [app.job_position_name, app.department_name].filter(Boolean).join(' — ') ||
+    [lt(app.job_position_name), lt(app.department_name)].filter(Boolean).join(' — ') ||
     `#${app.staff_position_id}`
 
   return (

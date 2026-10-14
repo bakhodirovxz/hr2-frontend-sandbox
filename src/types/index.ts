@@ -41,6 +41,7 @@ export type MultiOrgRole =
 export interface JobPosition {
   id?: number
   name?: string
+  name_ru?: string | null
   short_name?: string | null
   razryad?: number | null
   organization_branch_id?: number
@@ -52,6 +53,7 @@ export interface JobPosition {
 export interface Department {
   id?: number
   name?: string
+  name_ru?: string | null
   organization_branch_id?: number
   /** Embedded by DepartmentRead — present on employee payloads. */
   organization_branch?: OrganizationBranch | null

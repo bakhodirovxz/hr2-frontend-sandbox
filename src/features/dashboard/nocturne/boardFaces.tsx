@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { ln } from '@/i18n/display'
 import { Building2, CheckCircle2, Clock, DoorOpen, XCircle } from 'lucide-react'
 import { formatTime, getDisplayStatus, isInside, jobTitle } from '@/features/dashboard/attendance'
 import type { StatusCounts } from '@/features/dashboard/attendance'
@@ -83,7 +84,7 @@ export function AttendanceModal({
                   <PersonRow
                     key={r.id}
                     name={r.employee.legal_name ?? t('common.unknown')}
-                    meta={[jobTitle(r.employee), r.employee.department?.name].filter(Boolean).join(' · ')}
+                    meta={[jobTitle(r.employee), ln(r.employee.department)].filter(Boolean).join(' · ')}
                     photo={r.employee.photo_thumb_path}
                     onClick={() => {
                       onClose()
@@ -92,7 +93,7 @@ export function AttendanceModal({
                         name: r.employee.legal_name,
                         photo: r.employee.photo_thumb_path,
                         position: jobTitle(r.employee),
-                        department: r.employee.department?.name,
+                        department: ln(r.employee.department) || undefined,
                       })
                     }}
                     right={

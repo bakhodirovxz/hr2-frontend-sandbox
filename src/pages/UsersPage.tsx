@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { ArchiveRestore, KeyRound, LockOpen, MonitorSmartphone, Pencil, Plus, Power, PowerOff, ShieldCheck, Trash2 } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
@@ -203,7 +204,7 @@ export function UsersPage() {
       header: t('userAdmin.branch'),
       skeleton: 'w-40',
       className: 'text-fg-muted',
-      cell: (u) => u.organization_branch?.name || '—',
+      cell: (u) => lt(u.organization_branch?.name) || '—',
     },
     {
       key: 'status',

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Lock, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
@@ -131,8 +132,8 @@ export function RolesPage() {
       skeleton: 'w-56',
       className: 'max-w-[300px] text-fg-muted',
       cell: (g) => (
-        <span className="line-clamp-3" title={g.description ?? undefined}>
-          {g.description || '—'}
+        <span className="line-clamp-3" title={lt(g.description) || undefined}>
+          {lt(g.description) || '—'}
         </span>
       ),
     },

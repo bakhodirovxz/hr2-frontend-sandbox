@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -114,7 +115,7 @@ export function LateRankFace({ rows }: { rows: LateRankRow[] }) {
           </span>
           <PersonCell
             name={r.employee_name ?? t('common.unknown')}
-            sub={r.job_position_name ?? r.department_name ?? ''}
+            sub={lt(r.job_position_name ?? r.department_name)}
             photo={r.photo_thumb_path}
             photoFull={r.photo_path}
             size={30}
@@ -204,7 +205,7 @@ export function DeptAttendanceFace({ rows }: { rows: DepartmentAttendance[] }) {
             <IconCell icon={Building2} tone="brand" size={30} />
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
               <span className="truncate text-[12.5px] font-medium text-fg">
-                {r.department_name || t('common.unknown')}
+                {lt(r.department_name) || t('common.unknown')}
               </span>
               {g && (
                 <span className="truncate text-[11px] text-fg-subtle [font-variant-numeric:tabular-nums]">

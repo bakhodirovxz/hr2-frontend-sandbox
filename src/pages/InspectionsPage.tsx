@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { auditTitle, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -54,14 +55,14 @@ const STATUS_TONE: Record<string, BadgeTone> = { planned: 'warning', in_progress
 const SEV_TONE: Record<string, BadgeTone> = { low: 'neutral', medium: 'warning', high: 'danger' }
 const dmy = (d?: string | null) => (d ? dayjs(d).format('DD.MM.YYYY') : '—')
 const objectName = (r: Pick<Inspection, 'employee_name' | 'department_name' | 'process_name'>) =>
-  r.employee_name || r.department_name || r.process_name || '—'
+  r.employee_name || lt(r.department_name) || r.process_name || '—'
 const isOpen = (s?: string) => s === 'planned' || s === 'in_progress'
 
 /** Same name in several organisations — the label carries the organisation once more than one is visible. */
 function useIndicatorLabel(all: AuditIndicator[]) {
   const { t } = useTranslation()
   const multi = new Set(all.map((i) => i.organization_branch_id ?? 'g')).size > 1
-  return (i: AuditIndicator) => (multi ? `${i.name} — ${i.organization_branch_name || t('inspections.central')}` : i.name)
+  return (i: AuditIndicator) => (multi ? `${i.name} — ${lt(i.organization_branch_name) || t('inspections.central')}` : i.name)
 }
 
 /**
@@ -116,7 +117,7 @@ export function InspectionsPage() {
       header: t('inspections.colTitle'),
       cell: (r) => (
         <span className="flex min-w-0 max-w-[26rem] flex-col">
-          <span className="line-clamp-2 font-medium text-fg">{r.title}</span>
+          <span className="line-clamp-2 font-medium text-fg">{auditTitle(r.title)}</span>
           <span className="truncate text-[12px] text-fg-subtle">
             {t(`inspections.object_${r.object_type}` as never, { defaultValue: r.object_label ?? '' })}: {objectName(r)}
           </span>
@@ -468,7 +469,7 @@ function DetailDrawer({
       onClose={onClose}
       placement="right"
       size="lg"
-      title={d?.title ?? t('inspections.details')}
+      title={d?.title ? auditTitle(d.title) : t('inspections.details')}
       description={d ? `${t(`inspections.object_${d.object_type}` as never, { defaultValue: d.object_label ?? '' })}: ${objectName(d)} · ${dmy(d.period_start)} — ${dmy(d.period_end)}` : undefined}
     >
       {loading ? (
@@ -491,7 +492,7 @@ function DetailDrawer({
                   <Repeat size={13} className="text-brand" aria-hidden />
                   {t('kpiExt.followUpOf')}:
                   <button type="button" className="font-medium text-brand hover:underline" onClick={() => onOpen(d.parent_inspection_id as number)}>
-                    {d.parent_inspection_title || `#${d.parent_inspection_id}`}
+                    {d.parent_inspection_title ? auditTitle(d.parent_inspection_title) : `#${d.parent_inspection_id}`}
                   </button>
                 </span>
               )}
@@ -582,7 +583,7 @@ function DetailDrawer({
             {d.branch_name && (
               <>
                 <dt className="text-fg-subtle">{t('inspections.organisation')}</dt>
-                <dd className="text-fg">{d.branch_name}</dd>
+                <dd className="text-fg">{lt(d.branch_name)}</dd>
               </>
             )}
           </dl>
@@ -818,7 +819,7 @@ function CompleteModal({ row, onClose }: { row: Inspection | null; onClose: () =
       open={!!row}
       onClose={onClose}
       title={t('inspections.completeTitle')}
-      description={row?.title}
+      description={auditTitle(row?.title)}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
@@ -884,7 +885,7 @@ function CancelModal({ row, onClose }: { row: Inspection | null; onClose: () => 
       open={!!row}
       onClose={onClose}
       title={t('inspections.cancelTitle')}
-      description={row?.title}
+      description={auditTitle(row?.title)}
       size="sm"
       footer={
         <>

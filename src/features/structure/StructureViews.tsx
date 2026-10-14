@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
@@ -134,7 +135,7 @@ export function DepartmentTreeView({
           <button type="button" onClick={() => onOpen(n)} className="flex h-full min-w-0 flex-1 items-center gap-2.5 text-left">
             <Building2 size={15} className={cn('shrink-0', depth === 0 ? 'text-brand-strong' : 'text-fg-subtle')} />
             <span className={cn('truncate text-[14px] group-hover:text-brand-strong', depth === 0 ? 'font-semibold text-fg' : 'text-fg')}>
-              <Highlight text={n.name} query={query} />
+              <Highlight text={ln(n.raw) || n.name} query={query} />
             </span>
             {n.code && (
               <span className="shrink-0 rounded-tag border border-line bg-surface-2 px-1.5 text-[11px] text-fg-muted">
@@ -204,9 +205,9 @@ export function DepartmentListView({
     () =>
       flattenTree(roots).map(({ node }) => ({
         node,
-        name: node.name,
+        name: ln(node.raw) || node.name,
         code: node.code,
-        parent: node.parent_id != null ? byId.get(node.parent_id)?.name ?? '' : '',
+        parent: node.parent_id != null ? ln(byId.get(node.parent_id)?.raw) || byId.get(node.parent_id)?.name || '' : '',
         head: headNames(node).join(', '),
         staff: node.raw.staff_count ?? null,
       })),

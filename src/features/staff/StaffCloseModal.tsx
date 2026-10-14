@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Button, Field, Input, Modal, useToast } from '@/components/ui'
 import { FormError } from '@/components/ui/FormError'
@@ -46,7 +47,7 @@ export function StaffCloseModal({ row, onClose }: { row: StaffPosition | null; o
       onClose={onClose}
       size="sm"
       title={reopening ? t('orgRef.reopenReasonTitle') : t('orgRef.reduceReasonTitle')}
-      description={row ? `${row.department_name ?? ''} · ${row.job_position_name ?? ''}` : undefined}
+      description={row ? `${lt(row.department_name)} · ${lt(row.job_position_name)}` : undefined}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={setClosed.isPending}>

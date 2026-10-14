@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { ln, lt } from '@/i18n/display'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BriefcaseBusiness, CalendarClock, Columns3, Download, FileSpreadsheet, FileText, Filter, Inbox, Megaphone, Pencil, Send, Share2 } from 'lucide-react'
@@ -287,21 +288,21 @@ function VacancyList({ lp }: { lp: ListParams }) {
       header: t('vacancies.colOrg'),
       skeleton: 'w-40',
       sortValue: (r) => sortValue(r, 'organization'),
-      cell: (r) => <span className="text-fg-muted">{r.organization?.name || '—'}</span>,
+      cell: (r) => <span className="text-fg-muted">{lt(r.organization?.name) || '—'}</span>,
     },
     {
       key: 'department',
       header: t('vacancies.colDept'),
       skeleton: 'w-32',
       sortValue: (r) => sortValue(r, 'department'),
-      cell: (r) => <span className="text-fg-muted">{r.department?.name || '—'}</span>,
+      cell: (r) => <span className="text-fg-muted">{ln(r.department) || '—'}</span>,
     },
     {
       key: 'job_position',
       header: t('vacancies.colJob'),
       skeleton: 'w-36',
       sortValue: (r) => sortValue(r, 'job_position'),
-      cell: (r) => <span className="font-semibold text-fg">{r.job_position?.name || '—'}</span>,
+      cell: (r) => <span className="font-semibold text-fg">{ln(r.job_position) || '—'}</span>,
     },
     {
       key: 'requirements',
@@ -544,8 +545,8 @@ function VacancyDrawer({
       onClose={onClose}
       placement="right"
       size="md"
-      title={v?.job_position?.name || t('vacancies.vacancy')}
-      description={v ? [v.department?.name, v.organization?.name].filter(Boolean).join(' · ') : undefined}
+      title={ln(v?.job_position) || t('vacancies.vacancy')}
+      description={v ? [ln(v.department), lt(v.organization?.name)].filter(Boolean).join(' · ') : undefined}
     >
       {!v ? (
         loading ? (
@@ -565,8 +566,8 @@ function VacancyDrawer({
                 {v.status === 'closed' ? t('vacancies.statusClosed') : v.status === 'paused' ? t('ordVac.vacPaused') : t('vacancies.statusOpen')}
               </Badge>
             </Fact>
-            <Fact label={t('vacancies.colOrg')}>{v.organization?.name}</Fact>
-            <Fact label={t('vacancies.colDept')}>{v.department?.name}</Fact>
+            <Fact label={t('vacancies.colOrg')}>{lt(v.organization?.name)}</Fact>
+            <Fact label={t('vacancies.colDept')}>{ln(v.department)}</Fact>
             <Fact label={t('vacancies.colVacant')}>{v.vacant_count != null ? fmtCount(v.vacant_count) : null}</Fact>
             <Fact label={t('vacancies.colReq')}>{v.requirements}</Fact>
             <Fact label={t('vacancies.experience')}>{v.experience_years != null ? String(v.experience_years) : null}</Fact>
@@ -752,10 +753,10 @@ function MyApplications() {
       cell: (a) => (
         <div className="min-w-0">
           <p className="font-semibold text-fg">
-            {a.job_position_name || a.vacancy_title || t('vacancies.staffUnit', { id: a.staff_position_id })}
+            {lt(a.job_position_name) || a.vacancy_title || t('vacancies.staffUnit', { id: a.staff_position_id })}
           </p>
           {(a.department_name || a.organization_name) && (
-            <p className="text-[12px] text-fg-muted">{[a.department_name, a.organization_name].filter(Boolean).join(' · ')}</p>
+            <p className="text-[12px] text-fg-muted">{[lt(a.department_name), a.organization_name].filter(Boolean).join(' · ')}</p>
           )}
         </div>
       ),

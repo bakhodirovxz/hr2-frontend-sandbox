@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
@@ -249,9 +250,9 @@ export function AuditLogPage() {
       skeleton: 'w-40',
       sortValue: () => 0,
       cell: (row) => {
-        const branch = row.actor_branch_name || row.organization_branch_name
+        const branch = lt(row.actor_branch_name || row.organization_branch_name)
         const target =
-          row.organization_branch_name && row.organization_branch_name !== branch ? row.organization_branch_name : null
+          row.organization_branch_name && lt(row.organization_branch_name) !== branch ? lt(row.organization_branch_name) : null
         return (
           <div className="min-w-0 max-w-[240px]">
             <p className="truncate text-[13px] font-medium text-fg">{row.employee_name || t('common.unknown')}</p>
@@ -542,8 +543,8 @@ function AuditDetailModal({
     ? [
         [t('audit.colTime'), row.created_at ? formatDateTime(row.created_at) : '—'],
         [t('audit.colUser'), row.employee_name || '—'],
-        [t('audit.colActorBranch'), row.actor_branch_name || '—'],
-        [t('audit.colTargetBranch'), row.organization_branch_name || '—'],
+        [t('audit.colActorBranch'), lt(row.actor_branch_name) || '—'],
+        [t('audit.colTargetBranch'), lt(row.organization_branch_name) || '—'],
         [t('audit.colAction'), actionLabel(row.action)],
         [t('audit.colResult'), <ResultMark key="r" failure={failure} />],
         [

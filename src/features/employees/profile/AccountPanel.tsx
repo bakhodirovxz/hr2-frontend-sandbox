@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import {
@@ -99,8 +100,8 @@ export function AccountPanel({ employee }: { employee: MyEmployee | null }) {
               <InfoRow icon={<AtSign />} label={t('account.login')} value={user?.username} />
               <InfoRow icon={<Mail />} label={t('account.email')} value={accountEmail(user)} />
               <InfoRow icon={<ShieldCheck />} label={t('account.role')} value={role} />
-              <InfoRow icon={<Briefcase />} label={t('account.position')} value={emp?.job_position?.name} />
-              <InfoRow icon={<Building2 />} label={t('account.department')} value={emp?.department?.name} />
+              <InfoRow icon={<Briefcase />} label={t('account.position')} value={ln(emp?.job_position) || undefined} />
+              <InfoRow icon={<Building2 />} label={t('account.department')} value={ln(emp?.department) || undefined} />
               <InfoRow icon={<CalendarPlus />} label={t('account.createdAt')} value={fmtDateTime(user?.created_at)} />
               <InfoRow icon={<LogIn />} label={t('account.lastLogin')} value={fmtDateTime(user?.last_login_at)} />
             </dl>

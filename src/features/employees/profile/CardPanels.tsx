@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Building2, Clock, ExternalLink, FileText, History, Route, Search } from 'lucide-react'
@@ -39,7 +40,7 @@ export function OrdersTab({ employeeId }: { employeeId: number }) {
           : s === 'draft'
             ? t('personnel.orders.draft')
             : t('personnel.orders.inProgress')
-  const text = (o: EmployeeOrder) => o.short_text || o.summary || o.name || o.category_rel?.name || '—'
+  const text = (o: EmployeeOrder) => o.short_text || o.summary || o.name || ln(o.category_rel) || '—'
 
   return (
     <T2Section icon={<FileText size={15} />} title={t('personnel.tabs.orders')}>
@@ -70,7 +71,7 @@ export function OrdersTab({ employeeId }: { employeeId: number }) {
                   <td className="whitespace-nowrap py-2 pr-3 text-fg-muted">{o.act_number ? `№${o.act_number}` : '—'}</td>
                   <td className="max-w-[380px] py-2 pr-3 text-fg">
                     <span className="line-clamp-2">{text(o)}</span>
-                    {o.category_rel?.name && <span className="mt-0.5 block text-[11px] text-fg-subtle">{o.category_rel.name}</span>}
+                    {o.category_rel?.name && <span className="mt-0.5 block text-[11px] text-fg-subtle">{ln(o.category_rel)}</span>}
                     {o.mentioned && <span className="mt-0.5 block text-[11px] text-brand">{t('ordVac.mentionedInText')}</span>}
                   </td>
                   <td className="py-2 pr-3">

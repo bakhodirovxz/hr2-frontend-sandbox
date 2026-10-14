@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { CalendarCheck2, CalendarPlus, CheckCircle2, Copy, Download, Flag, ListPlus, PlayCircle, Plus, Trash2, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -146,7 +147,7 @@ export function KpiScorecardsTab() {
       header: t('kpi.colDepartment'),
       skeleton: 'w-32',
       className: 'text-fg-muted',
-      cell: (p) => <span className="line-clamp-2">{p.department_name || '—'}</span>,
+      cell: (p) => <span className="line-clamp-2">{lt(p.department_name) || '—'}</span>,
     },
     {
       key: 'period',

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -220,7 +221,7 @@ function BackupsPageInner() {
       className: 'max-w-[240px] text-fg-muted',
       cell: (b) => (
         <>
-          <span className="break-words">{b.description || '—'}</span>
+          <span className="break-words">{lt(b.description) || '—'}</span>
           {b.safety && <span className="mt-0.5 block text-[11.5px] text-fg-subtle">{t('backups.safetyCopy')}</span>}
           {b.status === 'failed' && b.error && (
             <span className="mt-0.5 block break-words text-[12px] text-danger" title={b.error_detail ?? undefined}>

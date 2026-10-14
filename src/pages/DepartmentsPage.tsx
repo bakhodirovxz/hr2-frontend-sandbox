@@ -1,4 +1,5 @@
 import { inTashkent } from '@/lib/format'
+import { ln } from '@/i18n/display'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -119,7 +120,7 @@ export function DepartmentsPage() {
             }}
             className="truncate text-left font-semibold text-fg hover:text-brand-strong hover:underline"
           >
-            {d.name || '—'}
+            {ln(d) || '—'}
           </button>
           {d.closed_at && <Badge tone="warning">{t('orgAdmin.closedBadge')}</Badge>}
         </span>
