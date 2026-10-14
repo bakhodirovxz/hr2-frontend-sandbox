@@ -57,13 +57,13 @@ export interface BackupSchedule {
 }
 
 export const SCHEDULE_DEFAULTS: BackupSchedule = {
-  enabled: false,
+  enabled: true, // TZ 1793: daily backup on by default (server default too)
   hour: 2,
   type: 'full',
   storage: 'local',
   keep_last: 7,
   compression_level: 6,
-  encrypt: false,
+  encrypt: true, // TZ 2350: encrypted unless unticked
   frequency: 'daily',
   weekday: 0,
   day_of_month: 1,
