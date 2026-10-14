@@ -241,10 +241,10 @@ export const ADMIN_GUIDE: GuideSection[] = [
 ]
 
 /** Joriy manzilga eng mos bo'lim (eng UZUN prefiks bo'yicha). */
-export function guideSectionForPath(pathname: string): GuideSection | null {
+export function guideSectionForPath(pathname: string, sections: GuideSection[] = ADMIN_GUIDE): GuideSection | null {
   let best: GuideSection | null = null
   let bestLen = -1
-  for (const section of ADMIN_GUIDE) {
+  for (const section of sections) {
     for (const route of section.routes) {
       const match = route === '/' ? pathname === '/' : pathname.startsWith(route)
       if (match && route.length > bestLen) {

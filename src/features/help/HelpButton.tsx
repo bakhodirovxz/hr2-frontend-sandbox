@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, BookOpen, Info, Search, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useDynamicT } from '@/i18n/dynamicKey'
-import { ADMIN_GUIDE, guideSectionForPath, type GuideBlock, type GuideSection } from './adminGuide'
+import { guideSectionForPath, type GuideBlock, type GuideSection } from './adminGuide'
+import { guideModeFor, guideSections, guideTitleKey } from './userGuide'
+import { useAuthStore } from '@/store/authStore'
 import { Select } from '@/components/ui/Select'
 import { control } from '@/components/ui/control'
 
@@ -22,14 +24,19 @@ export function HelpButton() {
   // Qo'llanma bloklari kalitni MA'LUMOT sifatida saqlaydi (adminGuide.ts).
   const tk = useDynamicT()
   const location = useLocation()
+  // F1 is role-aware: administrators/HR get the administrator guide, guests a
+  // short guest guide, everyone else the user guide.
+  const mode = guideModeFor(useAuthStore((s) => s.user))
+  const GUIDE = useMemo(() => guideSections(mode), [mode])
+  const titleKey = guideTitleKey(mode)
   const [open, setOpen] = useState(false)
-  const [activeId, setActiveId] = useState<string>(ADMIN_GUIDE[0].id)
+  const [activeId, setActiveId] = useState<string>(GUIDE[0].id)
   const [q, setQ] = useState('')
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const openFor = (pathname: string) => {
-    const section = guideSectionForPath(pathname)
-    setActiveId(section ? section.id : ADMIN_GUIDE[0].id)
+    const section = guideSectionForPath(pathname, GUIDE)
+    setActiveId(section ? section.id : GUIDE[0].id)
     setOpen(true)
   }
 
@@ -41,8 +48,8 @@ export function HelpButton() {
         e.preventDefault()
         setOpen((v) => {
           if (!v) {
-            const section = guideSectionForPath(window.location.pathname)
-            setActiveId(section ? section.id : ADMIN_GUIDE[0].id)
+            const section = guideSectionForPath(window.location.pathname, GUIDE)
+            setActiveId(section ? section.id : GUIDE[0].id)
           }
           return !v
         })
@@ -56,7 +63,7 @@ export function HelpButton() {
   // Sahifa almashsa kontekst ham yangilanadi (oyna ochiq bo'lsa).
   useEffect(() => {
     if (!open) return
-    const section = guideSectionForPath(location.pathname)
+    const section = guideSectionForPath(location.pathname, GUIDE)
     if (section) setActiveId(section.id)
   }, [location.pathname, open])
 
@@ -77,20 +84,20 @@ export function HelpButton() {
 
   const sections = useMemo(() => {
     const term = q.trim().toLowerCase()
-    if (!term) return ADMIN_GUIDE
-    return ADMIN_GUIDE.filter((s) => sectionText(s).includes(term))
+    if (!term) return GUIDE
+    return GUIDE.filter((s) => sectionText(s).includes(term))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, t])
+  }, [q, t, GUIDE])
 
-  const active = ADMIN_GUIDE.find((s) => s.id === activeId) ?? ADMIN_GUIDE[0]
+  const active = GUIDE.find((s) => s.id === activeId) ?? GUIDE[0]
 
   return (
     <>
       <button
         type="button"
         onClick={() => openFor(location.pathname)}
-        aria-label={t('guide.title')}
-        title={`${t('guide.title')} (F1)`}
+        aria-label={tk(titleKey)}
+        title={`${tk(titleKey)} (F1)`}
         className="grid h-icon w-icon place-items-center rounded-inner text-fg-muted transition-colors hover:bg-fg/[0.08] hover:text-fg"
       >
         <BookOpen size={18} />
@@ -107,14 +114,14 @@ export function HelpButton() {
             />
             <div
               role="dialog"
-              aria-label={t('guide.title')}
+              aria-label={tk(titleKey)}
               data-lv-surface
               className="relative flex h-full max-h-[86vh] w-full max-w-[1000px] flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-pop"
             >
               <div className="flex items-center gap-3 border-b border-line px-5 py-3.5">
                 <BookOpen size={18} className="shrink-0 text-brand-strong" />
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-[15px] font-medium text-fg">{t('guide.title')}</h2>
+                  <h2 className="truncate text-[15px] font-medium text-fg">{tk(titleKey)}</h2>
                   <p className="text-xs text-fg-muted">{t('guide.subtitle')}</p>
                 </div>
                 <kbd className="hidden rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-fg-subtle sm:inline">
@@ -172,7 +179,7 @@ export function HelpButton() {
                     value={activeId}
                     onChange={(e) => setActiveId(e.target.value)}
                     aria-label={t('guide.section')}
-                    options={ADMIN_GUIDE.map((s) => ({ value: s.id, label: tk(s.titleKey) }))}
+                    options={GUIDE.map((s) => ({ value: s.id, label: tk(s.titleKey) }))}
                     wrapperClassName="mb-4 md:hidden"
                   />
 
