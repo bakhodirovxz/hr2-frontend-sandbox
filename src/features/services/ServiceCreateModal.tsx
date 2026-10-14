@@ -94,6 +94,8 @@ export function ServiceCreateModal({
   const [category, setCategory] = useState('')
   const [type, setType] = useState<string>('')
   const [purpose, setPurpose] = useState('')
+  // TZ I1 1608 «Комментарий пользователя» (certificates; a guest writes about himself).
+  const [comment, setComment] = useState('')
   const [branchId, setBranchId] = useState('')
   const [payload, setPayload] = useState<Payload>(BLANK)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -117,6 +119,7 @@ export function ServiceCreateModal({
       const p = prefill.payload ?? {}
       setType(prefill.type)
       setPurpose(prefill.purpose ?? '')
+      setComment(p.comment == null ? '' : String(p.comment))
       setPayload(
         Object.fromEntries(
           (Object.keys(BLANK) as (keyof Payload)[]).map((k) => [k, p[k] == null ? '' : String(p[k])]),
@@ -126,6 +129,7 @@ export function ServiceCreateModal({
       return
     }
     setPurpose('')
+    setComment('')
     setPayload(BLANK)
     setBranchId('')
     setType(initialType ?? (usable.find((c) => c.available) ?? usable[0])?.type ?? '')
@@ -181,6 +185,8 @@ export function ServiceCreateModal({
       if (!payload.last_name.trim()) local.last_name = t('svc.required')
       if (!payload.first_name.trim()) local.first_name = t('svc.required')
       if (!payload.phone.trim()) local.phone = t('svc.required')
+      // TZ 2284: the application is FOR a position — it must be named.
+      if (payload.position.trim().length < 2) local.position = t('svc.required')
     } else if (purpose.trim().length < 3) {
       local.purpose = t('svc.purposeRequired')
     }
@@ -199,7 +205,11 @@ export function ServiceCreateModal({
         service_type: type,
         purpose: purpose.trim() || null,
         organization_branch_id: isApplication && branchId ? Number(branchId) : null,
-        payload: isApplication ? { ...payload, full_name: fullName || null } : null,
+        payload: isApplication
+          ? { ...payload, full_name: fullName || null }
+          : comment.trim()
+            ? { comment: comment.trim() }
+            : null,
       })
       if (queue.items.some((x) => x.state === 'pending')) {
         setCreatedId(d.id)
@@ -347,7 +357,7 @@ export function ServiceCreateModal({
                 ))}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label={t('svc.field_position')}>
+                <Field label={t('svc.field_position')} required error={fieldErrors.position || undefined}>
                   <Input value={payload.position} disabled={locked} onChange={(e) => setField('position', e.target.value)} />
                 </Field>
                 <Field label={t('svc.field_phone')} required error={fieldErrors.phone || undefined}>
@@ -388,6 +398,19 @@ export function ServiceCreateModal({
               }}
             />
           </Field>
+
+          {!isApplication && (
+            <Field label={t('svc.commentLabel')} error={fieldErrors.comment || undefined}>
+              <Textarea
+                value={comment}
+                disabled={locked}
+                rows={2}
+                maxLength={2000}
+                placeholder={t('svc.commentHint')}
+                onChange={(e) => setComment(e.target.value)}
+              />
+            </Field>
+          )}
 
           <div className="grid gap-2">
             <p className="text-[12.5px] font-medium text-fg">

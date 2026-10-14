@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { ChevronRight, Clock, Download, UsersRound, UserX } from 'lucide-react'
+import { ChevronRight, Clock, Download, Upload, UsersRound, UserX } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -20,7 +20,7 @@ import { errorMessage } from '@/api/errorMessage'
 import { TURNSTILE_ATTENDANCE_EVENTS } from '@/api/endpoints'
 import { downloadFile, XLSX_MIME } from '@/lib/download'
 import { monthShort } from '@/lib/format'
-import { canWrite } from '@/auth/permissions'
+import { canWrite, isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import { CAL_COLOR, CAL_LABEL, LEGEND_STATUSES, mapCalStatus } from '@/features/attendance/attendanceStatus'
@@ -28,6 +28,7 @@ import { AttendanceDetailDrawer } from '@/features/attendance/AttendanceDetailDr
 import { CalendarStrip } from '@/features/attendance/CalendarStrip'
 import { LateDaysModal } from '@/features/attendance/LateDaysModal'
 import { ManualAttendanceModal } from '@/features/attendance/ManualAttendanceModal'
+import { SkudImportModal } from '@/features/attendance/SkudImportModal'
 import { BulkAttendanceModal } from '@/features/attendance/BulkAttendanceModal'
 import { formatHours } from '@/features/attendance/period'
 import {
@@ -103,6 +104,8 @@ export function AttendancePage() {
   const [lateFor, setLateFor] = useState<AttendanceRow | null>(null)
   const [photo, setPhoto] = useState<AttendanceRow | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
+  // TZ I2 1639 «Импорт данных из СКУД» — the same people who keep the record.
+  const [skudOpen, setSkudOpen] = useState(false)
 
   const rangeChanged = from !== def.from || to !== def.to
   const filterCount = [filters.dept, filters.pos, filterType, search].filter(Boolean).length + (rangeChanged ? 1 : 0)
@@ -280,6 +283,11 @@ export function AttendancePage() {
                 {t('sysOps.bulkTitle')}
               </Button>
             )}
+            {canCorrect && (
+              <Button size="sm" variant="secondary" leftIcon={<Upload size={14} />} onClick={() => setSkudOpen(true)}>
+                {t('skud.button')}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -439,6 +447,9 @@ export function AttendancePage() {
         <ManualAttendanceModal employee={correcting} defaultDate={from} onClose={() => setCorrecting(null)} />
       )}
       {canCorrect && <BulkAttendanceModal open={bulkOpen} onClose={() => setBulkOpen(false)} />}
+      {canCorrect && (
+        <SkudImportModal open={skudOpen} onClose={() => setSkudOpen(false)} canPull={isSiteMasterAdmin(user)} />
+      )}
       <LateDaysModal
         open={lateFor != null}
         onClose={() => setLateFor(null)}

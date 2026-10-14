@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Ban, Check, Download, FileText, MessageSquare, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import axios from 'axios'
-import { Button, Field, Input, Modal, Textarea, useToast } from '@/components/ui'
+import { Button, Field, Input, Modal, Select, Textarea, useToast } from '@/components/ui'
 import { CenteredSpinner } from '@/components/ui/Spinner'
 import { FormError } from '@/components/ui/FormError'
 import { LoadError } from '@/components/data/LoadError'
@@ -23,6 +23,7 @@ import {
   isOwnRequest,
   useServiceMutations,
   useServiceRequest,
+  useServiceReviewers,
   type ServiceRequestDetail,
   type ServiceStatus,
 } from './useServices'
@@ -129,7 +130,9 @@ function DetailBody({
   const { t } = useTranslation()
   const toast = useToast()
   const confirm = useConfirm()
-  const { changeStatus, cancel, buildDocument, update } = useServiceMutations()
+  const { changeStatus, cancel, buildDocument, update, assign } = useServiceMutations()
+  const reviewers = useServiceReviewers(request.id, reviewer)
+  const [docNotes, setDocNotes] = useState(String(request.payload?.document_notes ?? ''))
 
   const isApplication = request.service_type === JOB_APPLICATION
   const editable = request.status === EDITABLE_STATUS
@@ -280,6 +283,8 @@ function DetailBody({
       v != null &&
       String(v).trim() !== '' &&
       !RESULT_KEYS.includes(k) &&
+      // HR's document text is edited in the reviewer block, not listed as data.
+      !(k === 'document_notes' && reviewer) &&
       !(k === 'full_name' && request.payload?.last_name),
   )
 
@@ -419,6 +424,33 @@ function DetailBody({
               />
             </Field>
           )}
+          {/* TZ 4.2.12 · 2292 «Передача заявки … соответствующему специалисту». */}
+          {request.status !== 'cancelled' && reviewers.length > 0 && (
+            <Field label={t('services.assignee')}>
+              <Select
+                value={request.assignee_id ? String(request.assignee_id) : ''}
+                disabled={!!busy}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  if (!v) return
+                  void run(
+                    'assign',
+                    () => assign.mutateAsync({ id: request.id, status: request.status, assigneeId: v }),
+                    t('svc.assigned'),
+                  )
+                }}
+                options={[
+                  { value: '', label: t('svc.assigneeNone') },
+                  ...reviewers.map((r) => ({ value: String(r.id), label: r.is_me ? `${r.name} (${t('svc.me')})` : r.name })),
+                ]}
+              />
+            </Field>
+          )}
+          {canBuild && (
+            <Field label={t('svc.docNotes')} hint={t('svc.docNotesHint')}>
+              <Textarea rows={3} value={docNotes} maxLength={4000} onChange={(e) => setDocNotes(e.target.value)} />
+            </Field>
+          )}
           <div className="flex flex-wrap gap-2">
             {nextStates.map((s) => (
               <Button
@@ -447,7 +479,7 @@ function DetailBody({
                 leftIcon={<FileText size={14} />}
                 onClick={async () => {
                   if (!(await confirm({ kind: 'action', confirmLabel: t('services.buildDocument') }))) return
-                  await run('doc', () => buildDocument.mutateAsync(request.id), t('services.documentBuilt'))
+                  await run('doc', () => buildDocument.mutateAsync({ id: request.id, notes: docNotes }), t('services.documentBuilt'))
                 }}
               >
                 {t('services.buildDocument')}
