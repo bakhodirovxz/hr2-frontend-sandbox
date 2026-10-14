@@ -58,6 +58,8 @@ export interface VacancyFilters {
   vacant_count_min: string
   date_from: string
   date_to: string
+  /** TZ V3 1311 status filter: '' = open (default), paused, closed. */
+  status?: string
 }
 
 export type VacancySortKey =
@@ -78,19 +80,26 @@ function vacancyParams(filters: VacancyFilters, sort: VacancySortKey, order: 'as
     vacant_count_min: filters.vacant_count_min !== '' ? Number(filters.vacant_count_min) : undefined,
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
+    status: filters.status || undefined,
     sort,
     order,
   }
 }
 
 /** `POST staff-positions/vacancies/export?format=` — same filters as the list; every signed-in user. */
-export const exportVacancies = (filters: VacancyFilters, sort: VacancySortKey, order: 'asc' | 'desc', format: 'xlsx' | 'pdf') =>
+export const exportVacancies = (
+  filters: VacancyFilters,
+  sort: VacancySortKey,
+  order: 'asc' | 'desc',
+  format: 'xlsx' | 'pdf',
+  columns: string[] = [],
+) =>
   downloadFile({
     url: 'staff-positions/vacancies/export',
     method: 'post',
     mime: format === 'pdf' ? PDF_MIME : XLSX_MIME,
     filename: `Vakansiyalar_${dayjs().format('DD.MM.YYYY')}.${format}`,
-    params: { ...vacancyParams(filters, sort, order), format },
+    params: { ...vacancyParams(filters, sort, order), format, columns: columns.length ? columns : undefined },
   })
 
 /** The vacancy's own link: `/vacancies?open={id}` opens its card (absolute URL). */

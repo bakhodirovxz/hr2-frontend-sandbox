@@ -20,16 +20,18 @@ import { useStaffExportColumns } from './useStaffPositions'
  * full export rather than an empty one.
  */
 export function ExportColumnsModal({
-  open, onClose, selected, onApply,
+  open, onClose, selected, onApply, url,
 }: {
   open: boolean
+  /** Column list endpoint (default: the staffing export). */
+  url?: string
   onClose: () => void
   selected: string[]
   onApply: (keys: string[]) => void
 }) {
   const { t } = useTranslation()
   const st = useServerText()
-  const { data: columns = [], isLoading } = useStaffExportColumns(open)
+  const { data: columns = [], isLoading } = useStaffExportColumns(open, url)
   const [draft, setDraft] = useState<string[]>(selected)
 
   // Re-seed each time the dialog opens so a cancelled edit does not linger.

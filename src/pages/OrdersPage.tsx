@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import {
-  BarChart3,
   CheckCircle2,
   Download,
   FilePen,
@@ -39,9 +38,7 @@ import { SearchInput } from '@/components/data/SearchInput'
 import { useConfirm } from '@/components/data/useConfirm'
 import { useListParams } from '@/hooks/useListParams'
 import { useDebounce } from '@/hooks/useDebounce'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useDepartmentOptions } from '@/hooks/useReferenceData'
-import { readsOrg } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
 import { fmtDate } from '@/features/orders/format'
@@ -54,7 +51,6 @@ import { OrderDetailDrawer, submitLabel } from '@/features/orders/OrderDetailDra
 import { OrderDocumentViewer } from '@/features/orders/OrderDocumentViewer'
 import { OrderFormDrawer } from '@/features/orders/OrderFormDrawer'
 import { OrderLockedDialog, WithdrawOrderModal } from '@/features/orders/OrderCorrection'
-import { OrderStats } from '@/features/orders/OrderStats'
 import { OrderStatusBadge, decreeStatusLabel } from '@/features/orders/OrderStatusBadge'
 import { RejectReasonModal } from '@/features/orders/RejectReasonModal'
 import {
@@ -62,13 +58,14 @@ import {
   canCorrectOrder,
   canManageOrders,
   canWithdrawOrder,
+  editNeedsWithdraw,
   isOrderLockedError,
   isDecreeOrder,
   isOrdersHr,
   isOrdersManagement,
   orderPowers,
 } from '@/features/orders/orderFlow'
-import { ORDER_TYPE_CODES, orderTypeLabel } from '@/features/orders/orderTypes'
+import { ORDER_TYPE_CODES } from '@/features/orders/orderTypes'
 import {
   exportOrders,
   useOrderList,
@@ -115,12 +112,12 @@ export function OrdersPage() {
   const isHr = isOrdersHr(user)
   const management = isOrdersManagement(user)
   const canManage = canManageOrders(user)
-  const showAnalytics = readsOrg(user, 'orders')
-  const wide = useMediaQuery('(min-width: 1024px)')
-  const [analyticsOpen, setAnalyticsOpen] = useState(wide)
   const me = user?.employee?.id
 
-  const tab: HrTab = isHr && (filters.tab === 'my' || filters.tab === 'sign') ? filters.tab : 'all'
+  // HR: all / mine / to sign; leadership (TZ O3 «все роли»): every order it
+  // may read, with what waits for its signature as a separate tab.
+  const tab: HrTab =
+    (isHr && (filters.tab === 'my' || filters.tab === 'sign')) || (management && filters.tab === 'sign') ? filters.tab : 'all'
   const status = (STATUS_FILTER as string[]).includes(filters.status) ? filters.status : ''
   const type = (ORDER_TYPE_CODES as readonly string[]).includes(filters.type) ? filters.type : ''
   const asOfActive = !!filters.asof
@@ -150,8 +147,9 @@ export function OrdersPage() {
         p.employee_id = emp
       } else p.employee_id = emp
     } else if (management) {
-      // Leadership sees what it is assigned to sign, across every branch.
-      p.assigned_signer = true
+      // Leadership reads every order of its level; «Imzolash uchun» narrows
+      // the list to what it is assigned to sign.
+      if (tab === 'sign') p.assigned_signer = true
       p.organization_branch_id = null
       p.employee_id = emp
     } else p.employee_id = emp
@@ -205,10 +203,19 @@ export function OrdersPage() {
 
   const [detailId, setDetailId] = useState<number | null>(null)
   const [docOrder, setDocOrder] = useState<OrderAct | null>(null)
+  const [docPrint, setDocPrint] = useState(false)
   const [form, setForm] = useState<{ open: boolean; editId: number | null; correctsId?: number | null }>({ open: false, editId: null })
   // TZ O2 1224: a locked order (409 `order_locked`) and «Kelishuvdan qaytarib olish».
   const [locked, setLocked] = useState<{ id: number; number?: string | null } | null>(null)
   const [withdrawTarget, setWithdrawTarget] = useState<OrderAct | null>(null)
+  // TZ O2 1224: withdrawal offered by «Tahrirlash»; the form opens after it.
+  const [withdrawForEdit, setWithdrawForEdit] = useState(false)
+  const startEdit = (row: OrderAct) => {
+    if (editNeedsWithdraw(row, user)) {
+      setWithdrawForEdit(true)
+      setWithdrawTarget(row)
+    } else setForm({ open: true, editId: row.id })
+  }
   const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
   const openCorrective = (id: number) => {
     setLocked(null)
@@ -249,9 +256,8 @@ export function OrdersPage() {
   const departmentOptions = useDepartmentOptions(selectedBranchId)
   const [empKnown, setEmpKnown] = useState<SelectOption[]>([])
   const statusOptions = STATUS_FILTER.map((s) => ({ value: s, label: decreeStatusLabel(t, s) }))
-  const typeOptions = ORDER_TYPE_CODES.map((c) => ({ value: c, label: orderTypeLabel(t, c) }))
 
-  const extraCount = [filters.type, filters.dept, filters.num, filters.name, filters.author, filters.asof].filter(Boolean).length
+  const extraCount = [filters.dept, filters.num, filters.name, filters.author, filters.asof].filter(Boolean).length
   const moreOpen = filters.more === '1' || extraCount > 0
   const filterCount = activeFilterCount - (filters.tab ? 1 : 0) - (filters.more ? 1 : 0)
 
@@ -261,8 +267,10 @@ export function OrdersPage() {
       await p()
       mut.invalidate()
       toast.ok(done)
+      return true
     } catch {
       /* the mutation cache toasts the server's reason */
+      return false
     } finally {
       setBusyId(null)
     }
@@ -348,7 +356,7 @@ export function OrdersPage() {
           </IconButton>
         )}
         {canWithdrawOrder(row, user) && (
-          <IconButton size="sm" label={t('ordVac.withdraw')} disabled={loadingRow} onClick={() => setWithdrawTarget(row)}>
+          <IconButton size="sm" label={t('ordVac.withdraw')} disabled={loadingRow} onClick={() => { setWithdrawForEdit(false); setWithdrawTarget(row) }}>
             <Undo2 size={15} />
           </IconButton>
         )}
@@ -358,7 +366,7 @@ export function OrdersPage() {
           </IconButton>
         )}
         {p.edit && (
-          <IconButton size="sm" label={t('common.edit')} onClick={() => setForm({ open: true, editId: row.id })}>
+          <IconButton size="sm" label={t('common.edit')} onClick={() => startEdit(row)}>
             <Pencil size={15} />
           </IconButton>
         )}
@@ -444,11 +452,6 @@ export function OrdersPage() {
         subtitle={t('orders.subtitle')}
         actions={
           <>
-            {showAnalytics && (
-              <Button variant="ghost" leftIcon={<BarChart3 size={16} />} onClick={() => setAnalyticsOpen((o) => !o)} aria-expanded={analyticsOpen}>
-                {analyticsOpen ? t('orders.analyticsHide') : t('orders.analyticsShow')}
-              </Button>
-            )}
             {!asOfActive && (
               <ActionMenu
                 label={t('ordVac.export')}
@@ -468,17 +471,15 @@ export function OrdersPage() {
         }
       />
 
-      {showAnalytics && analyticsOpen && <OrderStats />}
-
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        {isHr ? (
+        {isHr || management ? (
           <div className="scroll-thin max-w-full overflow-x-auto">
           <Segmented<HrTab>
             value={tab}
             onChange={(v) => setFilters({ tab: v === 'all' ? null : v, emp: v === 'my' ? null : filters.emp || null })}
             options={[
               { value: 'all', label: t('orders.tabAll'), count: tabCount },
-              { value: 'my', label: t('orders.tabMy') },
+              ...(isHr ? [{ value: 'my' as HrTab, label: t('orders.tabMy') }] : []),
               { value: 'sign', label: t('orders.tabSign') },
             ]}
           />
@@ -506,7 +507,7 @@ export function OrdersPage() {
               <Combobox className="w-full" value={status} onChange={(v) => setFilter('status', v)} options={statusOptions} placeholder={t('orders.allStatuses')} />
             </div>
             <div className="w-full sm:w-52">
-              <span className={LABEL_CLS}>{t('orders.fCategoryFilter')}</span>
+              <span className={LABEL_CLS}>{t('orders.fOrderType')}</span>
               <Combobox className="w-full" value={filters.cat} onChange={(v) => setFilter('cat', v)} options={categoryOptions} placeholder={t('orders.allTypes')} />
             </div>
             {!(isHr && tab === 'my') && (
@@ -539,10 +540,6 @@ export function OrdersPage() {
 
           {moreOpen && (
             <div className="flex flex-wrap items-end gap-2.5 border-t border-line pt-3">
-              <div className="w-full sm:w-44">
-                <span className={LABEL_CLS}>{t('orders.fOrderType')}</span>
-                <Combobox className="w-full" value={type} onChange={(v) => setFilter('type', v)} options={typeOptions} placeholder={t('orders.allTypes')} />
-              </div>
               <div className="w-full sm:w-52">
                 <span className={LABEL_CLS}>{t('orders.fDepartmentFilter')}</span>
                 <Combobox className="w-full" value={filters.dept} onChange={(v) => setFilter('dept', v)} options={departmentOptions} placeholder={t('orders.allDepartments')} />
@@ -607,7 +604,22 @@ export function OrdersPage() {
         id={detailId}
         readOnly={asOfActive}
         onClose={() => setDetailId(null)}
-        onOpenDocument={(o) => setDocOrder(o)}
+        onOpenDocument={(o) => {
+          setDocPrint(false)
+          setDocOrder(o)
+        }}
+        onPrint={(o) => {
+          setDocPrint(true)
+          setDocOrder(o)
+        }}
+        onEdit={(o) => {
+          setDetailId(null)
+          startEdit(o)
+        }}
+        onDelete={(o) => {
+          setDetailId(null)
+          void remove(o)
+        }}
         onOpenOrder={(id) => setDetailId(id)}
         onCorrective={openCorrective}
       />
@@ -616,6 +628,7 @@ export function OrdersPage() {
         id={docOrder?.id ?? null}
         title={docOrder ? `№${docOrder.act_number || docOrder.id} ${docOrder.category_rel?.name || ''}`.trim() : ''}
         onClose={() => setDocOrder(null)}
+        autoPrint={docPrint}
       />
 
       <OrderFormDrawer
@@ -625,6 +638,14 @@ export function OrdersPage() {
         onLocked={(id) => {
           setForm({ open: false, editId: null })
           setLocked({ id, number: lockedNumber(id) })
+        }}
+        onInApproval={(id) => {
+          setForm({ open: false, editId: null })
+          const row = rows.find((r) => r.id === id)
+          if (row) {
+            setWithdrawForEdit(true)
+            setWithdrawTarget(row)
+          }
         }}
         onClose={() => setForm({ open: false, editId: null })}
         onSaved={(createdId) => {
@@ -644,14 +665,16 @@ export function OrdersPage() {
 
       <WithdrawOrderModal
         open={!!withdrawTarget}
-        number={withdrawTarget?.act_number || withdrawTarget?.id}
+        number={withdrawTarget?.act_number || undefined}
         loading={mut.withdraw.isPending}
         onClose={() => setWithdrawTarget(null)}
+        forEdit={withdrawForEdit}
         onSubmit={async (reason) => {
           const row = withdrawTarget
           if (!row) return
           setWithdrawTarget(null)
-          await act(row, () => mut.withdraw.mutateAsync({ id: row.id, reason }), t('ordVac.withdrawn'))
+          const ok = await act(row, () => mut.withdraw.mutateAsync({ id: row.id, reason }), t('ordVac.withdrawn'))
+          if (ok && withdrawForEdit) setForm({ open: true, editId: row.id })
         }}
       />
 

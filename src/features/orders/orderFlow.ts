@@ -203,3 +203,20 @@ export function canCorrectOrder(o: OrderAct | null | undefined, user: U): boolea
 
 /** 409 `order_locked` (400 `order_act_locked` before TZ v2) — edit / delete of a locked order. */
 export const isOrderLockedError = (err: unknown) => ['order_locked', 'order_act_locked'].includes(errorCode(err) ?? '')
+
+/** TZ O2 1224: 409 `order_in_approval` — the order is out for approval; withdraw it first. */
+export const isOrderInApprovalError = (err: unknown) => errorCode(err) === 'order_in_approval'
+
+/** Statuses of an order out for approval (server `_IN_APPROVAL_STATUSES`). */
+export const IN_APPROVAL_STATUSES = ['pending_submitter', 'pending_approval', 'approved', 'pending_leadership']
+
+/**
+ * TZ O2 1224: «Tahrirlash» on an order out for approval offers withdrawal
+ * first (the server answers 409 `order_in_approval` to a direct edit). The
+ * submitter at his own stage and the site master admin edit directly.
+ */
+export function editNeedsWithdraw(o: OrderAct | null | undefined, user: U): boolean {
+  if (!o || isSiteMasterAdmin(user) || !IN_APPROVAL_STATUSES.includes(o.status ?? '')) return false
+  const me = user?.employee?.id ?? null
+  return !(o.status === 'pending_submitter' && !!me && sameId(o.submitter_id, me))
+}

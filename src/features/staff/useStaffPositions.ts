@@ -42,6 +42,8 @@ export interface StaffPosition {
   planned_units: number | string
   occupied_units: number | string
   vacant_units: number | string
+  /** Over-staffing (occupied above approved), never a negative vacancy. */
+  excess_units?: number | string | null
   vacancy_open_date?: string | null
   is_closed: boolean
   closed_at?: string | null
@@ -65,6 +67,10 @@ export interface StaffPosition {
   required_skills?: string | null
   work_schedule?: string | null
   employment_type?: string | null
+  /** Stored announcement state: null = no vacancy announced on this line yet (TZ V1 may open one). */
+  vacancy_announcement?: 'open' | 'paused' | 'closed' | null
+  /** TZ V1 1260: announced vacant units (null = every free unit). */
+  vacancy_units?: number | string | null
   /** open | paused (TZ V2 1304: hidden from the public list) | closed */
   vacancy_status?: string | null
   required_languages?: RequiredLanguage[] | null
@@ -288,6 +294,13 @@ export function useStaffMutations() {
         apiPost<StaffPosition>(`${STAFF_POSITION_DETAIL(id)}/copy-vacancy`, body),
       onSuccess: invalidate,
     }),
+    /** TZ V1: open a vacancy (with its vacant units) on an existing staff line. */
+    openVacancy: useMutation({
+      meta,
+      mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+        apiPost<StaffPosition>(`${STAFF_POSITION_DETAIL(id)}/vacancy`, body),
+      onSuccess: invalidate,
+    }),
     /**
      * One department's planned units in ONE request: the backend records one
      * change entry with a shared reason, instead of N scattered ones.
@@ -310,10 +323,10 @@ export interface ExportColumn {
 }
 
 /** Fetched, not hard-coded, so the picker cannot drift from the server's set. */
-export function useStaffExportColumns(enabled = true) {
+export function useStaffExportColumns(enabled = true, url: string = STAFF_POSITIONS_EXPORT_COLUMNS) {
   return useQuery({
-    queryKey: ['staff-positions', 'export-columns'] as const,
-    queryFn: () => apiGet<ExportColumn[]>(STAFF_POSITIONS_EXPORT_COLUMNS),
+    queryKey: ['staff-positions', 'export-columns', url] as const,
+    queryFn: () => apiGet<ExportColumn[]>(url),
     enabled,
     staleTime: 30 * 60 * 1000,
   })
