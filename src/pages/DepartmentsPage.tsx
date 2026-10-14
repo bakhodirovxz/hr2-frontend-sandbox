@@ -311,7 +311,7 @@ export function DepartmentsPage() {
                   {t('orgAdmin.restructure')}
                 </Button>
                 <Button size="sm" leftIcon={<Plus size={15} />} disabled={!branchId} title={!branchId ? t('orgAdmin.pickBranch') : undefined} onClick={() => setForm({ value: null })}>
-                  {t('orgAdmin.create')}
+                  {t('orgRef.addDepartment')}
                 </Button>
               </>
             )}

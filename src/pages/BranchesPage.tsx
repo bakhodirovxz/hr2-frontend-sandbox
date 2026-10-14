@@ -20,7 +20,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/api/errorMessage'
-import { canWrite, isBranchAdmin, isSiteMasterAdmin, ownBranchIds } from '@/auth/permissions'
+import { canWrite, canWriteGlobal, isBranchAdmin, isSiteMasterAdmin, ownBranchIds } from '@/auth/permissions'
 import { useListParams } from '@/hooks/useListParams'
 import { useAuthStore } from '@/store/authStore'
 import { useBranchStore } from '@/store/branchStore'
@@ -63,7 +63,9 @@ export function BranchesPage() {
   const { search, setSearch, page, setPage, size, setSize, filters, setFilter } = useListParams(FILTER_KEYS)
   const ownership = filters.ownership || ''
 
-  const master = isSiteMasterAdmin(user)
+  // TZ 4.2.6 2024–2026: the head-office structure editor («Кадры ЦА») keeps
+  // the organisations too — create, list and delete like the administrator.
+  const master = isSiteMasterAdmin(user) || canWriteGlobal(user, 'structure')
   const regions = useCodeLabels('regions')
   const districts = useCodeLabels('districts')
   const ownershipDict = useCodeLabels('ownership_forms')

@@ -58,6 +58,8 @@ interface Gate {
   orgRead?: ModuleCode
   /** Tashkilot darajasida yozadi. */
   writeOrg?: [ModuleCode, 'edit' | 'full']
+  /** Needs the module on the WHOLE system (head-office level). */
+  writeGlobal?: [ModuleCode, 'edit' | 'full']
   /** `/auth/me` kpi_enabled — KPI shu tashkilotda yoqilganmi (backend hukmi). */
   needsKpi?: boolean
   /** Xodim kartasi bor hisob. */
@@ -120,6 +122,8 @@ const STRUCTURE_GROUP: NavGroup = {
     { key: 'staffing', labelKey: 'staffing', path: '/staffing', icon: ClipboardList, module: 'vacancies', staffing: true },
     // TZ S3 «Просмотр структуры — все пользователи».
     { key: 'structure', labelKey: 'structure', path: '/structure', icon: Network, module: 'structure' },
+    // TZ 4.2.6 2024–2026 «Учет организаций» — head-office structure editor (S1 actor «Кадры ЦА»).
+    { key: 'organizations', labelKey: 'organizations', path: '/organizations', icon: Building2, module: 'structure', writeGlobal: ['structure', 'edit'] },
     // TZ D2 — hamma o'qiydi, tahrir tugmalari sahifa ichida.
     { key: 'dictionaries', labelKey: 'dictionaries', path: '/dictionaries', icon: BookMarked, module: 'dictionaries' },
   ],
@@ -216,6 +220,7 @@ export function passesGate(g: Gate, user: User | null | undefined): boolean {
   if (g.module && !perm.can(user, g.module, g.level)) return false
   if (g.orgRead && !perm.readsOrg(user, g.orgRead)) return false
   if (g.writeOrg && !perm.canWriteOrg(user, g.writeOrg[0], g.writeOrg[1])) return false
+  if (g.writeGlobal && !perm.canWriteGlobal(user, g.writeGlobal[0], g.writeGlobal[1])) return false
   if (g.staffing && !canOpenStaffing(user)) return false
   if (g.attendanceBoard && !canOpenAttendanceBoard(user)) return false
   return true
