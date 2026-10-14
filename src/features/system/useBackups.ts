@@ -36,9 +36,13 @@ export interface Backup {
   finished_at?: string | null
   actor_name?: string | null
   verify?: { ok?: boolean; detail?: string } | null
+  /** Machine code: integrity, remote_store_failed, local_store_failed, interrupted, internal. */
   error?: string | null
+  error_detail?: string | null
   file_name?: string | null
   scheduled?: boolean
+  /** Automatic copy taken just before a restore. */
+  safety?: boolean
 }
 
 export interface BackupSchedule {
@@ -71,8 +75,12 @@ export const SCHEDULE_DEFAULTS: BackupSchedule = {
 
 export interface StorageCheck {
   ok: boolean
+  /** local_ok, local_full, local_not_writable, remote_ok, remote_unreachable, unknown_storage */
+  code?: string | null
   free_bytes?: number | null
   detail?: string | null
+  /** Raw exception — tooltip only. */
+  technical?: string | null
 }
 
 /** Polling period for a running backup (v1: every 2 s). */

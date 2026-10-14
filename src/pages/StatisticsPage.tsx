@@ -49,17 +49,20 @@ export function StatisticsPage() {
   const dashboardAllowed = canSeeStatisticsDashboard(user)
 
   const tabs: Tab[] = [
+    ...(dashboardAllowed ? (['dashboard'] as Tab[]) : []),
     ...(catalog.length || meta.isLoading ? (['catalog'] as Tab[]) : []),
     'builder',
     'forms',
-    ...(dashboardAllowed ? (['dashboard'] as Tab[]) : []),
   ]
+  // TZ R2 1509–1511: for leadership opening the section loads the dashboard
+  // («Система загружает дашборд со сводными показателями»).
+  const defaultTab: Tab = dashboardAllowed ? 'dashboard' : tabs[0]
   const requested = params.get('tab') as Tab | null
-  const tab: Tab = requested && tabs.includes(requested) ? requested : tabs[0]
+  const tab: Tab = requested && tabs.includes(requested) ? requested : defaultTab
 
   const switchTab = (v: Tab) => {
     const next = new URLSearchParams(params)
-    if (v === tabs[0]) next.delete('tab')
+    if (v === defaultTab) next.delete('tab')
     else next.set('tab', v)
     setParams(next, { replace: true })
   }

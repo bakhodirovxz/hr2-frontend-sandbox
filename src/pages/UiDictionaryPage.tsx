@@ -37,14 +37,14 @@ import { cn } from '@/lib/cn'
  *
  * Tuzatishlar `ui_dictionary` ma'lumotnomasida saqlanadi (yozuv kodi =
  * sha1(kalit)[:16], `name` = kalit, `name_ru`, `extra.uz_cyrl`) va
- * `GET /i18n/overrides` orqali barcha foydalanuvchilarga tarqaladi. Sahifa
- * sessiyada bir marta barcha matnlarni `POST /i18n/keys/sync` bilan
- * yuboradi — server ro'yxati to'liq bo'lsin.
+ * `GET /i18n/overrides` orqali barcha foydalanuvchilarga tarqaladi.
+ * Opening the page is read-only: the server key list is refreshed
+ * (`POST /i18n/keys/sync`) only by the explicit «sync» button — a page view
+ * must not write (and must not leave an audit «change» row).
  */
 
 const NB = { _no_branch_inject: true } as const
 const TYPE = 'ui_dictionary'
-const SYNC_FLAG = 'ui_dictionary_synced_v2'
 const FILTER_KEYS = ['missing', 'edited'] as const
 
 type Overrides = { ru: Record<string, string>; uz_cyrl: Record<string, string> }
@@ -118,41 +118,21 @@ function UiDictionaryPageInner() {
     meta: { silent: true },
   })
 
-  // ── Once per session: every known text goes to the server list. ────────
+  // ── Explicit «sync» button: every known text goes to the server list. ──
   const sync = useMutation({
     mutationFn: (keys: string[]) =>
       apiPost<{ created?: number; total?: number }>('i18n/keys/sync', { keys }, { params: NB, timeout: 120_000 }),
-    // The automatic once-per-session sync must not raise a toast; the button does (below).
     meta: { silent: true },
   })
   const syncKeys = async (silent: boolean) => {
     const keys = await allUzTexts()
     try {
       const data = await sync.mutateAsync(keys)
-      try {
-        sessionStorage.setItem(SYNC_FLAG, '1')
-      } catch {
-        /* storage blocked — the next visit simply syncs again */
-      }
       if (!silent || data?.created) toast.ok(t('uiDict.synced', { count: data?.created ?? 0 }))
     } catch (e) {
       if (!silent) toast.error(errorMessage(e, t('common.actionFailed')))
     }
   }
-  const synced = useRef(false)
-  useEffect(() => {
-    if (synced.current) return
-    synced.current = true
-    let done = false
-    try {
-      done = sessionStorage.getItem(SYNC_FLAG) === '1'
-    } catch {
-      /* ignore */
-    }
-    if (!done) void syncKeys(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // ── Keys: the Uzbek tree plus any override stored under a text the tree
   //    no longer has (so «only overridden» lists every correction). ─────────
   const ov = overrides.data ?? NO_OVERRIDES

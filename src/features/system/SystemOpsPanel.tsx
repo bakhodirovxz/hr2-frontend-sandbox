@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Field } from '@/components/ui/Field'
 import { IconButton } from '@/components/ui/IconButton'
+import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
@@ -16,11 +17,15 @@ import { apiGet, apiPost } from '@/api/http'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import {
+  FAILURE_TYPES,
   OPS,
+  componentLabel,
+  localizeMessage,
   modeLabel,
+  type Incident,
   type OpsReport,
   type OpsState,
-  type OpenTransaction,
+  type TransactionList,
 } from './systemOps'
 import { JobProgress } from './JobProgress'
 import { useJob } from './useJob'
@@ -34,8 +39,9 @@ import { useJob } from './useJob'
  *   to'xtatilgan        → «Tiklash rejimi», «Tiklashni bajarish» (ochiq
  *                         tranzaksiyalar: tegmaslik / rollback, `repair: true`)
  *                         → hisobot, «Ish rejimiga qaytarish» (tasdiq bilan);
- *   zaxira nusxa olinmoqda → amallar yo'q (server barcha yozuvlarni 503 bilan
- *                         rad etadi).
+ *   zaxira nusxa olinmoqda → «Ish rejimiga qaytarish» only (the server refuses
+ *                         while a backup is really running; it releases a
+ *                         mode left behind by a crashed backup).
  *
  * Backend `_require_master_admin` bilan himoyalaydi; panel faqat shu
  * darvoza ichida chiziladi.
@@ -65,22 +71,35 @@ export function SystemOpsPanel({
   const [reason, setReason] = useState('')
   const [force, setForce] = useState(false)
   const [txAction, setTxAction] = useState<'keep' | 'rollback'>('keep')
+  // TZ E3 1713: a choice per transaction (key → keep | rollback).
+  const [txActions, setTxActions] = useState<Record<string, 'keep' | 'rollback'>>({})
+  // TZ E2 1697: failure type / error code, linked to the detected incident.
+  const [incidentId, setIncidentId] = useState('')
+  const [failureType, setFailureType] = useState('')
+  const [errorCode, setErrorCode] = useState('')
+  const [grace, setGrace] = useState('20')
   /** TZ E3 1725 «индикация прогресса»: tiklash fon vazifasi sifatida. */
   const [runJobId, setRunJobId] = useState<number | null>(null)
   const runJob = useJob<OpsReport>(runJobId)
 
   const mode = state?.mode || 'running'
   const stopped = !!state && mode !== 'running' && mode !== 'backup'
+  const incidents = useQuery({
+    queryKey: ['sysops', 'incidents'],
+    queryFn: () => apiGet<Incident[]>(OPS.incidents, { limit: 30 }),
+    enabled: dialog === 'shutdown',
+  })
+  const openIncidents = (incidents.data ?? []).filter((i) => i.kind === 'detected' && !i.resolved_at)
   const Icon = MODE_ICON[mode as keyof typeof MODE_ICON] ?? CheckCircle2
 
   // E3: the open transactions are listed BEFORE the keep/rollback choice.
   const tx = useQuery({
     queryKey: ['sysops', 'transactions'],
-    queryFn: () => apiGet<{ items?: OpenTransaction[] } | OpenTransaction[]>(OPS.transactions),
-    select: (d) => (Array.isArray(d) ? d : (d?.items ?? [])),
+    queryFn: () => apiGet<TransactionList>(OPS.transactions),
     enabled: stopped,
   })
-  const openTx = tx.data ?? []
+  const openTx = tx.data?.items ?? []
+  const endedTx = tx.data?.journal_items ?? []
 
   const close = () => setDialog(null)
   const reload = () => qc.invalidateQueries({ queryKey: ['sysops'] })
@@ -88,11 +107,32 @@ export function SystemOpsPanel({
   const run = useMutation({
     mutationFn: async (kind: Exclude<Dialog, null>) => {
       if (kind === 'shutdown') {
-        return { kind, data: await apiPost<OpsReport>(OPS.shutdown, { reason: reason.trim(), force }) }
+        const g = Number(grace)
+        return {
+          kind,
+          data: await apiPost<OpsReport>(
+            OPS.shutdown,
+            {
+              reason: reason.trim(),
+              force,
+              incident_id: incidentId ? Number(incidentId) : null,
+              failure_type: failureType || null,
+              error_code: errorCode.trim() || null,
+              grace_seconds: force ? 0 : Number.isFinite(g) ? Math.max(0, Math.min(60, g)) : 20,
+            },
+            // The grace period keeps the request open for up to a minute.
+            { timeout: 150_000 },
+          ),
+        }
       }
       if (kind === 'enter') return { kind, data: await apiPost<OpsReport>(OPS.recoveryEnter) }
       if (kind === 'run') {
-        const r = await apiPost<{ job_id: number }>(OPS.recoveryRun, { tx_action: txAction, repair: true, background: true })
+        const r = await apiPost<{ job_id: number }>(OPS.recoveryRun, {
+          tx_action: txAction,
+          tx_actions: txActions,
+          repair: true,
+          background: true,
+        })
         return { kind, data: { job_id: r.job_id } as OpsReport }
       }
       return { kind, data: await apiPost<OpsReport>(OPS.resume) }
@@ -103,6 +143,9 @@ export function SystemOpsPanel({
       if (kind === 'shutdown') {
         setReason('')
         setForce(false)
+        setIncidentId('')
+        setFailureType('')
+        setErrorCode('')
         onReport({ title: t('sysHealth.shutdownReport'), data })
         toast.ok(t('sysHealth.shutdownDone'))
       } else if (kind === 'enter') {
@@ -163,7 +206,11 @@ export function SystemOpsPanel({
               <Button variant="danger" size="sm" leftIcon={<Power size={14} />} onClick={() => setDialog('shutdown')} disabled={busy}>
                 {t('sysHealth.shutdown')}
               </Button>
-            ) : mode === 'backup' ? null : (
+            ) : mode === 'backup' ? (
+              <Button variant="secondary" size="sm" leftIcon={<CheckCircle2 size={14} />} onClick={() => setDialog('resume')} disabled={busy}>
+                {t('sysHealth.resume')}
+              </Button>
+            ) : (
               <>
                 {mode !== 'recovery' && (
                   <Button
@@ -220,7 +267,7 @@ export function SystemOpsPanel({
               <p className="text-[12.5px] text-fg-subtle">{t('sysHealth.noOpenTx')}</p>
             ) : (
               <div className="scroll-thin overflow-x-auto rounded-lg border border-line">
-                <table className="w-full min-w-[640px] text-left text-[12.5px]">
+                <table className="w-full min-w-[900px] text-left text-[12.5px]">
                   <thead className="bg-surface-2 text-[11.5px] font-semibold text-fg-muted">
                     <tr>
                       <th scope="col" className="px-3 py-2">{t('sysHealth.txColKind')}</th>
@@ -228,7 +275,9 @@ export function SystemOpsPanel({
                       <th scope="col" className="px-3 py-2">{t('sysHealth.txColUser')}</th>
                       <th scope="col" className="px-3 py-2">{t('sysHealth.txColState')}</th>
                       <th scope="col" className="px-3 py-2">{t('sysHealth.txColAge')}</th>
+                      <th scope="col" className="px-3 py-2">{t('sysHealth.txColTables')}</th>
                       <th scope="col" className="px-3 py-2">{t('sysHealth.txColQuery')}</th>
+                      <th scope="col" className="px-3 py-2">{t('sysHealth.txColAction')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -241,8 +290,25 @@ export function SystemOpsPanel({
                         <td className="px-3 py-1.5 tabular-nums">
                           {x.age_seconds != null ? t('sysHealth.seconds', { n: x.age_seconds }) : '—'}
                         </td>
-                        <td className="max-w-[360px] truncate px-3 py-1.5 font-mono text-fg-muted" title={x.query ?? undefined}>
+                        <td className="px-3 py-1.5">
+                          {x.tables && x.tables.length ? x.tables.join(', ') : x.writes ? t('sysHealth.txWrites') : t('sysHealth.txReadOnly')}
+                        </td>
+                        <td className="max-w-[300px] truncate px-3 py-1.5 font-mono text-fg-muted" title={x.query ?? undefined}>
                           {x.query || '—'}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <Select
+                            wrapperClassName="w-44"
+                            value={(x.key && txActions[x.key]) || txAction}
+                            aria-label={`${t('sysHealth.txColAction')}: ${x.pid ?? x.gid ?? ''}`}
+                            onChange={(e) =>
+                              x.key && setTxActions((m) => ({ ...m, [x.key as string]: e.target.value as 'keep' | 'rollback' }))
+                            }
+                            options={[
+                              { value: 'keep', label: t('sysHealth.txKeep') },
+                              { value: 'rollback', label: t('sysHealth.txRollback') },
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -250,8 +316,14 @@ export function SystemOpsPanel({
                 </table>
               </div>
             )}
+            {endedTx.length > 0 && (
+              <p className="text-[12px] text-fg-subtle">
+                {t('sysHealth.txEnded', { count: endedTx.length })}{' '}
+                {endedTx.map((x) => x.pid ?? x.gid).join(', ')}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-[12.5px] text-fg-muted">{t('sysHealth.txChoice')}:</span>
+              <span className="text-[12.5px] text-fg-muted">{t('sysHealth.txChoiceDefault')}:</span>
               <Select
                 wrapperClassName="w-60"
                 value={txAction}
@@ -300,7 +372,65 @@ export function SystemOpsPanel({
           {reason.trim().length > 0 && reasonShort && (
             <p className="text-[12px] text-danger">{t('sysHealth.reasonRequired')}</p>
           )}
+          <Field label={t('sysHealth.linkIncident')}>
+            <Select
+              value={incidentId}
+              aria-label={t('sysHealth.linkIncident')}
+              onChange={(e) => {
+                setIncidentId(e.target.value)
+                const inc = openIncidents.find((i) => String(i.id) === e.target.value)
+                if (inc) {
+                  const comp = (inc.component || '').split(',')[0]
+                  setFailureType((FAILURE_TYPES as readonly string[]).includes(comp) ? comp : 'other')
+                  setErrorCode(inc.code || '')
+                }
+              }}
+              options={[
+                { value: '', label: t('sysHealth.noIncident') },
+                ...openIncidents.map((i) => ({
+                  value: String(i.id),
+                  label: `#${i.id} · ${i.detected_at ? formatDateTime(i.detected_at) : ''} · ${localizeMessage(t, i.message)}`,
+                })),
+              ]}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={t('sysHealth.failureType')}>
+              <Select
+                value={failureType}
+                aria-label={t('sysHealth.failureType')}
+                onChange={(e) => setFailureType(e.target.value)}
+                options={[
+                  { value: '', label: '—' },
+                  ...FAILURE_TYPES.map((f) => ({
+                    value: f,
+                    label: t(`sysHealth.ft_${f}` as never, { defaultValue: componentLabel(t, f) }) as string,
+                  })),
+                ]}
+              />
+            </Field>
+            <Field label={t('sysHealth.errorCode')}>
+              <Input
+                value={errorCode}
+                maxLength={64}
+                onChange={(e) => setErrorCode(e.target.value)}
+                aria-label={t('sysHealth.errorCode')}
+              />
+            </Field>
+          </div>
           <Checkbox label={t('sysHealth.force')} checked={force} onChange={(e) => setForce(e.target.checked)} />
+          {!force && (
+            <Field label={t('sysHealth.graceLabel')} hint={t('sysHealth.graceHint')}>
+              <Input
+                type="number"
+                min={0}
+                max={60}
+                value={grace}
+                onChange={(e) => setGrace(e.target.value)}
+                aria-label={t('sysHealth.graceLabel')}
+              />
+            </Field>
+          )}
           <p className={cn('text-[12px]', force ? 'text-danger' : 'text-fg-subtle')}>
             {force ? t('sysHealth.forceHint') : t('sysHealth.softHint')}
           </p>

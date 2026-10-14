@@ -13,7 +13,7 @@ import {
 import type { Page } from '@/features/employees/useEmployees'
 import { useBranchStore } from '@/store/branchStore'
 import type { User } from '@/types'
-import { can, canWriteOrg, isGuest } from '@/auth/permissions'
+import { canWriteGlobal, canWriteOrg, isGuest } from '@/auth/permissions'
 
 /**
  * INTERAKTIV XIZMATLAR — TZ 4.2.12 (+ TZ I1 katalog va ilovalar).
@@ -146,9 +146,11 @@ export interface ServicePrefill {
 /** Faqat yakunlangan so'rov qayta topshiriladi (faol so'rov tahrirlanadi). */
 export const RESUBMIT_STATUSES: ServiceStatus[] = ['ready', 'rejected', 'cancelled']
 
-/** Yopish / ochish — `services = full` (kadr, bosh administrator). */
+/** Yopish / ochish — the switch is company-wide, so only the master admin
+ *  and those whose services scope is the whole company (central HR) — the
+ *  backend answers 403 `services_availability_forbidden` to a branch HR. */
 export function canManageServiceAvailability(user: User | null | undefined): boolean {
-  return can(user, 'services', 'full')
+  return canWriteGlobal(user, 'services', 'full')
 }
 
 export function useServiceAvailability(enabled: boolean) {
@@ -322,7 +324,15 @@ export function useServiceMutations() {
       onSuccess: settle,
     }),
     buildDocument: useMutation({
-      mutationFn: (id: number) => apiPost<ServiceRequestDetail>(SERVICE_REQUEST_DOCUMENT(id), {}),
+      // `notes` — HR's individual text under the approved template (TZ 2303–2304).
+      mutationFn: ({ id, notes }: { id: number; notes?: string | null }) =>
+        apiPost<ServiceRequestDetail>(SERVICE_REQUEST_DOCUMENT(id), notes == null ? {} : { notes }),
+      onSuccess: settle,
+    }),
+    /** TZ 4.2.12 · 2292: pass the request to a specific HR specialist. */
+    assign: useMutation({
+      mutationFn: ({ id, status, assigneeId }: { id: number; status: ServiceStatus; assigneeId: number }) =>
+        apiPost<ServiceRequestDetail>(SERVICE_REQUEST_STATUS(id), { to_status: status, assignee_id: assigneeId }),
       onSuccess: settle,
     }),
     removeAttachment: useMutation({
@@ -418,4 +428,20 @@ export function useServiceTemplates(enabled: boolean) {
       onSuccess: put,
     }),
   }
+}
+
+export interface ServiceReviewer {
+  id: number
+  name: string
+  is_me: boolean
+}
+
+/** HR officers this request can be passed to (TZ 4.2.12 · 2292). */
+export function useServiceReviewers(id: number | null, enabled: boolean) {
+  const q = useQuery({
+    queryKey: ['services', 'reviewers', id],
+    queryFn: () => apiGet<ServiceReviewer[]>(`${SERVICE_REQUEST(id as number)}/reviewers`, { _no_branch_inject: true }),
+    enabled: enabled && !!id,
+  })
+  return Array.isArray(q.data) ? q.data : []
 }
