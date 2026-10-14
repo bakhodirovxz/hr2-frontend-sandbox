@@ -60,7 +60,7 @@ function placeHref(table: string, column: string | null | undefined, q?: string)
   return qs ? `${base}?${qs}` : base
 }
 
-/** «Xodimlar kartasi (T-2): nationality_code» → «Xodimlar kartasi (T-2)» (the column is shown apart). */
+/** «Xodimlar kartasi (T-2): nationality_code» → «Xodimlar kartasi (T-2)» (raw column names are not shown to users). */
 function refTitle(label: string, column?: string | null): string {
   if (column && label.endsWith(`: ${column}`)) return label.slice(0, -(column.length + 2))
   return label
@@ -100,7 +100,6 @@ export function DictionaryUsageList({ refs, compact = false }: { refs: Dictionar
               {items.map((r, i) => (
                 <li key={i} className="text-[12.5px] text-fg">
                   <span>{ru && r.label_ru ? r.label_ru : st(refTitle(r.label, r.column))}</span>
-                  {r.column && <code className="ml-1.5 rounded bg-surface-2 px-1 text-[11px] text-fg-subtle">{r.column}</code>}
                   <span className="ml-1.5 text-fg-muted tabular-nums">— {t('orgRef.countItems', { count: r.count })}</span>
                   {r.sample?.length > 0 && (
                     <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[12px]">
