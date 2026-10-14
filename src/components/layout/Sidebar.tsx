@@ -6,8 +6,7 @@ import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/authStore'
 import { useArrowNav } from '@/hooks/useArrowNav'
 import { telHref, useSiteInfo } from '@/features/site/useSiteInfo'
-import { getNavForUser, isGroup, type NavLeaf } from './navConfig'
-import { isPathActive } from './TopNav'
+import { flattenNav, getNavForUser, isGroup, pickActivePath, type NavLeaf } from './navConfig'
 import { LogoMark } from './Logo'
 
 interface SidebarProps {
@@ -61,10 +60,14 @@ function NavRow({ item, label, active, badge, onClick }: { item: NavLeaf; label:
  */
 export function Sidebar({ badges = {}, onNavigate, onFeedback }: SidebarProps) {
   const { t } = useTranslation()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const user = useAuthStore((s) => s.user)
   const site = useSiteInfo().data
   const nav = useMemo(() => getNavForUser(user), [user])
+  const activePath = useMemo(
+    () => pickActivePath(flattenNav(nav).map((l) => l.path), pathname, search),
+    [nav, pathname, search],
+  )
   const navRef = useRef<HTMLElement>(null)
   const onNavKeyDown = useArrowNav(navRef)
   const onLeafClick = useCallback(() => onNavigate?.(), [onNavigate])
@@ -74,7 +77,7 @@ export function Sidebar({ badges = {}, onNavigate, onFeedback }: SidebarProps) {
       key={item.key}
       item={item}
       label={t(`nav.${item.labelKey}`)}
-      active={isPathActive(item.path, pathname)}
+      active={item.path === activePath}
       badge={badges[item.path]}
       onClick={onLeafClick}
     />
@@ -94,13 +97,17 @@ export function Sidebar({ badges = {}, onNavigate, onFeedback }: SidebarProps) {
         aria-label={t('nav.menu')}
         className="scroll-thin flex-1 space-y-3 overflow-y-auto px-3 pb-4"
       >
-        <div className="space-y-0.5">{nav.filter((n) => !isGroup(n)).map((n) => row(n as NavLeaf))}</div>
-        {nav.filter(isGroup).map((g) => (
-          <div key={g.key}>
-            <p className="engrave px-3 pb-2 pt-1 text-sidebar-accent/85">{t(`nav.${g.labelKey}`)}</p>
-            <div className="space-y-0.5">{g.children.map(row)}</div>
-          </div>
-        ))}
+        {/* Same order as the top menu (TZ 418-435 module list). */}
+        {nav.map((n) =>
+          isGroup(n) ? (
+            <div key={n.key}>
+              <p className="engrave px-3 pb-2 pt-1 text-sidebar-accent/85">{t(`nav.${n.labelKey}`)}</p>
+              <div className="space-y-0.5">{n.children.map(row)}</div>
+            </div>
+          ) : (
+            <div key={n.key} className="space-y-0.5">{row(n)}</div>
+          ),
+        )}
       </nav>
 
       <div className="sidebar-divider shrink-0 space-y-1 border-t px-3 py-3 text-[13px]">

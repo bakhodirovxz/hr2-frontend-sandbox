@@ -560,7 +560,7 @@ const ru: Record<string, string> = {
   '{{page}}-sahifaga o‘tish': 'Перейти на страницу {{page}}',
   '{{pct}}% davomat': 'посещаемость {{pct}}%',
   '{{types}} ta ma‘lumotnoma, {{entries}} ta yozuv qo‘shildi': 'Добавлено справочников: {{types}}, записей: {{entries}}',
-  '© {{year}} O‘zbekgidroenergo AJ': '© {{year}} АО «Узбекгидроэнерго»',
+  '© {{year}} «O‘zbekgidroenergo» AJ': '© {{year}} АО «Узбекгидроэнерго»',
   '«{{topic}}» yozuvi bazadan butunlay o‘chiriladi. Bu amalni qaytarib bo‘lmaydi.': 'Запись «{{topic}}» будет полностью удалена из базы. Действие необратимо.',
   '— dam olish kuni —': '— выходной —',
   '↑ ↓ — tanlash': '↑ ↓ — выбор',
@@ -1527,7 +1527,7 @@ const ru: Record<string, string> = {
   'Millati': 'Национальность',
   'Millati, ma‘lumoti, staji va oilaviy ma‘lumotlar «T-2 kartochka» bo‘limida.': 'Национальность, образование, стаж и сведения о семье — в разделе «Карточка Т-2».',
   'Millatlar': 'Национальности',
-  'Mobil ilovaga kiring va QR-kodni skanerlang': 'Войдите в мобильное приложение и отсканируйте QR-код',
+  'Tizimga kirgan boshqa qurilmangizda (masalan, telefonda) QR-kodni skanerlang va kirishni tasdiqlang': 'Отсканируйте QR-код на другом устройстве, где вы уже вошли в систему (например, на телефоне), и подтвердите вход',
   'Monitoring': 'Мониторинг',
   'Monitoring operator': 'Оператор мониторинга',
   'Monitoring uchun filialni tanlang': 'Выберите филиал для мониторинга',
@@ -3812,7 +3812,7 @@ const ru: Record<string, string> = {
   'Nomlar butun filial bo‘yicha o‘zgaradi va buni bekor qilib bo‘lmaydi. Davom etilsinmi?': 'Названия изменятся по всему филиалу, отменить это нельзя. Продолжить?',
   '{{count}} ta nom o‘zgartirildi': 'Изменено названий: {{count}}',
   'Ommaviy o‘zgartirishda xatolik': 'Ошибка массового переименования',
-  'Tizim boshqaruvi': 'Управление системой',
+  'Tizim boshqaruvi': 'Администрирование',
   'Faqat bosh administrator uchun. Bu amallar butun tizimga ta’sir qiladi.': 'Только для главного администратора. Эти действия затрагивают всю систему.',
   'O‘zgartirdi': 'Изменил',
   'Avariyaviy to‘xtatish': 'Аварийное завершение',
@@ -7269,6 +7269,12 @@ const ru: Record<string, string> = {
   '{{name}} — tashkiliy tuzilma': '{{name}} — организационная структура',
   'Jami bo‘linmalar: {{count}}': 'Всего подразделений: {{count}}',
   'Qisqartirilgan ({{date}})': 'Упразднено ({{date}})',
+  // ---- FX-GEN ----
+  'Davr hisobotlari': 'Отчётность за период',
+  'Tizim egasi (ruscha)': 'Владелец системы (на русском)',
+  'Manzil (ruscha)': 'Адрес (на русском)',
+  'Nomi (ruscha)': 'Название (на русском)',
+  'Kadrlar jarayonlarini hisobga olishning markazlashtirilgan avtomatlashtirilgan tizimi': 'Централизованная автоматизированная система учета кадровых процессов',
 }
 
 export default ru

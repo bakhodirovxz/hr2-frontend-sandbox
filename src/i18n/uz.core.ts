@@ -740,7 +740,9 @@ const core = {
     tagline: 'Kadrlar boshqaruvi, bir joyda.',
     taglineSub:
       'Davomat, hujjatlar, KPI va filiallar — zamonaviy, tezkor va qulay boshqaruv paneli.',
-    copyright: '© {{year}} O‘zbekgidroenergo AJ',
+    copyright: '© {{year}} «O‘zbekgidroenergo» AJ',
+    // TZ 291: full name of the system.
+    systemName: 'Kadrlar jarayonlarini hisobga olishning markazlashtirilgan avtomatlashtirilgan tizimi',
     welcome: 'Xush kelibsiz 👋',
     subtitle: 'Tizimga kirish uchun ma’lumotlaringizni kiriting.',
     loginLabel: 'Login',
@@ -809,7 +811,7 @@ const core = {
     noNotifications: 'Bildirishnoma yo‘q',
     noNotificationsHint: 'Yangi xabarlar shu yerda ko‘rinadi.',
     notificationFallback: 'Bildirishnoma',
-    profile: 'Profil',
+    profile: 'Shaxsiy kabinet',
     settings: 'Sozlamalar',
     logout: 'Chiqish',
   },
@@ -952,7 +954,8 @@ const core = {
 
   // ── Global qidiruv (TZ 4.1.7) ───────────────────────────────────────────
   qr: {
-    hint: 'Mobil ilovaga kiring va QR-kodni skanerlang',
+    // No mobile app in this delivery: the code is approved on another device where the user is signed in.
+    hint: 'Tizimga kirgan boshqa qurilmangizda (masalan, telefonda) QR-kodni skanerlang va kirishni tasdiqlang',
     confirmOnPhone: 'Telefoningizda tasdiqlang',
     validFor: 'Amal qiladi: {{time}}',
     signingIn: 'Kirilmoqda…',
