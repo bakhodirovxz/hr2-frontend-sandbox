@@ -1,3 +1,4 @@
+import { ln } from '@/i18n/display'
 import { textMatches } from '@/i18n/translit'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +50,7 @@ interface FeedItem {
 
 function deptName(row: { employee?: { department?: unknown } | null }): string {
   const d = row.employee?.department
-  return typeof d === 'object' && d ? ((d as { name?: string }).name ?? '') : ''
+  return typeof d === 'object' && d ? ln(d as { name?: string; name_ru?: string | null }) : ''
 }
 
 /**

@@ -8670,6 +8670,7 @@ const ru: Record<string, string> = {
   'ShJPHR (INPS)': 'ИНПС',
   'Bosing — surat, KPP, filial va xarita': 'Нажмите — фото, КПП, филиал и карта',
   'Safar': 'Поездка',
+  'Fuqarolik, tug‘ilgan va ish safari davlatlari.': 'Страны гражданства, рождения и служебных командировок.',
 }
 
 export default ru
