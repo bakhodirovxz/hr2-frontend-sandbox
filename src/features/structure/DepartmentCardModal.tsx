@@ -104,6 +104,7 @@ export function DepartmentCardModal({
           <dl className="grid gap-4 sm:grid-cols-2">
             <Info label={t('orgAdmin.colName')}>{d?.name || '—'}</Info>
             <Info label={t('orgAdmin.colCode')}>{d?.code || '—'}</Info>
+            <Info label={t('orgAdmin.unitType')}>{t(`orgAdmin.unit_${d?.unit_type ?? 'division'}`)}</Info>
             <Info label={t('orgAdmin.colParent')}>{parentName || '—'}</Info>
             <Info label={t('orgAdmin.colHeads')}>{heads.length ? heads.join(', ') : '—'}</Info>
             <Info label={t('orgAdmin.staffCount')}>{d?.staff_count ?? '—'}</Info>
@@ -145,7 +146,7 @@ export function DepartmentCardModal({
 
           {id != null && (
             <Link
-              to={`/employees?dept=${id}`}
+              to={`/employees?department_id=${id}`}
               onClick={onClose}
               className="inline-flex h-9 items-center gap-2 self-start rounded-lg bg-surface-2 px-3 text-[13px] font-semibold text-fg transition-colors hover:bg-brand-soft hover:text-brand-strong"
             >

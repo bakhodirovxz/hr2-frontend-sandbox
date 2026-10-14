@@ -26,7 +26,12 @@ export interface DepartmentChangeLogEntry {
   change_reason?: string | null
 }
 
+/** TZ 4.2.5 «Управления / Отделы / Отделения» — level of a unit. */
+export type UnitType = 'management' | 'division' | 'section'
+export const UNIT_TYPES: UnitType[] = ['management', 'division', 'section']
+
 export interface DepartmentExtra {
+  unit_type?: UnitType | null
   functions?: string | null
   established_at?: string | null
   attributes?: Record<string, unknown> | null
@@ -37,6 +42,7 @@ export interface DepartmentRow extends Department {
   id: number
   parent_id?: number | null
   staff_count?: number | null
+  unit_type?: UnitType | null
 }
 
 export interface DepartmentDetail extends DepartmentRow {
