@@ -24,18 +24,20 @@ const GUEST_FLAG = 'hrm_last_user_guest'
 
 export function rememberGuest(guest: boolean): void {
   try {
-    if (guest) localStorage.setItem(GUEST_FLAG, '1')
-    else localStorage.removeItem(GUEST_FLAG)
+    // '0' = known staff account: the next hard load may prefetch branches.
+    localStorage.setItem(GUEST_FLAG, guest ? '1' : '0')
   } catch {
     /* storage yopiq — faqat bitta ortiqcha so'rov */
   }
 }
 
-function lastUserWasGuest(): boolean {
+/** true = guest, false = staff, null = unknown (no flag yet). */
+function lastUserWasGuest(): boolean | null {
   try {
-    return localStorage.getItem(GUEST_FLAG) === '1'
+    const v = localStorage.getItem(GUEST_FLAG)
+    return v === '1' ? true : v === '0' ? false : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -52,7 +54,10 @@ export function primeBootQueries(): void {
     queryFn: () => apiGet<User>(USER_INFO),
     staleTime: BOOT_STALE,
   })
-  if (lastUserWasGuest()) {
+  // A guest gets 403 on the branch list (console noise on the guest pages):
+  // prefetch only for an account known to be staff; when unknown the shell's
+  // own query (`useBranches`, enabled for non-guests) fetches it after `me`.
+  if (lastUserWasGuest() !== false) {
     bootReady = me.then(() => undefined)
     return
   }

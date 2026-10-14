@@ -450,6 +450,11 @@ const core = {
     workspace_owner_forbidden: 'Loyihani va uning ustunlarini faqat loyihani yaratgan xodim boshqara oladi',
     // ── TZ sandbox backend kodlari (hr-frontend-sandbox errorMessages.js) ──
     no_free_units: 'Bo‘sh shtat birligi yo‘q: tasdiqlangan {{planned}}, band {{occupied}}. Avval shtat jadvalini o‘zgartiring (shtat sonini oshiring).',
+    // ── ORDVAC fix round ──
+    order_in_approval: 'Buyruq kelishuvda — tahrirlash uchun avval uni kelishuvdan qaytarib oling',
+    vacancy_exists: 'Bu shtat birligi uchun vakansiya allaqachon e’lon qilingan — uni tahrirlang',
+    vacancy_units_exceed: 'Bo‘sh shtat birligi {{free}} ta — undan ko‘p vakansiya ochib bo‘lmaydi',
+    staff_position_closed: 'Shtat birligi qisqartirilgan — avval uni tiklang',
     invalid_group_by: 'Bu hisobot uchun tanlangan guruhlash mumkin emas',
     template_no_draft: 'Tasdiqlash uchun qoralama yo‘q — avval shablonni tahrirlang',
     template_unknown_placeholder: 'Noma’lum o‘rin egasi: {{placeholders}}',
