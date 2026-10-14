@@ -14,7 +14,7 @@ import { numberLocale } from '@/lib/format'
  * ocholmaydi), o'rniga yordam telefoni.
  */
 export function Footer({ publicMode = false, className }: { publicMode?: boolean; className?: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const site = useSiteInfo().data
   const fmt = (n: number) => n.toLocaleString(numberLocale())
   const link = 'rounded-inner hover:text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand'
