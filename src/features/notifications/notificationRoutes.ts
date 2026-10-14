@@ -84,8 +84,14 @@ export function resolveNotificationUrl(n: NotificationLike): string | null {
   if (n.work_leave_id) return `/vaqtinchalik-buyruqlar?doc=${n.work_leave_id}`
   if (type.startsWith('hr_order')) return '/vaqtinchalik-buyruqlar'
 
-  if (n.service_request_id) return `/interaktiv-xizmatlar?doc=${n.service_request_id}`
-  if (type.startsWith('service_request')) return '/interaktiv-xizmatlar'
+  // TZ 4.2.12 · 2296: the notice opens the request itself. The applicant's
+  // notice lands on «Mening so'rovlarim», HR's «new request» on the inbox.
+  if (n.service_request_id)
+    return type === 'service_request_new'
+      ? `/services?tab=inbox&open=${n.service_request_id}`
+      : `/services?open=${n.service_request_id}`
+  if (type === 'service_request_new') return '/services?tab=inbox'
+  if (type.startsWith('service_request')) return '/services'
 
   if (type.startsWith('navbatchilik')) return '/navbatchilik'
   if (type.startsWith('learning_')) return '/oquv-markazi'
