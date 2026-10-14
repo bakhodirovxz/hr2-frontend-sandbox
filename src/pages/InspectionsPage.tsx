@@ -74,7 +74,13 @@ export function InspectionsPage() {
   const { t } = useTranslation()
   const toast = useToast()
   const user = useAuthStore((s) => s.user)
-  const canManage = canWriteOrg(user, 'inspections')
+  const orgManage = canWriteOrg(user, 'inspections')
+  // TZ K5 «Руководитель желает провести аудит»: a department head opens audits
+  // on his own unit and conducts the ones he opened (the server checks the unit).
+  const myEmp = user?.employee?.id ?? null
+  const isHead = (user?.headed_department_ids || []).length > 0
+  const canManage = orgManage || isHead
+  const manages = (r: { created_by_id?: number | null }) => orgManage || (isHead && myEmp != null && r.created_by_id === myEmp)
   const { search, setSearch, page, setPage, size, setSize, filters, setFilter, activeFilterCount, reset } = useListParams(['status'])
   const { rows, total, pages, loading, fetching, error, refetch } = useInspections({ page, size, search, status: filters.status })
   const mut = useInspectionMutations()
@@ -137,18 +143,18 @@ export function InspectionsPage() {
       cell: (r) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" variant="ghost" onClick={() => setOpen(r.id)}>{t('inspections.details')}</Button>
-          {canManage && r.status === 'planned' && (
+          {manages(r) && r.status === 'planned' && (
             <Button size="sm" variant="secondary" leftIcon={<Play size={13} />} loading={mut.start.isPending && mut.start.variables?.id === r.id} onClick={() => start(r)}>
               {t('inspections.start')}
             </Button>
           )}
           {/* «Начать» → «В процессе» → «Завершить» — completion only after a start. */}
-          {canManage && r.status === 'in_progress' && (
+          {manages(r) && r.status === 'in_progress' && (
             <Button size="sm" variant="secondary" leftIcon={<CheckCircle2 size={13} />} onClick={() => setCompleting(r)}>
               {t('inspections.complete')}
             </Button>
           )}
-          {canManage && isOpen(r.status) && (
+          {manages(r) && isOpen(r.status) && (
             <IconButton size="sm" label={t('inspections.cancelTitle')} onClick={() => setCancelling(r)}>
               <XCircle size={15} />
             </IconButton>
@@ -196,7 +202,7 @@ export function InspectionsPage() {
       </Card>
 
       <CreateModal open={creating} onClose={() => setCreating(false)} />
-      <DetailDrawer id={openId} canManage={canManage} onClose={() => setOpen(null)} onOpen={setOpen} onComplete={setCompleting} onCancel={setCancelling} />
+      <DetailDrawer id={openId} canManage={orgManage} headEmpId={isHead ? myEmp : null} onClose={() => setOpen(null)} onOpen={setOpen} onComplete={setCompleting} onCancel={setCancelling} />
       <CompleteModal row={completing} onClose={() => setCompleting(null)} />
       <CancelModal row={cancelling} onClose={() => setCancelling(null)} />
     </PageContainer>
@@ -383,7 +389,8 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 
 function DetailDrawer({
   id,
-  canManage,
+  canManage: orgManage,
+  headEmpId,
   onClose,
   onOpen,
   onComplete,
@@ -391,6 +398,7 @@ function DetailDrawer({
 }: {
   id: number | null
   canManage: boolean
+  headEmpId?: number | null
   onClose: () => void
   onOpen: (id: number) => void
   onComplete: (r: Inspection) => void
@@ -418,6 +426,7 @@ function DetailDrawer({
 
   const myEmpId = user?.employee?.id
   const isAuditor = !!d && myEmpId != null && (d.members ?? []).some((m) => Number(m.employee_id) === Number(myEmpId))
+  const canManage = orgManage || (headEmpId != null && d?.created_by_id === headEmpId)
   const canFindings = canManage || isAuditor
   const open = isOpen(d?.status)
 
@@ -642,7 +651,8 @@ function DetailDrawer({
           </section>
 
           {/* A completed / cancelled audit is frozen — no new findings. */}
-          {open && canFindings && <FindingForm inspectionId={d.id} />}
+          {/* TZ K5: remarks are recorded once the audit has started. */}
+          {d.status === 'in_progress' && canFindings && <FindingForm inspectionId={d.id} />}
         </div>
       )}
       <ResolveModal inspectionId={d?.id ?? null} finding={resolving} onClose={() => setResolving(null)} />
