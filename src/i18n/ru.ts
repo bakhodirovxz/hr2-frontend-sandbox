@@ -311,7 +311,7 @@ const ru: Record<string, string> = {
   'Xarakteristika': 'Характеристика',
   'Xodim arxivlandi': 'Сотрудник архивирован',
   'Xodim filiali': 'Филиал сотрудника',
-  'Xodim, hujjat va sahifalarni bir joydan qidiring — Ctrl+K bilan ham ochiladi.': 'Ищите сотрудников, документы и страницы в одном месте — открывается и по Ctrl+K.',
+  'Xodim, hujjat va sahifalarni bir joydan qidiring.': 'Ищите сотрудников, документы и страницы в одном месте.',
   'Xodimlar, davomat, hujjatlar va KPI bo‘yicha so‘rang.': 'Спрашивайте о сотрудниках, посещаемости, документах и KPI.',
   'Xodimni arxivlash': 'Архивировать сотрудника',
   'Yakunlandi': 'Завершено',
@@ -7522,6 +7522,9 @@ const ru: Record<string, string> = {
   'Tiklashdan oldingi avtomatik nusxa — inkremental uchun asos bo‘lmaydi': 'Автокопия перед восстановлением — не основа для инкрементальной',
   'Zaxiradan tiklangandan keyin avval yangi to‘liq nusxa oling': 'После восстановления из копии сначала создайте новую полную копию',
   'Bu inkremental nusxa zaxiradan tiklashdan keyingi holatni to‘liq aks ettirmaydi — to‘liq nusxadan tiklang': 'Эта инкрементальная копия не отражает состояние после восстановления — восстановите из полной копии',
+  // ---- FX-NFR ----
+  'Ulanish uchun LMS platformasining manzili va API kaliti kerak': 'Для подключения нужны адрес и API-ключ LMS-платформы',
+  'Ulagich tayyor (umumiy JSON yoki Moodle). Platforma manzili va API kalitini buyurtmachi — o‘quv platformasining egasi beradi. Ular kiritilib, «Ulanishni tekshirish» muvaffaqiyatli bo‘lmaguncha sinxronizatsiya o‘chiq turadi; bu tizim xatosi emas.': 'Коннектор готов (общий JSON или Moodle). Адрес платформы и API-ключ предоставляет заказчик — владелец обучающей платформы. Пока они не введены и «Проверить подключение» не прошло успешно, синхронизация выключена; это не ошибка системы.',
 }
 
 export default ru

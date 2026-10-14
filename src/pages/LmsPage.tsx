@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Link2, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle2, Info, Link2, RefreshCw, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -140,6 +140,18 @@ function LmsPageInner() {
           </>
         }
       />
+
+      {/* TZ 1734: the connector is ready, but it can only be connected with the
+          customer's LMS address and API key — say so instead of looking broken. */}
+      {settings && (!settings.base_url || !settings.has_api_key) && (
+        <div role="note" className="mb-4 flex items-start gap-3 rounded-card border border-brand/30 bg-brand/[0.06] p-4 text-sm text-fg">
+          <Info size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+          <div>
+            <p className="font-medium">{t('lms.needsCustomerTitle')}</p>
+            <p className="mt-1 text-fg-muted">{t('lms.needsCustomerText')}</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <Card className="p-5">

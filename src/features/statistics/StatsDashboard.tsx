@@ -23,6 +23,7 @@ import { DashboardSettings, DrillDrawer, type DrillTarget } from './DashboardExt
 import { dmy, isoDate, reversed } from './reportUtils'
 import { useServerText } from './serverText'
 import { ALL_BRANCHES, useDashboard, useStatBranch } from './useStatistics'
+import { numberLocale } from '@/lib/format'
 
 const ReportBarChart = lazy(() => import('./ReportBarChart'))
 
@@ -46,7 +47,7 @@ const CATEGORIES: { value: DashboardCategory; Icon: typeof Users }[] = [
 const FILTER_KEYS = ['dcat', 'dfrom', 'dto', 'dbranch', 'ddept', 'dpos', 'dstat', 'dcmp', 'dcfrom', 'dcto'] as const
 
 const fmt = (v: number | null | undefined) =>
-  v == null ? '—' : Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+  v == null ? '—' : Number(v).toLocaleString(numberLocale(), { maximumFractionDigits: 2 })
 
 export function StatsDashboard() {
   const { t } = useTranslation()

@@ -542,7 +542,7 @@ function CreateModal({
   const [storage, setStorage] = useState<BackupStorage>('local')
   const [description, setDescription] = useState('')
   const [compression, setCompression] = useState(6)
-  const [encrypt, setEncrypt] = useState(false)
+  const [encrypt, setEncrypt] = useState(true) // TZ 2350: encrypted by default
   const [check, setCheck] = useState<(StorageCheck & { loading?: boolean }) | null>(null)
 
   const runCheck = async (where: BackupStorage) => {

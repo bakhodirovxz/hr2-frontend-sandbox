@@ -1,4 +1,5 @@
 import type { CatalogColumn } from './api'
+import { numberLocale } from '@/lib/format'
 
 /**
  * Katalog hisoboti natijasi uchun yordamchilar (v1 dagi reportUtils nusxasi).
@@ -46,7 +47,7 @@ export function formatCell(value: unknown, col: CatalogColumn | null, yesNo: [st
       const p = String(Math.round(value * 100) / 100)
       return String(col.label ?? '').includes('%') ? p : `${p}%`
     }
-    return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    return value.toLocaleString(numberLocale(), { maximumFractionDigits: 2 })
   }
   if (Array.isArray(value)) return value.map((v) => formatCell(v, null, yesNo)).join(', ')
   if (typeof value === 'object') {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { Copy, History, Lock, Megaphone, Send } from 'lucide-react'
-import { inTashkent } from '@/lib/format'
+import { inTashkent, numberLocale } from '@/lib/format'
 import { Button, Checkbox, Combobox, DateInput, Field, Input, Modal, Select, Textarea, useToast } from '@/components/ui'
 import { FormError } from '@/components/ui/FormError'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
@@ -743,7 +743,7 @@ function ChangeHistory({
       return t(`orgRef.emp_${v as (typeof EMPLOYMENT_TYPES)[number]}`)
     if (field === 'education_level_code') return educationLabel(String(v)) ?? String(v)
     if (field === 'planned_units') return fmtUnits(v as number)
-    if (typeof v === 'number') return v.toLocaleString('ru-RU')
+    if (typeof v === 'number') return v.toLocaleString(numberLocale())
     return String(v)
   }
   const actionLabel = (c: StaffChange) => {

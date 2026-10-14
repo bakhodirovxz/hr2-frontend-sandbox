@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
+import { numberLocale } from '@/lib/format'
 
 /** Sana `DD.MM.YYYY` ko'rinishida; bo'sh yoki noto'g'ri bo'lsa «—». */
 export function dmy(v?: string | null): string {
@@ -30,5 +31,5 @@ export function daysBetween(from: string, to: string): string[] {
 
 /** «8.5» → «8,5» — v1 ham soatni ru-RU formatida ko'rsatadi. */
 export function formatHours(h?: number | null): string {
-  return (h ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+  return (h ?? 0).toLocaleString(numberLocale(), { maximumFractionDigits: 1 })
 }

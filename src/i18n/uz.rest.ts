@@ -832,7 +832,7 @@ const rest = {
     branchTitle: 'Filial',
     branchText: 'Ekrandagi ma’lumot shu yerda tanlangan filialga tegishli.',
     searchTitle: 'Qidiruv',
-    searchText: 'Xodim, hujjat va sahifalarni bir joydan qidiring — Ctrl+K bilan ham ochiladi.',
+    searchText: 'Xodim, hujjat va sahifalarni bir joydan qidiring.',
     notifTitle: 'Bildirishnomalar',
     notifText: 'Yangi hujjat, vazifa yoki so‘rov shu yerda. Bosilsa tegishli hujjat ochiladi.',
     toolsTitle: 'Sozlamalar',
@@ -8365,6 +8365,8 @@ const rest = {
     skipped: 'O‘tkazib yuborildi',
     history: 'Sinxronizatsiya tarixi',
     noRuns: 'Yozuv yo‘q.',
+    needsCustomerTitle: 'Ulanish uchun LMS platformasining manzili va API kaliti kerak',
+    needsCustomerText: 'Ulagich tayyor (umumiy JSON yoki Moodle). Platforma manzili va API kalitini buyurtmachi — o‘quv platformasining egasi beradi. Ular kiritilib, «Ulanishni tekshirish» muvaffaqiyatli bo‘lmaguncha sinxronizatsiya o‘chiq turadi; bu tizim xatosi emas.',
   },
 }
 

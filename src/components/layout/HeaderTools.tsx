@@ -7,10 +7,9 @@ import { POPOVER } from '@/components/ui/control'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { HelpButton } from '@/features/help/HelpButton'
 import { LanguageSwitcher } from './LanguageSwitcher'
-import { ThemeToggle } from './ThemeToggle'
 
 /**
- * O'qish sozlamalari — qo'llanma (F1, TZ 1745), ko'zi ojizlar rejimi, til (UZ / ЎЗ / RU), mavzu.
+ * O'qish sozlamalari — qo'llanma (F1, TZ 1745), ko'zi ojizlar rejimi, til (UZ / ЎЗ / RU).
  *
  * ⚠️ TELEFONDA BULAR YO'QOLGAN EDI. Sarlavha qatori bitta qator, o'ralmaydi va
  * `overflow` ni ko'rsatmaydi: 390px da o'ng guruh (qo'llanma…profil) ekrandan
@@ -30,12 +29,16 @@ export function HeaderTools({ showHelp }: { showHelp: boolean }) {
 
   return (
     <>
+      {/* TZ 1771/1838: the low-vision switch stays in the header row at every
+          width. At A++ a 1280px screen gets the tablet layout (the tools fold
+          into «⋯»), and the reader who needs the mode most could not find
+          the control that turns it off. */}
+      <LowVisionPanel />
+
       {/* Keng ekran: qatorda */}
       <div className="hidden items-center gap-ui-sm lg:flex">
         {showHelp && <HelpButton />}
-        <LowVisionPanel />
         <LanguageSwitcher />
-        <ThemeToggle />
       </div>
 
       {/* Tor ekran: yig'ma menyu */}
@@ -66,9 +69,7 @@ export function HeaderTools({ showHelp }: { showHelp: boolean }) {
           className="p-1.5"
         >
             {showHelp && <ToolRow label={t('guide.title')}><HelpButton /></ToolRow>}
-            <ToolRow label={t('a11y.title')}><LowVisionPanel /></ToolRow>
             <ToolRow label={t('header.language')}><LanguageSwitcher inline /></ToolRow>
-          <ToolRow label={t('header.theme')}><ThemeToggle /></ToolRow>
         </AnchoredPanel>
       </div>
     </>

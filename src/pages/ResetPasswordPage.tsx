@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/Field'
 import { LogoMark } from '@/components/layout/Logo'
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { publicClient } from '@/api/client'
 import { errorCode, errorMessage } from '@/api/errorMessage'
 import { CONTROL_PAD, control } from '@/components/ui/control'
@@ -76,8 +76,9 @@ export function ResetPasswordPage() {
     <div className="relative flex min-h-dvh items-center justify-center px-page py-10">
       <BackgroundDecor />
       <div className="absolute right-4 top-4 flex items-center gap-2">
+        {/* TZ 1771/1838: the low-vision mode on every page, public ones too. */}
+        <LowVisionPanel />
         <LanguageSwitcher />
-        <ThemeToggle />
       </div>
 
       <div className="relative w-full max-w-md rounded-card border border-line bg-surface p-card shadow-lg">

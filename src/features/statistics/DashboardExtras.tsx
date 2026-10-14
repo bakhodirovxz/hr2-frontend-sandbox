@@ -20,6 +20,7 @@ import {
 } from './api'
 import { dmy } from './reportUtils'
 import { useServerText } from './serverText'
+import { numberLocale } from '@/lib/format'
 
 /**
  * R2 · panel kengaytmalari: ko'rsatkich ortidagi qatorlar (batafsil) va
@@ -37,7 +38,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T|$)/
 function cellText(v: unknown): string {
   if (v == null || v === '') return '—'
   if (typeof v === 'boolean') return v ? '✓' : '—'
-  if (typeof v === 'number') return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+  if (typeof v === 'number') return v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 })
   if (typeof v === 'string' && ISO_DATE.test(v)) return dmy(v.slice(0, 10))
   return typeof v === 'object' ? JSON.stringify(v) : String(v)
 }

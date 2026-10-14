@@ -14,7 +14,6 @@ import { DateInput } from '@/components/ui/DateInput'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Textarea } from '@/components/ui/Textarea'
 import { LogoMark } from '@/components/layout/Logo'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor'
@@ -690,7 +689,6 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
       <div className="absolute right-4 top-4 flex items-center gap-1">
         <LowVisionPanel />
         <LanguageSwitcher />
-        <ThemeToggle />
       </div>
       <div className={cn('w-full', wide ? 'max-w-2xl' : 'max-w-sm')}>
         <div className="mb-7 flex flex-col items-center text-center">

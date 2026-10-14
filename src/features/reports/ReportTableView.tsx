@@ -4,7 +4,7 @@ import { Pagination } from '@/components/data/Pagination'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 import dayjs from 'dayjs'
-import { inTashkent } from '@/lib/format'
+import { inTashkent, numberLocale } from '@/lib/format'
 import { CELL_STYLE, SWATCH, reportLabel } from './reportStyles'
 import type { CellJson, DrillRef, ReportTableJson, RowJson, SheetJson } from './types'
 
@@ -22,9 +22,9 @@ function fmtCell(c: CellJson): string {
     case 'date':
       return typeof v === 'string' ? dayjs(v).format('DD.MM.YYYY') : String(v)
     case 'num':
-      return typeof v === 'number' ? v.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : String(v)
+      return typeof v === 'number' ? v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 }) : String(v)
     case 'pct':
-      return typeof v === 'number' ? `${v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%` : String(v)
+      return typeof v === 'number' ? `${v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 })}%` : String(v)
     case 'hhmm':
       // Server already renders clock-style "H.MM"; minutes arrive as a number.
       return typeof v === 'number' ? `${Math.floor(v / 60)}.${String(v % 60).padStart(2, '0')}` : String(v)

@@ -63,13 +63,10 @@ export function GlobalSearch() {
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Ctrl/Cmd + K — klaviatura bilan ishlaydiganlar uchun.
+  // Esc closes the search. (The Ctrl/Cmd + K command-palette shortcut was
+  // removed: it duplicated the TZ 1840 search bar this button opens.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setOpen(true)
-      }
       if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKey)
@@ -212,15 +209,12 @@ export function GlobalSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={`${t('search.title')} (Ctrl+K)`}
+        title={t('search.title')}
         aria-label={t('search.title')}
         className="flex h-icon shrink-0 items-center gap-2 rounded-inner bg-fg/[0.06] px-3 text-fg-muted transition-colors hover:bg-fg/[0.12] hover:text-fg"
       >
         <Search size={17} />
         <span className="hidden text-sm lg:inline">{t('search.title')}</span>
-        <kbd className="hidden rounded border border-line px-1.5 py-px font-mono text-[10px] text-fg-muted xl:inline">
-          Ctrl K
-        </kbd>
       </button>
 
       {open &&

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Eye, Mail, Phone } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { siteText, telHref, useSiteInfo } from '@/features/site/useSiteInfo'
+import { numberLocale } from '@/lib/format'
 
 /**
  * PASTKI PANEL (TZ 442, GEN-6): matnli yengil navigatsiya — «Kontaktlar»,
@@ -13,9 +14,9 @@ import { siteText, telHref, useSiteInfo } from '@/features/site/useSiteInfo'
  * ocholmaydi), o'rniga yordam telefoni.
  */
 export function Footer({ publicMode = false, className }: { publicMode?: boolean; className?: string }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const site = useSiteInfo().data
-  const fmt = (n: number) => n.toLocaleString(i18n.language === 'ru' ? 'ru-RU' : 'uz-UZ')
+  const fmt = (n: number) => n.toLocaleString(numberLocale())
   const link = 'rounded-inner hover:text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand'
 
   return (

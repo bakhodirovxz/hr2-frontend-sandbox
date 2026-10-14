@@ -18,7 +18,7 @@ import { useConfirm } from '@/components/data/useConfirm'
 import { TD, TH } from '@/components/data/tableStyles'
 import { useServerText } from '@/features/statistics/serverText'
 import { errorCode, errorMessage } from '@/api/errorMessage'
-import { formatRange } from '@/lib/format'
+import { formatRange, numberLocale } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { useIntervals, type KpiInterval, type KpiReport } from './api'
 import {
@@ -291,7 +291,7 @@ const GROUP_COL: Record<CompareGroupBy, string> = {
   group: 'kpi.colGroup',
 }
 const newestFirst = (a: KpiInterval, b: KpiInterval) => String(b.begin_date).localeCompare(String(a.begin_date))
-const n2 = (v: number | null | undefined) => (v == null ? '—' : Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 2 }))
+const n2 = (v: number | null | undefined) => (v == null ? '—' : Number(v).toLocaleString(numberLocale(), { maximumFractionDigits: 2 }))
 
 /**
  * K3 · 1412 «Сравнение периодов — система формирует сравнительный отчёт»:
