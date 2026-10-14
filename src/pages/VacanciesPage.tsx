@@ -288,7 +288,7 @@ function VacancyList({ lp }: { lp: ListParams }) {
       header: t('vacancies.colOrg'),
       skeleton: 'w-40',
       sortValue: (r) => sortValue(r, 'organization'),
-      cell: (r) => <span className="text-fg-muted">{r.organization?.name || '—'}</span>,
+      cell: (r) => <span className="text-fg-muted">{lt(r.organization?.name) || '—'}</span>,
     },
     {
       key: 'department',
@@ -546,7 +546,7 @@ function VacancyDrawer({
       placement="right"
       size="md"
       title={ln(v?.job_position) || t('vacancies.vacancy')}
-      description={v ? [ln(v.department), v.organization?.name].filter(Boolean).join(' · ') : undefined}
+      description={v ? [ln(v.department), lt(v.organization?.name)].filter(Boolean).join(' · ') : undefined}
     >
       {!v ? (
         loading ? (
@@ -566,7 +566,7 @@ function VacancyDrawer({
                 {v.status === 'closed' ? t('vacancies.statusClosed') : v.status === 'paused' ? t('ordVac.vacPaused') : t('vacancies.statusOpen')}
               </Badge>
             </Fact>
-            <Fact label={t('vacancies.colOrg')}>{v.organization?.name}</Fact>
+            <Fact label={t('vacancies.colOrg')}>{lt(v.organization?.name)}</Fact>
             <Fact label={t('vacancies.colDept')}>{ln(v.department)}</Fact>
             <Fact label={t('vacancies.colVacant')}>{v.vacant_count != null ? fmtCount(v.vacant_count) : null}</Fact>
             <Fact label={t('vacancies.colReq')}>{v.requirements}</Fact>

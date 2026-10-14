@@ -1,3 +1,4 @@
+import { lt } from '@/i18n/display'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Briefcase, FileSpreadsheet, FileText, GraduationCap, Minus, RefreshCw, Settings2, Target, TrendingDown, TrendingUp, Users } from 'lucide-react'
@@ -161,7 +162,7 @@ export function StatsDashboard() {
               onChange={(e) => setFilters({ dbranch: e.target.value, ddept: null, dpos: null })}
               options={[
                 { value: ALL_BRANCHES, label: t('statistics.allBranches') },
-                ...branches.map((b) => ({ value: String(b.id), label: b.name })),
+                ...branches.map((b) => ({ value: String(b.id), label: lt(b.name) })),
               ]}
             />
           </Field>

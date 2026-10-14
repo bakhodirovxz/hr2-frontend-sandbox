@@ -70,7 +70,7 @@ export function TabelSettingsPage() {
 
   const columns: Column<OrganizationBranch & { n: number }>[] = [
     { key: 'n', header: '№', headerClassName: 'w-12', className: 'tabular-nums text-fg-subtle', cell: (r) => `${r.n}.` },
-    { key: 'name', header: t('davomat.tsBranch'), skeleton: 'w-56', cell: (r) => <span className="font-semibold text-fg">{r.name}</span> },
+    { key: 'name', header: t('davomat.tsBranch'), skeleton: 'w-56', cell: (r) => <span className="font-semibold text-fg">{lt(r.name)}</span> },
     {
       key: 'approver',
       header: t('davomat.tsApprover'),
