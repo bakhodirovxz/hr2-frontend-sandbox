@@ -50,7 +50,6 @@ import {
   type View,
 } from './orgChartGeometry'
 import {
-  useHierarchy,
   useHierarchyMutations,
   useStructureSnapshot,
   type Handle,
@@ -81,9 +80,11 @@ interface ModalState {
 interface Props {
   branchId: number | null
   canEdit: boolean
+  /** Opens the department form — the scheme draws departments only. */
+  onAddDepartment?: () => void
 }
 
-export function OrgChart({ branchId, canEdit }: Props) {
+export function OrgChart({ branchId, canEdit, onAddDepartment }: Props) {
   const { t } = useTranslation()
   const toast = useToast()
   const confirm = useConfirm()
@@ -91,24 +92,28 @@ export function OrgChart({ branchId, canEdit }: Props) {
 
   const [asOf, setAsOf] = useState('')
   const snapshot = useStructureSnapshot(branchId, asOf)
-  const live = useHierarchy(branchId, true)
 
-  /* A date view draws the snapshot and is READ-ONLY: history cannot be edited.
-     When no snapshot exists for the chosen day the live chart stays on screen
-     with a notice, rather than an empty canvas that looks like data loss. */
-  const historyMode = !!snapshot.nodes
-
-  /* B-D9 (TZ S3): a branch with no scheme records yet must not show an empty
-     canvas — the chart is laid out from the departments and their parents
-     (`parent_id`). Read-only: editing needs real scheme records. */
-  const noRecords = !live.loading && live.nodes.length === 0 && !historyMode
+  /* TZ S3 1159 «переключает режим отображения (дерево/список/схема)»: the
+     scheme is one more VIEW of the same structure, so it is always laid out
+     from the departments and their parents (`parent_id`) — never from a
+     separately edited set of boxes that could drift away from the real units.
+     A date view draws the departments of that day's snapshot. Units are added
+     and edited with the department form; the scheme itself is read-only. */
+  const historyMode = !!asOf && snapshot.found && snapshot.departments.length > 0
   const depts = useDepartmentsAll(false)
+  const source = useMemo(
+    () =>
+      historyMode
+        ? (snapshot.departments as unknown as NonNullable<typeof depts.data>)
+        : depts.data ?? [],
+    [historyMode, snapshot.departments, depts.data],
+  )
   const derived = useMemo<HierarchyNode[] | null>(() => {
-    if (!noRecords || !depts.data?.length) return null
-    const roots = buildTree(depts.data.filter((d) => !d.closed_at))
+    if (!source.length) return null
+    const roots = buildTree(source.filter((d) => !d.closed_at))
     const out: HierarchyNode[] = []
     let cursor = 0
-    const place = (n: TreeNode<(typeof depts.data)[number]>, depth: number): number => {
+    const place = (n: TreeNode<(typeof source)[number]>, depth: number): number => {
       let x: number
       if (!n.children.length) {
         x = cursor * 270
@@ -122,7 +127,7 @@ export function OrgChart({ branchId, canEdit }: Props) {
         id: n.id,
         name: n.name,
         description: [n.code, ...heads].filter(Boolean).join(' · ') || null,
-        employee_count: n.raw.staff_count ?? 0,
+        employee_count: historyMode ? null : n.raw.staff_count ?? 0,
         node_type: 'deptNode',
         position_x: x,
         position_y: depth * 170,
@@ -133,10 +138,10 @@ export function OrgChart({ branchId, canEdit }: Props) {
     }
     roots.forEach((r) => place(r, 0))
     return out
-  }, [noRecords, depts.data])
-  const derivedMode = !!derived
-  const nodes = snapshot.nodes ?? derived ?? live.nodes
-  const editable = canEdit && !historyMode && !derivedMode
+  }, [source, historyMode])
+  const derivedMode = !historyMode
+  const nodes = derived ?? []
+  const editable = false
 
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 })
   const [sizes, setSizes] = useState<Record<number, { w: number; h: number }>>({})
@@ -447,7 +452,7 @@ export function OrgChart({ branchId, canEdit }: Props) {
     )
   }
 
-  const loading = live.loading || snapshot.loading
+  const loading = depts.isLoading || snapshot.loading
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const edges = nodes.flatMap((n) => n.outgoing_connections ?? [])
 
@@ -629,20 +634,10 @@ export function OrgChart({ branchId, canEdit }: Props) {
         )}
       </div>
 
-      {/* ── edit bar ───────────────────────────────────────────────────── */}
-      {canEdit && !historyMode && (
+      {/* ── add a unit (department form) ─────────────────────────────── */}
+      {canEdit && onAddDepartment && !historyMode && (
         <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2.5">
-          {editable && (
-            <span className="hidden max-w-[520px] text-right text-[11px] leading-tight text-fg-subtle lg:block">
-              {t('structure.chartHint')}
-            </span>
-          )}
-          <Button
-            size="sm"
-            leftIcon={<Plus size={15} />}
-            className="pointer-events-auto"
-            onClick={() => setModal({})}
-          >
+          <Button size="sm" leftIcon={<Plus size={15} />} className="pointer-events-auto" onClick={onAddDepartment}>
             {t('structure.chartAdd')}
           </Button>
         </div>

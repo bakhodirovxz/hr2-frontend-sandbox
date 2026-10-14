@@ -85,6 +85,7 @@ export function App() {
                       <Route path="/users" element={<UsersPage />} />
                       <Route path="/roles" element={<RolesPage />} />
                       <Route path="/branches" element={<BranchesPage />} />
+                      <Route path="/organizations" element={<BranchesPage />} />
                       <Route path="/registrations" element={<RegistrationsPage />} />
                       <Route path="/audit-logs" element={<AuditLogPage />} />
                       <Route path="/system-health" element={<SystemHealthPage />} />

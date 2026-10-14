@@ -7,6 +7,7 @@ import { Field } from '@/components/ui/Field'
 import { FormError } from '@/components/ui/FormError'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { useToast } from '@/components/ui/Toast'
 import { errorCode, errorMessage } from '@/api/errorMessage'
@@ -18,8 +19,10 @@ import { buildTree, descendantIds, indexTree, parentOptions } from './structureT
 import {
   useDepartmentAdminMutations,
   useDepartmentDetail,
+  UNIT_TYPES,
   type Basis,
   type DepartmentRow,
+  type UnitType,
 } from './useDepartmentAdmin'
 
 const ROOT = ''
@@ -55,6 +58,7 @@ export function DepartmentFormModal({
 
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [unitType, setUnitType] = useState<UnitType>('division')
   const [parentId, setParentId] = useState(ROOT)
   const [heads, setHeads] = useState<PickedPerson[]>([])
   const [established, setEstablished] = useState('')
@@ -73,6 +77,7 @@ export function DepartmentFormModal({
     }
     setName(value?.name ?? '')
     setCode(value?.code ?? '')
+    setUnitType(value?.unit_type ?? 'division')
     setParentId(value?.parent_id != null ? String(value.parent_id) : ROOT)
     setHeads((value?.heads ?? []).map((h) => ({ id: h.id, legal_name: h.legal_name, photo_thumb_path: h.photo_thumb_path })))
     setEstablished('')
@@ -124,6 +129,7 @@ export function DepartmentFormModal({
       head_ids: heads.map((h) => h.id),
       parent_id: parentId ? Number(parentId) : null,
       extra: {
+        unit_type: unitType,
         functions: functions.trim() || null,
         established_at: established || null,
         attributes,
@@ -142,6 +148,7 @@ export function DepartmentFormModal({
       const msg = errorMessage(e, t('common.actionFailed'))
       const c = errorCode(e)
       if (c === 'department_code_taken') setErrors({ code: msg })
+      else if (c === 'department_head_not_found' || c === 'department_head_foreign') setErrors({ heads: msg })
       else if (c === 'department_cycle' || c === 'department_parent_closed' || c === 'department_parent_branch_mismatch')
         setErrors({ parent: msg })
       else if (c === 'basis_required') setErrors({ basis: msg })
@@ -196,6 +203,13 @@ export function DepartmentFormModal({
             }}
           />
         </Field>
+        <Field label={t('orgAdmin.unitType')} hint={t('orgAdmin.unitTypeHint')}>
+          <Select
+            value={unitType}
+            onChange={(e) => setUnitType(e.target.value as UnitType)}
+            options={UNIT_TYPES.map((u) => ({ value: u, label: t(`orgAdmin.unit_${u}`) }))}
+          />
+        </Field>
         <Field label={t('orgAdmin.established')}>
           <DateInput value={established} onChange={setEstablished} aria-label={t('orgAdmin.established')} />
         </Field>
@@ -214,7 +228,7 @@ export function DepartmentFormModal({
             clearable={false}
           />
         </Field>
-        <Field label={t('orgAdmin.heads')} wide>
+        <Field label={t('orgAdmin.heads')} error={errors.heads} wide>
           <EmployeeMultiPicker value={heads} onChange={setHeads} branchId={branchId} placeholder={t('orgAdmin.headsPlaceholder')} />
         </Field>
         <Field label={t('orgAdmin.functions')} wide>

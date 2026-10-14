@@ -484,8 +484,10 @@ export function DictionariesPage() {
                 <FilterReset count={activeFilterCount} onReset={reset} />
 
                 <div className="ml-auto flex items-center gap-2">
-                  {/* TZ D1 1558 / D2 1583 — where this dictionary's codes are stored. */}
-                  {!external && (
+                  {/* TZ D1 1558 — where this dictionary's codes are stored: a
+                      technical registry for the administrator who manages the
+                      dictionaries (readers see the linked objects on the card). */}
+                  {manage && !external && (
                     <Button size="sm" variant="ghost" leftIcon={<Link2 size={14} />} onClick={() => setRegistryOpen(true)}>
                       {t('hrExt.usage.registryButton')}
                     </Button>
@@ -530,12 +532,12 @@ export function DictionariesPage() {
                 loading={loading}
           error={error}
           onRetry={refetch}
-                filtered={activeFilterCount > 0}
-                emptyAction={<FilterReset count={activeFilterCount} onReset={reset} />}
-                emptyTitle={t('dictionaries.empty')}
-                emptyDescription={
-                  search ? t('dictionaries.emptySearch') : t('dictionaries.emptyHint')
-                }
+                // TZ D2 1583: «Справочник пуст» → «Записи не найдены»; «Записи
+                // не найдены» by search/filter → «По вашему запросу ничего не
+                // найдено». The «add the first record» hint only for writers.
+                emptyAction={activeFilterCount > 0 ? <FilterReset count={activeFilterCount} onReset={reset} /> : undefined}
+                emptyTitle={activeFilterCount > 0 ? t('dictionaries.emptySearch') : t('dictionaries.empty')}
+                emptyDescription={activeFilterCount > 0 || readOnly ? undefined : t('dictionaries.emptyHint')}
                 minWidth={860}
                 density="compact"
               />

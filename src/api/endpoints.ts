@@ -41,6 +41,7 @@ export const HIERARCHY_CONNECTIONS = 'hierarchy-connections'
 export const HIERARCHY_CONNECTION = (pk: number | string) => `hierarchy-connections/${pk}`
 /* Every write snapshots the structure; these read those snapshots back. */
 export const STRUCTURE_HISTORY_AS_OF = 'structure-history/as-of'
+export const STRUCTURE_HISTORY_EVENTS = 'structure-history/events'
 
 // Guests (visitors)
 export const VISITORS_LIST = 'visitors'

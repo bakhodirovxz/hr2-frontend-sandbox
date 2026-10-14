@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { inTashkent } from '@/lib/format'
 import { useTranslation } from 'react-i18next'
 import { History } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -13,6 +13,9 @@ import type { DepartmentChangeLogEntry } from './useDepartmentAdmin'
  */
 
 const FIELD_KEYS = {
+  created: 'logCreated',
+  'extra.unit_type': 'logUnitType',
+  unit_type: 'logUnitType',
   name: 'logName',
   code: 'logCode',
   parent_id: 'logParent',
@@ -35,8 +38,9 @@ const FIELD_KEYS = {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/
 
+/** Times are shown in Asia/Tashkent whatever the browser's own zone is. */
 function fmtDate(v: string, withTime: boolean) {
-  const d = dayjs(v)
+  const d = inTashkent(v)
   return d.isValid() ? d.format(withTime ? 'DD.MM.YYYY HH:mm' : 'DD.MM.YYYY') : v
 }
 
@@ -65,7 +69,13 @@ export function ChangeLogList({ items }: { items?: DepartmentChangeLogEntry[] | 
   }
   const value = (r: DepartmentChangeLogEntry, which: 'old' | 'new') => {
     const label = r[`${which}_label`]
-    return label ? label : show(r[which])
+    if (label) return label
+    const v = r[which]
+    if ((r.field === 'extra.unit_type' || r.field === 'unit_type') && typeof v === 'string')
+      return t(`orgAdmin.unit_${v as 'management' | 'division' | 'section'}`)
+    if ((r.field === 'extra.unit_type' || r.field === 'unit_type') && (v === null || v === undefined))
+      return t('orgAdmin.unit_division')
+    return show(v)
   }
   const author = (by: DepartmentChangeLogEntry['by']) => {
     if (!by) return '—'
@@ -90,7 +100,9 @@ export function ChangeLogList({ items }: { items?: DepartmentChangeLogEntry[] | 
             <span className="font-semibold text-fg">{fieldLabel(r.field)}</span>
             <span className="whitespace-nowrap text-[12px] tabular-nums text-fg-subtle">{r.at ? fmtDate(r.at, true) : ''}</span>
           </div>
-          {(r.old !== undefined || r.new !== undefined) && (
+          {r.field === 'created' ? (
+            <div className="mt-1 break-words text-fg">{value(r, 'new')}</div>
+          ) : (r.old !== undefined || r.new !== undefined) && (
             <div className="mt-1 break-words text-fg-muted">
               <span className="text-fg-subtle line-through decoration-line">{value(r, 'old')}</span>
               <span className="mx-1.5 text-fg-subtle">→</span>
