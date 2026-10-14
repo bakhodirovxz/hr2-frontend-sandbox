@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { EMPLOYEE_QUERY_KEYS } from '@/features/employees/useEmployees'
 import { publicClient } from '@/api/client'
 import { apiGet, apiPost } from '@/api/http'
@@ -121,13 +121,21 @@ export interface RegistrationPayload {
 }
 
 /** Ochiq forma uchun tanlov ro'yxatlari (autentifikatsiyasiz). */
-export function useRegisterOptions() {
+/**
+ * `branchId` — units and positions are served only for the chosen
+ * organisation (the public endpoint no longer lists the whole structure).
+ */
+export function useRegisterOptions(branchId?: string | number | null) {
+  const branch = branchId ? String(branchId) : ''
   return useQuery({
-    queryKey: ['register-options'],
+    queryKey: ['register-options', branch],
     queryFn: async () => {
-      const { data } = await publicClient.get<RegistrationOptions>(`/${REGISTER_OPTIONS}`)
+      const { data } = await publicClient.get<RegistrationOptions>(`/${REGISTER_OPTIONS}`, {
+        params: branch ? { branch_id: branch } : undefined,
+      })
       return data
     },
+    placeholderData: keepPreviousData,
     staleTime: 30 * 60_000,
     retry: 1,
   })

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, Save } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
@@ -13,7 +13,8 @@ import { useToast } from '@/components/ui/Toast'
 import { errorCode, errorMessage } from '@/api/errorMessage'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
 import { PASSWORD_MIN_LENGTH } from '@/lib/passwordStrength'
-import { useUserMutations, type UserAdminRow, type UserPayload } from './useUserAdmin'
+import { roleDisplayName, roleOrgKind, useUserMutations, type UserAdminRow, type UserPayload } from './useUserAdmin'
+import { useDynamicT } from '@/i18n/dynamicKey'
 
 const LOGIN_RE = /^[A-Za-z0-9._@-]{3,64}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -58,14 +59,17 @@ export function UserDrawer({
   isSelf,
   roleOptions,
   branchOptions,
+  branches = [],
   lockedBranchId,
   onClose,
 }: {
   open: boolean
   initial: UserAdminRow | null
   isSelf: boolean
-  roleOptions: SelectOption[]
+  roleOptions: (SelectOption & { code?: string | null })[]
   branchOptions: SelectOption[]
+  /** Organisations with their kind — for the role/organisation warning. */
+  branches?: { id: number | string; ownership_form?: string | null; is_head_office?: boolean | null }[]
   lockedBranchId: number | null
   onClose: () => void
 }) {
@@ -76,6 +80,33 @@ export function UserDrawer({
   const [form, setForm] = useState<Form>(EMPTY)
   const [errors, setErrors] = useState<Errors>({})
   const [showPw, setShowPw] = useState(false)
+  const tk = useDynamicT()
+
+  /** The current role stays selectable even when the caller may not grant it. */
+  const roleChoices = useMemo(() => {
+    const cur = initial?.role
+    if (!cur?.id || roleOptions.some((o) => o.value === String(cur.id))) return roleOptions
+    return [...roleOptions, { value: String(cur.id), label: roleDisplayName(cur, tk), code: cur.code ?? null }]
+  }, [roleOptions, initial, tk])
+
+  /**
+   * A staff/HR system role belongs to one kind of organisation (head office,
+   * branch, subsidiary — TZ 1876-1879); warn before saving a mismatch (the
+   * server refuses it only for the HR roles).
+   */
+  const orgMismatch = useMemo(() => {
+    const kind = roleOrgKind(roleChoices.find((o) => o.value === form.role_id)?.code)
+    const branchId = form.organization_branch_id || (lockedBranchId ? String(lockedBranchId) : '')
+    const b = branches.find((x) => String(x.id) === branchId)
+    if (!kind || !b) return false
+    const form_ = String(b.ownership_form ?? '').toLowerCase()
+    const isCa = !!b.is_head_office || form_ === 'ca'
+    const isSub = ['sp', 'ao', 'ooo', 'nou'].includes(form_)
+    if (kind === 'ca') return !isCa
+    if (kind === 'nonca') return isCa
+    if (kind === 'subsidiary') return !isSub
+    return isCa || isSub
+  }, [roleChoices, form.role_id, form.organization_branch_id, branches, lockedBranchId])
 
   useEffect(() => {
     if (!open) return
@@ -203,13 +234,16 @@ export function UserDrawer({
           <Combobox
             value={form.role_id}
             onChange={(v) => set('role_id', v)}
-            options={roleOptions}
+            options={roleChoices}
             placeholder={t('userAdmin.pickRole')}
             invalid={!!errors.role_id}
             disabled={isSelf}
             clearable={false}
           />
         </Field>
+        {orgMismatch && (
+          <p role="alert" className="-mt-2 text-xs text-warning">{t('roleAdmin.orgMismatch')}</p>
+        )}
         {!isEdit && (
           <Field label={t('userAdmin.initialPassword')} required error={errors.password} hint={t('userAdmin.passwordHint')}>
             <Input

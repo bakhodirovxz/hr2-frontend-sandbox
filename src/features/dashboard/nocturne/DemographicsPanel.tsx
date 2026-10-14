@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Briefcase, CalendarDays, ChevronRight, Globe2, Users } from 'lucide-react'
 import { useEmployeeStats } from '@/features/employees/useEmployeeKpi'
+import { useAuthStore } from '@/store/authStore'
+import { can } from '@/auth/permissions'
 import { useJobPositionOptions } from '@/hooks/useReferenceData'
 import { useNationalityLabel } from '@/features/employees/nationalityLabel'
 import { apiGet } from '@/api/http'
@@ -56,6 +58,7 @@ type Drill = { group: RosterGroup; key: string } | null
 export function DemographicsPanel({ className }: { className?: string }) {
   const { t } = useTranslation()
   const stats = useEmployeeStats()
+  const user = useAuthStore((st) => st.user)
   const positions = useJobPositionOptions()
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const { summary, failed: drillClosed } = useRosterSummary()
@@ -71,6 +74,7 @@ export function DemographicsPanel({ className }: { className?: string }) {
       apiGet<PositionStat[]>(DASHBOARD_JOB_POSITION_STATS, {
         organization_branch_id: branchId || undefined,
       }),
+    enabled: can(user, 'employees'),
     staleTime: 10 * 60_000,
   })
 

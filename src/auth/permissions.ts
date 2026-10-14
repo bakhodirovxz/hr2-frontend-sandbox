@@ -59,6 +59,8 @@ export interface Actor {
   /** null — global (barcha filiallar). */
   own_branch_ids?: number[] | null
   statistics_dashboard?: boolean
+  /** The named attendance roster (TZ 417/747): HR, management, admins, managers. */
+  attendance_roster?: boolean
   has_subordinates?: boolean
   unit_department_ids?: number[]
   modules?: Partial<Record<ModuleCode, ModuleAccess>>

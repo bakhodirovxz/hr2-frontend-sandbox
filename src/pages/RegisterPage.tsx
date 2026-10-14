@@ -46,6 +46,29 @@ import {
  * o'zi tanlaydi, tasdiqlash oynasida esa administrator qayta belgilaydi.
  */
 
+/** Field → i18n key of its label (TZ 1890-1917 required-field message). */
+const REQUIRED_LABELS: Partial<Record<keyof typeof EMPTY, string>> = {
+  last_name: 'register.lastName',
+  first_name: 'register.firstName',
+  middle_name: 'register.middleName',
+  birth_date: 'register.birthDate',
+  gender: 'register.gender',
+  birth_place: 'register.birthPlace',
+  birth_country_id: 'register.birthCountry',
+  nationality_id: 'register.nationality',
+  citizenship_id: 'register.citizenship',
+  address: 'register.address',
+  pinfl: 'register.pinfl',
+  inn: 'register.inn',
+  passport_number: 'register.passport',
+  passport_issued_by: 'register.passportIssuedBy',
+  passport_issue_date: 'register.passportIssueDate',
+  passport_expiry_date: 'register.passportExpiryDate',
+  photo_base64: 'register.photo',
+  claimed_department_id: 'register.department',
+  claimed_job_position_id: 'register.position',
+}
+
 const STEP_KEYS = ['register.stepPersonal', 'authx.stepDocs', 'authx.stepAccount'] as const
 
 const EMPTY = {
@@ -91,11 +114,11 @@ export function RegisterPage() {
   const tk = useDynamicT()
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const options = useRegisterOptions()
   const submit = useSubmitRegistration()
 
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormState>(EMPTY)
+  const options = useRegisterOptions(form.claimed_branch_id)
   const [error, setError] = useState('')
 
   const [photoPreview, setPhotoPreview] = useState('')
@@ -170,20 +193,40 @@ export function RegisterPage() {
     return out.join('\n')
   }
 
+  /**
+   * TZ 1890-1915 «Пользователь должен указать следующие данные»: every
+   * listed field is required (the server checks the same list). The unit
+   * and the position only for an UGE employee (TZ 1893, 1916-1917).
+   */
+  const missing = (keys: (keyof FormState)[]) =>
+    keys.filter((k) => !String(form[k] ?? '').trim()).map((k) => tk(REQUIRED_LABELS[k] ?? 'register.errRequired'))
+
   const validateStep = (): string => {
-    if (step === 0 && (!form.last_name.trim() || !form.first_name.trim())) {
-      return t('register.errName')
+    if (step === 0) {
+      const m = missing(['last_name', 'first_name', 'middle_name', 'birth_date', 'gender', 'birth_place',
+        'birth_country_id', 'nationality_id', 'citizenship_id', 'address'])
+      if (m.length) return t('register.errMissing', { fields: m.join(', ') })
     }
-    if (step === 1) return validateDocs()
+    if (step === 1) {
+      const m = missing(['pinfl', 'inn', 'passport_number', 'passport_issued_by', 'passport_issue_date',
+        'passport_expiry_date', 'photo_base64'])
+      if (m.length) return t('register.errMissing', { fields: m.join(', ') })
+      return validateDocs()
+    }
     if (step === 2) {
       if (!form.username.trim()) return t('register.errUsername')
       if (!form.email.trim()) return t('register.errEmail')
+      if (!form.phone_number.trim()) return t('register.errMissing', { fields: t('register.phone') })
       // ⚠️ 8, 6 EMAS: `UserService._MIN_PASSWORD_LEN` — foydalanuvchi O'ZI
       // tanlagan parol uchun chegara 8. 6 da to'xtatilsa backend 400
       // (`weak_password`) qaytarardi va foydalanuvchi INGLIZCHA xatoni ko'rardi.
       if (checkPassword(form.password, form.username).failed.length) return t('password.notStrongEnough')
       if (form.password !== form.password2) return t('register.errPasswordMismatch')
       if (form.is_uge_employee && !form.claimed_branch_id) return t('register.errBranch')
+      if (form.is_uge_employee) {
+        const m = missing(['claimed_department_id', 'claimed_job_position_id'])
+        if (m.length) return t('register.errMissing', { fields: m.join(', ') })
+      }
     }
     return ''
   }
@@ -263,7 +306,7 @@ export function RegisterPage() {
         <div className="flex flex-col items-center text-center">
           <CheckCircle2 size={56} className="text-success" />
           <h2 className="mt-5 text-2xl font-bold text-fg">{t('register.doneTitle')}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-fg-muted">{t('register.doneText')}</p>
+          <p className="mt-2 text-sm leading-relaxed text-fg-muted">{form.is_uge_employee ? t('register.doneText') : t('register.doneTextGuest')}</p>
           <p className="mt-2 text-sm leading-relaxed text-fg-muted">
             {form.auth_method === 'qr' ? t('regAuth.doneQr') : t('authx.qrNote')}
           </p>
@@ -322,13 +365,13 @@ export function RegisterPage() {
             <Field label={t('register.firstName')} required>
               <Input value={form.first_name} onChange={(e) => set('first_name')(e.target.value)} />
             </Field>
-            <Field label={t('register.middleName')}>
+            <Field label={t('register.middleName')} required>
               <Input value={form.middle_name} onChange={(e) => set('middle_name')(e.target.value)} />
             </Field>
-            <Field label={t('register.birthDate')}>
+            <Field label={t('register.birthDate')} required>
               <DateInput value={form.birth_date} onChange={set('birth_date')} />
             </Field>
-            <Field label={t('register.gender')}>
+            <Field label={t('register.gender')} required>
               <Select
                 value={form.gender}
                 onChange={(e) => set('gender')(e.target.value)}
@@ -339,10 +382,10 @@ export function RegisterPage() {
                 ]}
               />
             </Field>
-            <Field label={t('register.birthPlace')}>
+            <Field label={t('register.birthPlace')} required>
               <Input value={form.birth_place} onChange={(e) => set('birth_place')(e.target.value)} />
             </Field>
-            <Field label={t('register.birthCountry')}>
+            <Field label={t('register.birthCountry')} required>
               <Combobox
                 value={form.birth_country_id}
                 onChange={set('birth_country_id')}
@@ -350,7 +393,7 @@ export function RegisterPage() {
                 placeholder={t('register.notSelected')}
               />
             </Field>
-            <Field label={t('register.nationality')}>
+            <Field label={t('register.nationality')} required>
               <Combobox
                 value={form.nationality_id}
                 onChange={set('nationality_id')}
@@ -358,7 +401,7 @@ export function RegisterPage() {
                 placeholder={t('register.notSelected')}
               />
             </Field>
-            <Field label={t('register.citizenship')}>
+            <Field label={t('register.citizenship')} required>
               <Combobox
                 value={form.citizenship_id}
                 onChange={set('citizenship_id')}
@@ -366,7 +409,7 @@ export function RegisterPage() {
                 placeholder={t('register.notSelected')}
               />
             </Field>
-            <Field label={t('register.address')} wide>
+            <Field label={t('register.address')} required wide>
               <Textarea
                 rows={2}
                 value={form.address}
@@ -378,29 +421,29 @@ export function RegisterPage() {
 
         {step === 1 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('register.pinfl')} hint={t('register.pinflHint')}>
+            <Field label={t('register.pinfl')} required hint={t('register.pinflHint')}>
               <Input value={form.pinfl} onChange={setMasked('pinfl')} inputMode="numeric" />
             </Field>
-            <Field label={t('register.inn')} hint={t('register.innHint')}>
+            <Field label={t('register.inn')} required hint={t('register.innHint')}>
               <Input value={form.inn} onChange={setMasked('inn')} inputMode="numeric" />
             </Field>
-            <Field label={t('register.passport')} hint={t('register.passportHint')}>
+            <Field label={t('register.passport')} required hint={t('register.passportHint')}>
               <Input value={form.passport_number} onChange={setMasked('passport_number')} />
             </Field>
-            <Field label={t('register.passportIssuedBy')}>
+            <Field label={t('register.passportIssuedBy')} required>
               <Input
                 value={form.passport_issued_by}
                 onChange={(e) => set('passport_issued_by')(e.target.value)}
               />
             </Field>
-            <Field label={t('register.passportIssueDate')}>
+            <Field label={t('register.passportIssueDate')} required>
               <DateInput value={form.passport_issue_date} onChange={set('passport_issue_date')} />
             </Field>
-            <Field label={t('register.passportExpiryDate')}>
+            <Field label={t('register.passportExpiryDate')} required>
               <DateInput value={form.passport_expiry_date} onChange={set('passport_expiry_date')} />
             </Field>
 
-            <Field label={t('register.photo')} hint={t('register.photoHint')} wide>
+            <Field label={t('register.photo')} required hint={t('register.photoHint')} wide>
               <div className="flex items-center gap-4">
                 {photoPreview ? (
                   <>
@@ -460,7 +503,7 @@ export function RegisterPage() {
                 autoComplete="email"
               />
             </Field>
-            <Field label={t('register.phone')} wide>
+            <Field label={t('register.phone')} required wide>
               <Input
                 value={form.phone_number}
                 onChange={setMasked('phone_number')}
@@ -512,7 +555,7 @@ export function RegisterPage() {
                     placeholder={t('register.notSelected')}
                   />
                 </Field>
-                <Field label={t('register.department')}>
+                <Field label={t('register.department')} required>
                   <Combobox
                     value={form.claimed_department_id}
                     onChange={set('claimed_department_id')}
@@ -521,7 +564,7 @@ export function RegisterPage() {
                     placeholder={t('register.notSelected')}
                   />
                 </Field>
-                <Field label={t('register.position')}>
+                <Field label={t('register.position')} required>
                   <Combobox
                     value={form.claimed_job_position_id}
                     onChange={set('claimed_job_position_id')}

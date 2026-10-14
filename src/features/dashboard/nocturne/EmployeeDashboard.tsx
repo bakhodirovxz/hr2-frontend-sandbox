@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Activity, Building2, CalendarCheck, ClipboardCheck, ConciergeBell, Users, Zap } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useDashboard } from '@/features/dashboard/useDashboard'
+import { useDynamicT } from '@/i18n/dynamicKey'
 import { AttendanceStatsList } from './AttendanceStatsView'
 import { CarouselPanel, type CarouselSlide } from './Carousel'
 import { MyDayCard } from './MyDayCard'
@@ -42,6 +43,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
  */
 export function EmployeeDashboard() {
   const { t } = useTranslation()
+  const tk = useDynamicT()
   const months = t('date.months', { returnObjects: true })
 
   const me = useEmployeeBoard()
@@ -80,7 +82,31 @@ export function EmployeeDashboard() {
    */
   const myDept = me.employee?.department
   const myDeptName = typeof myDept === 'object' && myDept ? (myDept.name ?? '') : ''
-  const attendanceSlides: CarouselSlide[] = [
+  // GEN#3 / TZ 417/747: a rank-and-file employee sees today's counts of his
+  // organisation, not a named list of colleagues.
+  const ms = dash.mainStats
+  const countsSlides: CarouselSlide[] = [
+    {
+      key: 'counts',
+      icon: Users,
+      title: t('dashboard.board.scopeAll'),
+      content: (
+        <div className="grid grid-cols-2 gap-3 p-3">
+          {(
+            [
+              ['dashboard.board.cntTotal', ms?.total_employees_count, 'brand'],
+              ['dashboard.board.cntPresent', ms?.present_employees_count, 'success'],
+              ['dashboard.board.cntLate', ms?.late_employees_count, 'warning'],
+              ['dashboard.board.cntAbsent', ms?.absent_employees_count, 'danger'],
+            ] as const
+          ).map(([key, value, tone]) => (
+            <StatTile key={key} label={tk(key)} value={value ?? 0} icon={Users} tone={tone} loading={dash.loading} />
+          ))}
+        </div>
+      ),
+    },
+  ]
+  const attendanceSlides: CarouselSlide[] = !dash.roster ? countsSlides : [
     {
       key: 'all',
       icon: Users,

@@ -39,6 +39,9 @@ export interface UserAdminRow {
   /** TZ U1 772 — ketma-ket noto'g'ri urinishlar va blok muddati. */
   failed_login_count?: number
   locked_until?: string | null
+  /** TZ C4: archived card — `username` is a technical sentinel. */
+  archived?: boolean
+  archived_username?: string | null
 }
 
 /** Xato urinishlar sababli hozir bloklanganmi (muddat hali o'tmagan). */
@@ -73,6 +76,43 @@ export interface RoleRow {
   permissions?: Record<string, unknown> | null
   organization_branch_id?: number | null
   users_count?: number | null
+  /** TZ A2 869: may the signed-in administrator hand this role out. */
+  assignable?: boolean | null
+}
+
+const SYSTEM_ROLE_CODES = [
+  'system_admin', 'management', 'hr_central', 'hr_branch', 'ca_staff', 'subsidiary_staff', 'branch_staff', 'guest',
+] as const
+
+/**
+ * Display name of a role: the seven TZ system roles (+ the organisation HR
+ * variant) are translated by code; a custom role keeps the name its author
+ * gave it.
+ */
+export function roleDisplayName(
+  role: { code?: string | null; name?: string | null } | null | undefined,
+  t: (key: string) => string,
+): string {
+  const code = role?.code ?? ''
+  if ((SYSTEM_ROLE_CODES as readonly string[]).includes(code)) return t(`roleAdmin.sysName.${code}`)
+  return role?.name ?? ''
+}
+
+/** System role → the organisation kind it belongs to (null = any). */
+export function roleOrgKind(code?: string | null): 'ca' | 'filial' | 'subsidiary' | 'nonca' | null {
+  switch (code) {
+    case 'ca_staff':
+    case 'hr_central':
+      return 'ca'
+    case 'branch_staff':
+      return 'filial'
+    case 'subsidiary_staff':
+      return 'subsidiary'
+    case 'hr_branch':
+      return 'nonca'
+    default:
+      return null
+  }
 }
 
 interface Page<T> {

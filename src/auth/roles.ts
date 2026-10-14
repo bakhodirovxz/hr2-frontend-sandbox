@@ -118,6 +118,9 @@ export function canSeeReports(user?: User | null): boolean {
  * calls for a KPI admin anyway and eat two 403s (measured 2026-09-23).
  */
 export function canSeeLateness(user?: User | null): boolean {
+  // The server flag already combines the role gate with the attendance
+  // module level (GEN#3) — a branch administrator has no attendance access.
+  if (typeof user?.actor?.attendance_roster === 'boolean') return user.actor.attendance_roster
   if (user?.type === 'master-admin' || String(user?.type) === 'admin') return true
   const primary = getMultiOrgRole(user)
   if (primary && (['hr', 'ministr', 'deputy', 'monitoring', 'dashboard'] as string[]).includes(primary)) return true

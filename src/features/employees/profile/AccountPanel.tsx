@@ -226,7 +226,7 @@ function TwoFactorCard() {
   )
 }
 
-type Errors = Partial<Record<'full_name' | 'username' | 'email' | 'current_password', string>>
+type Errors = Partial<Record<'full_name' | 'username' | 'email' | 'current_password' | 'phone_number', string>>
 
 /** «Hisob ma'lumotlarini tahrirlash» (TZ 4.2.4 · 1933–1934, L2). */
 function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
@@ -239,7 +239,7 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
 
   const initial = {
     full_name: displayName(user),
-    phone_number: employee?.phone_number || user?.employee?.phone_number || '',
+    phone_number: employee?.phone_number || user?.employee?.phone_number || user?.phone_number || '',
     email: accountEmail(user),
     username: user?.username || '',
   }
@@ -286,6 +286,10 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
     if (!form.username.trim()) errs.username = t('account.errUsername')
     if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errs.email = t('account.errEmail')
     if (credentialsChanged && !currentPassword) errs.current_password = t('account.errCurrentForCredentials')
+    // TZ L2 963 «подсвечивает некорректные поля»: +998 XX XXX-XX-XX.
+    const phoneDigits = form.phone_number.replace(/\D/g, '')
+    if (form.phone_number.trim() && !(phoneDigits.length === 9 || (phoneDigits.length === 12 && phoneDigits.startsWith('998'))))
+      errs.phone_number = t('account.errPhone')
     setErrors(errs)
     if (Object.keys(errs).length) return
 
@@ -299,8 +303,11 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
       if (form.full_name.trim() !== (employee?.legal_name || user?.employee?.legal_name || '')) payload.legal_name = form.full_name.trim()
       if (form.phone_number.trim() !== initial.phone_number) payload.phone_number = form.phone_number.trim() || null
       if (photo?.base64) payload.photo_base64 = photo.base64
-    } else if (form.full_name.trim() !== (user?.full_name || '')) {
-      payload.full_name = form.full_name.trim()
+    } else {
+      // TZ L2 950/961: an account without a card keeps phone and photo itself.
+      if (form.full_name.trim() !== (user?.full_name || '')) payload.full_name = form.full_name.trim()
+      if (form.phone_number.trim() !== initial.phone_number) payload.phone_number = form.phone_number.trim()
+      if (photo?.base64) payload.photo_base64 = photo.base64
     }
     if (!Object.keys(payload).length) return toast.info(t('account.noChanges'))
 
@@ -327,6 +334,7 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
       if (code === 'username_taken' || code === 'user_username_exists' || code === 'username_too_short') setErrors({ username: msg })
       else if (code === 'email_taken' || code === 'invalid_email_format') setErrors({ email: msg })
       else if (code === 'invalid_current_password') setErrors({ current_password: msg })
+      else if (code === 'invalid_phone_number') setErrors({ phone_number: msg })
       else toast.error(msg)
     } finally {
       setSaving(false)
@@ -338,10 +346,10 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
       <CardHeader title={t('account.editTitle')} icon={<UserCog />} />
       <CardBody className="p-card">
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-          {hasEmployee && (
+          {(
             <div className="flex items-center gap-3">
               <Avatar
-                src={photo?.preview || employee?.photo_thumb_path || employee?.photo_path}
+                src={photo?.preview || employee?.photo_thumb_path || employee?.photo_path || user?.photo_url}
                 fallbackSrc={employee?.photo_path}
                 name={form.full_name}
                 size={48}
@@ -357,17 +365,16 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
           <Field label={t('account.fullName')} required error={errors.full_name}>
             <Input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} autoComplete="name" invalid={!!errors.full_name} />
           </Field>
-          {hasEmployee && (
-            <Field label={t('account.phone')}>
-              <Input
-                value={form.phone_number}
-                inputMode="tel"
-                placeholder="+998901234567"
-                autoComplete="tel"
-                onChange={(e) => set('phone_number', e.target.value.replace(/[^\d+]/g, '').slice(0, 13))}
-              />
-            </Field>
-          )}
+          <Field label={t('account.phone')} error={errors.phone_number}>
+            <Input
+              value={form.phone_number}
+              inputMode="tel"
+              placeholder="+998901234567"
+              autoComplete="tel"
+              invalid={!!errors.phone_number}
+              onChange={(e) => set('phone_number', e.target.value.replace(/[^\d+]/g, '').slice(0, 13))}
+            />
+          </Field>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label={t('account.login')} required error={errors.username}>
               <Input value={form.username} onChange={(e) => set('username', e.target.value)} autoComplete="username" invalid={!!errors.username} />

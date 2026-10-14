@@ -1,3 +1,4 @@
+import { useDynamicT } from '@/i18n/dynamicKey'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trash2 } from 'lucide-react'
@@ -7,7 +8,7 @@ import { Field } from '@/components/ui/Field'
 import { Combobox } from '@/components/ui/Combobox'
 import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/api/errorMessage'
-import { useRoleMutations, type RoleRow } from './useUserAdmin'
+import { roleDisplayName, useRoleMutations, type RoleRow } from './useUserAdmin'
 
 /**
  * Foydalanuvchilari bor rolni o'chirish: backend 409 `role_in_use` beradi,
@@ -23,14 +24,15 @@ export function ReassignRoleModal({
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const tk = useDynamicT()
   const toast = useToast()
   const { remove } = useRoleMutations()
   const [target, setTarget] = useState('')
   useEffect(() => setTarget(''), [state])
 
   const options = roles
-    .filter((r) => r.id !== state?.role.id)
-    .map((r) => ({ value: String(r.id), label: r.name }))
+    .filter((r) => r.id !== state?.role.id && r.assignable !== false)
+    .map((r) => ({ value: String(r.id), label: roleDisplayName(r, tk) }))
 
   const submit = async () => {
     if (!state || !target) return

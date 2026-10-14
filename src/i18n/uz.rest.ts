@@ -1102,6 +1102,10 @@ const rest = {
 
     /** NOCTURNE boshqaruv paneli (HR va Xodim ko‘rinishlari). */
     board: {
+      cntTotal: 'Ro‘yxatda',
+      cntPresent: 'Kelganlar',
+      cntLate: 'Kech qolganlar',
+      cntAbsent: 'Kelmaganlar',
       // ── Jonli tashrif (chap ustun) ──
       feedTitle: 'Jonli tashrif',
       realtime: 'real vaqtda',
@@ -5118,6 +5122,7 @@ const rest = {
 
   // ── Tizim boshqaruvi: foydalanuvchilar (TZ A3) ──────────────────────────
   userAdmin: {
+    archivedMark: 'arxivda',
     lockedBadge: 'Bloklangan: {{at}} gacha',
     lockedHint: 'Noto‘g‘ri urinishlar ko‘pligi sababli hisob {{at}} gacha bloklangan',
     unlock: 'Blokdan chiqarish',
@@ -5203,6 +5208,21 @@ const rest = {
 
   // ── Tizim boshqaruvi: rollar va ruxsatlar (TZ A1, A2) ───────────────────
   roleAdmin: {
+    /** TZ 1873-1880 system role names, shown by role code (the server keeps
+     *  one Uzbek name; the interface translates it). */
+    sysName: {
+      system_admin: 'Tizim administratori',
+      management: 'UGE rahbariyati',
+      hr_central: 'Markaziy apparat kadrlar boshqarmasi xodimi',
+      hr_branch: 'Tashkilot (filial) kadrlar xodimi',
+      ca_staff: 'Markaziy apparat xodimi',
+      subsidiary_staff: 'Tobe tashkilot xodimi/rahbari',
+      branch_staff: 'Filial (energiya ishlab chiqaruvchi korxona) xodimi/rahbari',
+      guest: 'Mehmon',
+    },
+    personalLevels: 'Shaxsiy darajalar',
+    orgMismatch:
+      'Diqqat: tanlangan rol bu tashkilot turiga mos emas (markaziy apparat / filial / tobe tashkilot).',
     title: 'Rollar va ruxsatlar',
     subtitle: 'Rol yaratish, tahrirlash va modullar bo‘yicha kirish darajasini belgilash',
     tabRoles: 'Rollar',

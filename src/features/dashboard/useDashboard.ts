@@ -53,13 +53,19 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
   const keyBase = [branchId, f.department_id, f.job_position_id, f.search]
   const day = dayjs().subtract(dayOffset, 'day').format('YYYY-MM-DD')
 
+  // GEN#3 / TZ A2: each widget answers only to the module that opens it;
+  // the named roster only to the people who act on it (actor flag).
+  const canAttendance = can(user, 'attendance')
+  const roster = canAttendance && !!user?.actor?.attendance_roster
   const mainQuery = useQuery({
     queryKey: ['dashboard', 'main', ...keyBase],
     queryFn: () => apiGet<MainStats>(DASHBOARD_MAIN, { organization_branch_id: branchId, ...f }),
+    enabled: canAttendance,
     refetchInterval: 120_000,
   })
 
   const categoriesQuery = useQuery({
+    enabled: roster,
     queryKey: ['dashboard', 'categories', ...keyBase],
     queryFn: () =>
       apiGet<EmployeesByCategory>(DASHBOARD_EMPLOYEES_BY_CATEGORY, {
@@ -79,7 +85,7 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
         ...f,
       }),
     // Turniket o'tishlari — davomat moduli (filial administratorida yo'q).
-    enabled: can(user, 'attendance'),
+    enabled: roster,
     // O'tgan kun o'zgarmaydi; bugungi kun 2 daqiqada yangilanadi.
     refetchInterval: dayOffset === 0 ? 120_000 : false,
   })
@@ -102,6 +108,8 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
 
   return {
     branchId,
+    /** False — rank-and-file account: counts only, no named roster. */
+    roster,
     /** Kunning o'tishlari, eng yangisi birinchi — jonli lenta shuni o'qiydi. */
     events,
     rows,
@@ -111,7 +119,7 @@ export function useDashboard(filters: DashboardFilters, dayOffset = 0) {
     exitsToday: directions.exits,
     insideCount,
     mainStats: mainQuery.data,
-    loading: mainQuery.isLoading || categoriesQuery.isLoading || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
-    tableLoading: categoriesQuery.isLoading || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
+    loading: (mainQuery.isLoading && canAttendance) || (categoriesQuery.isLoading && roster) || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
+    tableLoading: (categoriesQuery.isLoading && roster) || (eventsQuery.isLoading && eventsQuery.fetchStatus !== 'idle'),
   }
 }

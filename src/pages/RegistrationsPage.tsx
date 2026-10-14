@@ -23,7 +23,8 @@ import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
 import dayjs from 'dayjs'
 import { inTashkent } from '@/lib/format'
-import { useRoles } from '@/features/users/useUserAdmin'
+import { roleDisplayName, useRoles } from '@/features/users/useUserAdmin'
+import { useDynamicT } from '@/i18n/dynamicKey'
 import {
   useRegisterOptions,
   useRegistrationOps,
@@ -253,10 +254,11 @@ function RegistrationDetail({
   const { approve, reject } = useRegistrationOps()
   // Tashkilot / bo'lim / lavozim — ochiq forma bilan bir xil ro'yxat
   // (`/auth/register/options`, bo'lim va lavozimda `parent_id` = tashkilot).
-  const options = useRegisterOptions()
   const roles = useRoles()
+  const tk = useDynamicT()
   const [mode, setMode] = useState<'view' | 'approve' | 'reject'>('view')
   const [branchId, setBranchId] = useState(String(row.claimed_branch_id ?? ''))
+  const options = useRegisterOptions(branchId)
   const [departmentId, setDepartmentId] = useState(String(row.claimed_department_id ?? ''))
   const [positionId, setPositionId] = useState(String(row.claimed_job_position_id ?? ''))
   const [roleId, setRoleId] = useState('')
@@ -267,8 +269,8 @@ function RegistrationDetail({
   const deptOptions = toOptions((options.data?.departments ?? []).filter((d) => String(d.parent_id ?? '') === branchId))
   const posOptions = toOptions((options.data?.job_positions ?? []).filter((d) => String(d.parent_id ?? '') === branchId))
   const roleOptions = (roles.data ?? [])
-    .filter((r) => r.code !== 'guest')
-    .map((r) => ({ value: String(r.id), label: r.name }))
+    .filter((r) => r.code !== 'guest' && r.code !== 'system_admin' && r.assignable !== false)
+    .map((r) => ({ value: String(r.id), label: roleDisplayName(r, tk) }))
 
   const doApprove = async () => {
     if (!branchId) {
