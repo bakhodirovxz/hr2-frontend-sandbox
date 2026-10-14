@@ -8438,7 +8438,7 @@ const rest = {
     },
     zaxira: {
       title: "Zaxira nusxalash (E1)",
-      b1: "Zaxira nusxa — ma’lumotlar bazasi (va kerak bo‘lsa fayllar) arxivi. Faqat bosh administrator boshqaradi: Tizim boshqaruvi → Zaxira nusxalash.",
+      b1: "Zaxira nusxa — ma’lumotlar bazasining arxivi (TZ E1). Yuklangan fayllar (rasm, skan) obyekt omborida (MinIO) saqlanadi va server darajasida alohida zaxiralanadi. Faqat bosh administrator boshqaradi: Tizim boshqaruvi → Zaxira nusxalash.",
       b2_1: "«Zaxira nusxa yaratish» → nusxa turi, siqish, shifrlash va saqlash joyi (lokal / masofaviy) → «Nusxalashni boshlash». Jarayon davomida o‘zgartirishlar vaqtincha bloklanadi («Zaxira nusxa olinmoqda»).",
       b2_2: "«Avtomatik nusxa jadvali» — har kuni belgilangan soatda nusxa va saqlanadigan nusxalar soni.",
       b2_3: "Saqlash joyi oldindan tekshiriladi («Qayta tekshirish»): bo‘sh joy kutilgan hajmdan (oxirgi to‘liq nusxa yoki baza hajmi) kam bo‘lsa nusxa boshlanmaydi — «Saqlash joyida bo‘sh joy yetarli emas».",

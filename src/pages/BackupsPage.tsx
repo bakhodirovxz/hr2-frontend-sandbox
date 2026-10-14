@@ -568,7 +568,8 @@ function CreateModal({
     setStorage('local')
     setDescription('')
     setCompression(6)
-    setEncrypt(false)
+    // Encrypted by default, like the API and the schedule (TZ 2350).
+    setEncrypt(true)
     void runCheck('local')
   }, [open])
 
