@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
 import { Field } from '@/components/ui/Field'
@@ -9,17 +9,25 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { useToast } from '@/components/ui/Toast'
 import { errorMessage, errorParams } from '@/api/errorMessage'
+import { useConfirm } from '@/components/data/useConfirm'
+import { EmployeeBasisFields } from './EmployeeBasisFields'
+import { EMPTY_BASIS, isBasisComplete, type EditBasis } from './types'
 import { useCodeOptions } from './t2/useT2'
 import { useEmployeeMutations, useRelatedData } from './useEmployees'
 
 type Blocker = { id: number; number?: string | null; kind_label?: string | null }
 
+/** Reason that needs no basis document (an erroneously entered card). */
+const NO_BASIS_REASONS = ['xato_kiritilgan']
+
 /**
- * «Arxivga o'tkazish» (TZ C4): related data is listed, the reason is picked
- * from «Ishdan bo'shatish sabablari» (`dismissal_reasons`) + optional note →
- * `POST /employees/{pk}/archive {reason_code, note}`. An unfinished order or a
- * current business trip blocks archiving (409 `employee_has_open_orders`).
- * The record is not deleted — it moves to the archive.
+ * «Удалить» / «Arxivga o'tkazish» (TZ C4 1071–1080): related data is listed,
+ * the reason is picked from «Ishdan bo'shatish sabablari» (`dismissal_reasons`),
+ * the basis document (order № and date) is entered — not needed for «Xato
+ * kiritilgan yozuv» — then `POST /employees/{pk}/archive`. An unfinished order
+ * or a current business trip blocks archiving (409 `employee_has_open_orders`).
+ * A card nothing else references (`can_hard_delete`, TZ 2148) also offers the
+ * secondary «Butunlay o'chirish».
  */
 export function ArchiveEmployeeModal({
   employee,
@@ -28,14 +36,16 @@ export function ArchiveEmployeeModal({
 }: {
   employee: { id: number; legal_name?: string | null } | null
   onClose: () => void
-  onDone?: () => void
+  onDone?: (kind: 'archived' | 'deleted') => void
 }) {
   const { t } = useTranslation()
   const toast = useToast()
   const open = !!employee
   const related = useRelatedData(employee?.id ?? null, open)
   const reasons = useCodeOptions('dismissal_reasons', open)
-  const { archive } = useEmployeeMutations()
+  const { archive, remove } = useEmployeeMutations()
+  const confirm = useConfirm()
+  const [basis, setBasis] = useState<EditBasis>(EMPTY_BASIS)
   const [reasonCode, setReasonCode] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +54,7 @@ export function ArchiveEmployeeModal({
   useEffect(() => {
     if (open) {
       setReasonCode('')
+      setBasis(EMPTY_BASIS)
       setNote('')
       setError(null)
       setBlockers([])
@@ -61,10 +72,15 @@ export function ArchiveEmployeeModal({
       setError(t('personnel.archive.reasonRequired'))
       return
     }
+    const needsBasis = !NO_BASIS_REASONS.includes(reasonCode)
+    if (needsBasis && !isBasisComplete(basis)) {
+      setError(t('personnel.basis.required'))
+      return
+    }
     try {
-      await archive.mutateAsync({ id: employee.id, reason_code: reasonCode, note: note.trim() || null })
+      await archive.mutateAsync({ id: employee.id, reason_code: reasonCode, note: note.trim() || null, basis: needsBasis ? basis : null })
       toast.ok(t('personnel.archive.done'))
-      onDone?.()
+      onDone?.('archived')
       onClose()
     } catch (e) {
       const orders = errorParams(e).orders
@@ -72,6 +88,21 @@ export function ArchiveEmployeeModal({
       setError(errorMessage(e, t('common.actionFailed')))
     }
   }
+
+  const hardDelete = async () => {
+    if (!employee) return
+    const ok = await confirm({ kind: 'delete', title: t('personnel.card.deleteTitle'), description: t('personnel.card.deleteConfirm', { name: employee.legal_name ?? '' }) })
+    if (!ok) return
+    try {
+      await remove.mutateAsync(employee.id)
+      toast.ok(t('personnel.card.deleted'))
+      onDone?.('deleted')
+      onClose()
+    } catch (e) {
+      setError(errorMessage(e, t('common.actionFailed')))
+    }
+  }
+  const needsBasis = !!reasonCode && !NO_BASIS_REASONS.includes(reasonCode)
 
   return (
     <Modal
@@ -82,6 +113,11 @@ export function ArchiveEmployeeModal({
       description={employee?.legal_name ?? undefined}
       footer={
         <>
+          {related.data?.can_hard_delete && (
+            <Button variant="danger-ghost" leftIcon={<Trash2 size={14} />} className="mr-auto" onClick={() => void hardDelete()} loading={remove.isPending}>
+              {t('personnel.archive.hardDelete')}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose} disabled={archive.isPending}>
             {t('common.cancel')}
           </Button>
@@ -133,6 +169,7 @@ export function ArchiveEmployeeModal({
             invalid={!!error && !reasonCode}
           />
         </Field>
+        {needsBasis && <EmployeeBasisFields value={basis} onChange={(b) => { setBasis(b); setError(null) }} error={error} />}
         <Field label={t('personnel.archive.note')}>
           <Textarea
             value={note}

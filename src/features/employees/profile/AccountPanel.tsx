@@ -300,7 +300,7 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
       payload.current_password = currentPassword
     }
     if (hasEmployee) {
-      if (form.full_name.trim() !== (employee?.legal_name || user?.employee?.legal_name || '')) payload.legal_name = form.full_name.trim()
+      // F.I.Sh. of an employee card is changed by HR (TZ C3), not here.
       if (form.phone_number.trim() !== initial.phone_number) payload.phone_number = form.phone_number.trim() || null
       if (photo?.base64) payload.photo_base64 = photo.base64
     } else {
@@ -363,7 +363,7 @@ function AccountEditCard({ employee }: { employee: MyEmployee | null }) {
           )}
 
           <Field label={t('account.fullName')} required error={errors.full_name}>
-            <Input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} autoComplete="name" invalid={!!errors.full_name} />
+            <Input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} autoComplete="name" invalid={!!errors.full_name} disabled={hasEmployee} />
           </Field>
           <Field label={t('account.phone')} error={errors.phone_number}>
             <Input

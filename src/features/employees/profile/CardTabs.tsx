@@ -22,6 +22,8 @@ import {
   Users,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { canManageEmployees } from '@/auth/permissions'
+import { useAuthStore } from '@/store/authStore'
 import { LoadError } from '@/components/data/LoadError'
 import { cn } from '@/lib/cn'
 import type { EmployeeFull } from '../types'
@@ -208,6 +210,11 @@ export function CardTabs({
 }) {
   const { t } = useTranslation()
   const t2 = useT2Card(employee.id)
+  const user = useAuthStore((s) => s.user)
+  // The T-2 sections and scans are edited by the personnel service only
+  // (backend: «T-2 kartani faqat kadrlar xizmati tahrirlaydi»); a line
+  // manager keeps the work fields of the employee form.
+  const canEditT2 = canEdit && canManageEmployees(user)
   // TZ C3: one basis document for the whole editing session of this card.
   const [basis, setBasis] = useState<EditBasis>(EMPTY_BASIS)
   useEffect(() => setBasis(EMPTY_BASIS), [employee.id])
@@ -215,15 +222,15 @@ export function CardTabs({
   const card = t2.data
 
   const body = (): ReactNode => {
-    if (active === 'photo') return <PhotoTab employee={employee} card={card!} canEdit={canEdit} onEditEmployee={onEditEmployee} />
+    if (active === 'photo') return <PhotoTab employee={employee} card={card!} canEdit={canEditT2} onEditEmployee={onEditEmployee} />
     if (active === 'certificates')
-      return <DocumentsSlot employeeId={employee.id} kind="certificate" alsoShow={['other', 'military']} title={t('personnel.docs.certificates')} canEdit={canEdit} />
+      return <DocumentsSlot employeeId={employee.id} kind="certificate" alsoShow={['other', 'military']} title={t('personnel.docs.certificates')} canEdit={canEditT2} />
     if (active === 'orders') return <OrdersTab employeeId={employee.id} />
     if (active === 'asof') return <AsOfTab employeeId={employee.id} />
     if (active === 'career') return <CareerTab employee={employee} />
     if (t2.isLoading) return <Skeleton className="h-48 w-full rounded-card" />
     if (t2.isError || !card) return <LoadError error={t2.error} onRetry={() => void t2.refetch()} />
-    const p = { employee, card, canEdit, onEditEmployee }
+    const p = { employee, card, canEdit: canEditT2, onEditEmployee: canEditT2 ? onEditEmployee : undefined }
     switch (active) {
       case 'general':
         return <GeneralTab {...p} />
@@ -259,7 +266,7 @@ export function CardTabs({
       <TabBar tabs={tabs} active={active} onChange={onChange} />
       <div role="tabpanel" id="emp-card-panel" aria-labelledby={`emp-card-tab-${active}`} tabIndex={0} className="min-w-0 outline-none" data-needs-t2={needsT2 || undefined}>
         <EditConflictProvider>
-          <T2BasisContext.Provider value={canEdit ? { value: basis, onChange: setBasis } : null}>{body()}</T2BasisContext.Provider>
+          <T2BasisContext.Provider value={canEditT2 ? { value: basis, onChange: setBasis } : null}>{body()}</T2BasisContext.Provider>
         </EditConflictProvider>
       </div>
     </div>

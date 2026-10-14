@@ -372,4 +372,6 @@ export interface RelatedData {
   open_orders?: number
   current_trips?: number
   blocking_orders?: { id: number; number?: string | null; kind_label?: string | null }[]
+  /** TZ 2148: nothing outside the card references it — may be deleted outright. */
+  can_hard_delete?: boolean
 }

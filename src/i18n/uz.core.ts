@@ -27,6 +27,16 @@ const core = {
    * Yangi kod qo'shilsa SHU YERGA yoziladi, komponentga emas.
    */
   errors: {
+    self_update_hr_only: 'Shaxsiy ma’lumotlarni kadrlar bo‘limi asos hujjati bilan o‘zgartiradi — murojaat yuboring',
+    duplicate_passport: 'Bu pasport boshqa xodimda mavjud',
+    birth_date_in_future: 'Tug‘ilgan sana kelajakda bo‘lishi mumkin emas',
+    birth_date_implausible: 'Tug‘ilgan sana noto‘g‘ri: xodim kamida 14 yoshda bo‘lishi kerak',
+    invalid_gender: 'Jinsi noto‘g‘ri: Erkak yoki Ayol tanlang',
+    invalid_marital_status: 'Oilaviy holati ro‘yxatdagi qiymatlardan biri bo‘lishi kerak',
+    hire_before_birth: 'Ishga qabul sanasi tug‘ilgan sanadan keyin bo‘lishi kerak',
+    basis_date_in_future: 'Asos hujjati sanasi kelajakda bo‘lishi mumkin emas',
+    employee_already_archived: 'Xodim allaqachon arxivda',
+    statistics_form_builtin: 'Tizim shaklini o‘zgartirib yoki o‘chirib bo‘lmaydi',
     attendance_period_locked: 'Davomat davri yopilgan — avval davrni oching',
     basic_auth_not_configured: 'Boshqaruv paneli sozlanmagan',
     callback_document_mismatch: 'Hujjat mos kelmadi — muharrirni yopib qayta oching',

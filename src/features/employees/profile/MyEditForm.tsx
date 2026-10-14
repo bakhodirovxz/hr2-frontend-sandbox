@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { Hash, IdCard, ImageIcon, Phone, Save } from 'lucide-react'
 import { apiGet, apiPatch } from '@/api/http'
 import { EMPLOYEE_SELF_UPDATE } from '@/api/endpoints'
@@ -83,6 +84,9 @@ function Section({ title, icon, children }: { title: string; icon: ReactNode; ch
  * `PATCH /employees/me/self-update`. Lavozim va bo'lim bu yerda yo'q —
  * ularni kadrlar xizmati o'zgartiradi. Faqat o'zgargan maydonlar yuboriladi.
  */
+/** Fields the employee may change himself (TZ C3: the rest goes through HR). */
+const SELF_EDITABLE = new Set<string>(['phone_number', 'internal_phone_number'])
+
 export function MyEditForm({
   employee,
   onCancel,
@@ -107,10 +111,14 @@ export function MyEditForm({
   const [saving, setSaving] = useState(false)
 
   const set = (k: Key) => (v: string) => setForm((f) => ({ ...f, [k]: mask(k, v) }))
+  // TZ C3: personnel data is changed by HR on a basis document; the employee
+  // edits only contacts and the photo (backend 403 `self_update_hr_only`).
+  const locked = (k: Key) => !SELF_EDITABLE.has(k)
   const input = (k: Key, label: string, extra?: { placeholder?: string; maxLength?: number; inputMode?: 'tel' | 'numeric' }) => (
     <Field label={label}>
       <Input
         name={k}
+        disabled={locked(k)}
         value={form[k]}
         onChange={(e) => set(k)(e.target.value)}
         placeholder={extra?.placeholder}
@@ -131,12 +139,7 @@ export function MyEditForm({
   }
 
   const validate = (): string => {
-    if (form.personal_identification_number && form.personal_identification_number.length !== 14) return t('account.errPinfl')
-    if (form.pasport_series && form.pasport_series.length !== 2) return t('account.errPassportSeries')
-    if (form.pasport_number && form.pasport_number.length !== 7) return t('account.errPassportNumber')
-    if (form.taxpayer_identification_number && form.taxpayer_identification_number.length !== 9) return t('account.errTin')
     if (form.phone_number && !/^(\+?998\d{9}|\d{9})$/.test(form.phone_number)) return t('account.errPhone')
-    if (!form.legal_name.trim()) return t('account.errFullName')
     return ''
   }
 
@@ -213,6 +216,12 @@ export function MyEditForm({
       </Card>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <p role="note" className="rounded-inner bg-info-soft px-3 py-2 text-[12.5px] text-info">
+          {t('account.hrOnlyHint')}{' '}
+          <Link to="/services" className="font-semibold underline">
+            {t('account.hrOnlyLink')}
+          </Link>
+        </p>
         <Section title={t('account.sectionDocuments')} icon={<IdCard />}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {input('pasport_series', t('account.passportSeries'), { placeholder: 'AA', maxLength: 2 })}
@@ -236,11 +245,12 @@ export function MyEditForm({
             {input('phone_number', t('account.phone'), { placeholder: '+998901234567', inputMode: 'tel' })}
             {input('internal_phone_number', t('account.internalPhone'), { placeholder: '1234', maxLength: 6, inputMode: 'numeric' })}
             <Field label={t('account.birthDate')}>
-              <DateInput value={form.birth_date} onChange={set('birth_date')} name="birth_date" aria-label={t('account.birthDate')} />
+              <DateInput value={form.birth_date} onChange={set('birth_date')} name="birth_date" aria-label={t('account.birthDate')} disabled />
             </Field>
             <Field label={t('account.maritalStatus')}>
               <Select
                 value={form.maritial_status}
+                disabled
                 onChange={(e) => set('maritial_status')(e.target.value)}
                 options={maritalOptions}
                 placeholder={t('account.notSelected')}
@@ -250,6 +260,7 @@ export function MyEditForm({
             <Field label={t('account.gender')}>
               <Select
                 value={form.gender}
+                disabled
                 onChange={(e) => set('gender')(e.target.value)}
                 options={[
                   { value: '1', label: t('account.male') },
@@ -262,6 +273,7 @@ export function MyEditForm({
             <Field label={t('account.nationality')}>
               <Combobox
                 value={form.nationality}
+                disabled
                 onChange={set('nationality')}
                 options={nationalityOptions}
                 placeholder={t('account.notSelected')}
