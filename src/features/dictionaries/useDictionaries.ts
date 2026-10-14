@@ -12,7 +12,6 @@ import {
 import type { Page } from '@/features/employees/useEmployees'
 import type { User } from '@/types'
 import { canWriteGlobal } from '@/auth/permissions'
-import { toCyrillic } from '@/i18n/translit'
 
 /**
  * MA'LUMOTNOMALAR — TZ 4.2.5.
@@ -126,15 +125,8 @@ export function canManageDictionaries(user: User | null | undefined): boolean {
 }
 
 /** A name in the current language: `name_ru` for Russian, transliterated for Cyrillic. */
-export function localizedName(
-  obj: { name?: string | null; name_ru?: string | null } | null | undefined,
-  lang: string,
-): string {
-  const name = obj?.name ?? ''
-  if (lang === 'ru') return obj?.name_ru || name
-  if (lang === 'uz_cyrl') return toCyrillic(name)
-  return name
-}
+/** Generalised in `@/i18n/localized` (also reads `extra.name_ru`). */
+export { localizedName } from '@/i18n/localized'
 
 /** Rows owned by another module (branches, KPI bases) — read-only here. */
 export function isExternalType(type: DictionaryType | null | undefined): boolean {

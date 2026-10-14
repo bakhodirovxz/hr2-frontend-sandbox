@@ -29,6 +29,8 @@ export interface NotificationLike {
   service_request_id?: number | null
   /** Read only for `background_job`: the job id is in the text («/jobs/12/download»). */
   description?: string | null
+  /** `{code, params}` — rendered by `notificationText` (FX-LANG). */
+  message?: unknown
 }
 
 /** Where clicking this notification should go, or null when nowhere sensible. */

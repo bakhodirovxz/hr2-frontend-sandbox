@@ -243,6 +243,20 @@ export async function autoTranslation(lang: 'ru' | 'uz_cyrl', text: string): Pro
   return ru[text] ?? Object.entries(ru).find(([k]) => normalizeKey(k) === normalizeKey(text))?.[1] ?? ''
 }
 
+/** Normalised «Uzbek text → Russian» table, set once Russian has been loaded. */
+let ruByNorm: Map<string, string> | null = null
+
+/**
+ * Russian for a fixed Uzbek text that came from the SERVER (a seeded catalogue
+ * row, a system role name, a built-in form name…) — the same `ru.ts` table the
+ * interface uses. `undefined` when Russian is not loaded or the text is not in
+ * the table (user-entered data).
+ */
+export function ruLookup(text: string | null | undefined): string | undefined {
+  if (!text || !ruByNorm) return undefined
+  return overrideFor('ru', text) ?? ruByNorm.get(normalizeKey(text))
+}
+
 async function ensureLanguage(lang: Lang): Promise<void> {
   if (loaded.has(lang)) return
 
@@ -261,6 +275,7 @@ async function ensureLanguage(lang: Lang): Promise<void> {
       const n = normalizeKey(k)
       if (!byNorm.has(n)) byNorm.set(n, v)
     }
+    ruByNorm = byNorm
     const translate = (text: string): string =>
       overrideFor('ru', text) ?? ru[text] ?? byNorm.get(normalizeKey(text)) ?? text
     i18n.addResourceBundle('ru', 'translation', mapTree(uzTree, translate), true, true)
