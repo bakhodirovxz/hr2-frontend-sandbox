@@ -6,6 +6,8 @@ import { AnchoredPanel } from '@/components/ui/AnchoredPanel'
 import { POPOVER } from '@/components/ui/control'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { HelpButton } from '@/features/help/HelpButton'
+import { guideModeFor, guideTitleKey } from '@/features/help/userGuide'
+import { useAuthStore } from '@/store/authStore'
 import { LanguageSwitcher } from './LanguageSwitcher'
 
 /**
@@ -24,6 +26,7 @@ import { LanguageSwitcher } from './LanguageSwitcher'
  */
 export function HeaderTools({ showHelp }: { showHelp: boolean }) {
   const { t } = useTranslation()
+  const user = useAuthStore((s) => s.user)
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
 
@@ -68,7 +71,7 @@ export function HeaderTools({ showHelp }: { showHelp: boolean }) {
           label={t('header.moreTools')}
           className="p-1.5"
         >
-            {showHelp && <ToolRow label={t('guide.title')}><HelpButton /></ToolRow>}
+            {showHelp && <ToolRow label={t(guideTitleKey(guideModeFor(user)) as never)}><HelpButton /></ToolRow>}
             <ToolRow label={t('header.language')}><LanguageSwitcher inline /></ToolRow>
         </AnchoredPanel>
       </div>

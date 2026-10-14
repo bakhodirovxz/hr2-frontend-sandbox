@@ -85,7 +85,7 @@ export function Header({ onOpenNav, onFeedback }: HeaderProps) {
           <MessageSquare size={15} aria-hidden />
           <span className="hidden whitespace-nowrap lg:inline">{t('site.feedback')}</span>
         </button>
-        <HeaderTools showHelp={!isGuest} />
+        <HeaderTools showHelp />
         <NotificationsBell />
         <UserMenu />
       </div>
