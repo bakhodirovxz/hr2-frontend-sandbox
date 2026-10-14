@@ -1,7 +1,8 @@
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BriefcaseBusiness, CalendarClock, Download, FileSpreadsheet, FileText, Inbox, Send, Share2 } from 'lucide-react'
+import { BriefcaseBusiness, CalendarClock, Columns3, Download, FileSpreadsheet, FileText, Filter, Inbox, Megaphone, Pencil, Send, Share2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { DataTable, type Column, type SortState } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
@@ -26,6 +27,11 @@ import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/api/errorMessage'
 import { displayName } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
+import { isGuest } from '@/auth/permissions'
+import { Select } from '@/components/ui/Select'
+import { StaffPositionModal } from '@/features/staff/StaffPositionModal'
+import { ExportColumnsModal } from '@/features/staff/ExportColumnsModal'
+import { canCreateVacancy, canManageStaff, headDepartmentIds } from '@/features/staff/useStaffPositions'
 import { useListParams } from '@/hooks/useListParams'
 import { useDictionaryOptions } from '@/features/dictionaries/useDictionaries'
 import { RequiredLanguagesChips, entryLabel } from '@/features/vacancies/RequiredLanguagesChips'
@@ -58,8 +64,8 @@ import type { User } from '@/types'
  * «Mening arizalarim» — o'z arizalarining holati.
  */
 
-const URL_KEYS = ['tab', 'org', 'dept', 'job', 'req', 'min', 'from', 'to', 'sort', 'order', 'open'] as const
-const FILTER_KEYS = ['org', 'dept', 'job', 'req', 'min', 'from', 'to'] as const
+const URL_KEYS = ['tab', 'org', 'dept', 'job', 'req', 'min', 'from', 'to', 'status', 'sort', 'order', 'open'] as const
+const FILTER_KEYS = ['org', 'dept', 'job', 'req', 'min', 'from', 'to', 'status'] as const
 const SORT_KEYS: VacancySortKey[] = ['organization', 'department', 'job_position', 'requirements', 'vacant_count', 'available_from']
 
 const fmtDate = (d?: string | null) => (d ? dayjs(d).format('DD.MM.YYYY') : '—')
@@ -116,6 +122,8 @@ function listQuery(f: UrlFilters): VacancyFilters {
     vacant_count_min: /^\d+([.,]\d+)?$/.test(f.min) ? f.min.replace(',', '.') : '',
     date_from: badRange ? '' : f.from,
     date_to: badRange ? '' : f.to,
+    // TZ V3 1311 «фильтры … по статусу»: open (default) / paused / closed.
+    status: f.status === 'paused' || f.status === 'closed' ? f.status : '',
   }
 }
 
@@ -139,12 +147,21 @@ export function VacanciesPage() {
   const tab: 'list' | 'mine' = lp.filters.tab === 'mine' ? 'mine' : 'list'
   const f = lp.filters
   const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+  const user = useAuthStore((st) => st.user)
+  // TZ V1 «Пользователь открывает раздел «Вакансии» … «Создать вакансию»» (HR, heads).
+  const canCreate = canCreateVacancy(user)
+  const [creating, setCreating] = useState(false)
+  // TZ 2233 «Настройки экспорта»: chosen columns; visible (filtered) vs all data.
+  const [exportCols, setExportCols] = useState<string[]>([])
+  const [colsOpen, setColsOpen] = useState(false)
+  const [exportAll, setExportAll] = useState(false)
 
   // TZ V3 1327 «Экспорт списка вакансий» — the list's own filters and order (guests too).
   const doExport = async (format: 'xlsx' | 'pdf') => {
     setExporting(format)
     try {
-      await exportVacancies(listQuery(f), sortOf(f).key, sortOf(f).dir, format)
+      const q = exportAll ? { ...listQuery({ ...f, org: '', dept: '', job: '', req: '', min: '', from: '', to: '' }) } : listQuery(f)
+      await exportVacancies(q, sortOf(f).key, sortOf(f).dir, format, exportCols)
       toast.ok(t('ordVac.exported'))
     } catch (e) {
       toast.error(errorMessage(e, t('ordVac.exportFailed')))
@@ -160,14 +177,37 @@ export function VacanciesPage() {
         subtitle={t('vacancies.subtitle')}
         actions={
           tab === 'list' ? (
-            <ActionMenu
-              label={t('ordVac.export')}
-              icon={<Download size={14} />}
-              items={[
-                { key: 'xlsx', label: 'Excel', icon: <FileSpreadsheet size={14} />, loading: exporting === 'xlsx', onClick: () => void doExport('xlsx') },
-                { key: 'pdf', label: 'PDF', icon: <FileText size={14} />, loading: exporting === 'pdf', onClick: () => void doExport('pdf') },
-              ]}
-            />
+            <>
+              <ActionMenu
+                label={t('ordVac.export')}
+                icon={<Download size={14} />}
+                width={300}
+                items={[
+                  { key: 'xlsx', label: 'Excel', icon: <FileSpreadsheet size={14} />, loading: exporting === 'xlsx', onClick: () => void doExport('xlsx') },
+                  { key: 'pdf', label: 'PDF', icon: <FileText size={14} />, loading: exporting === 'pdf', onClick: () => void doExport('pdf') },
+                  {
+                    key: 'scope',
+                    label: exportAll ? t('ordVac.exportScopeAll') : t('ordVac.exportScopeVisible'),
+                    hint: t('ordVac.exportScopeHint'),
+                    icon: <Filter size={14} />,
+                    divider: true,
+                    onClick: () => setExportAll((v) => !v),
+                  },
+                  {
+                    key: 'cols',
+                    label: `${t('staff.exportColumns')}${exportCols.length ? ` (${exportCols.length})` : ''}`,
+                    hint: t('ordVac.exportColumnsHint'),
+                    icon: <Columns3 size={14} />,
+                    onClick: () => setColsOpen(true),
+                  },
+                ]}
+              />
+              {canCreate && (
+                <Button size="sm" leftIcon={<Megaphone size={15} />} onClick={() => setCreating(true)}>
+                  {t('orgRef.createVacancy')}
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
@@ -182,6 +222,22 @@ export function VacanciesPage() {
         ]}
       />
       {tab === 'list' ? <VacancyList lp={lp} /> : <MyApplications />}
+      <ExportColumnsModal
+        open={colsOpen}
+        onClose={() => setColsOpen(false)}
+        selected={exportCols}
+        onApply={setExportCols}
+        url="staff-positions/vacancies/export-columns"
+      />
+      {canCreate && (
+        <StaffPositionModal
+          open={creating}
+          onClose={() => setCreating(false)}
+          row={null}
+          vacancyMode
+          allowedDepartmentIds={headDepartmentIds(user)}
+        />
+      )}
     </PageContainer>
   )
 }
@@ -372,10 +428,25 @@ function VacancyList({ lp }: { lp: ListParams }) {
               t('vacancies.hint')
             )}
           </span>
-          <FilterReset
-            count={filterCount}
-            onReset={() => setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, null])))}
-          />
+          <span className="flex items-center gap-2">
+            {!isGuest(user) && (
+              <Select
+                className="w-44"
+                aria-label={t('vacancies.status')}
+                value={f.status === 'paused' || f.status === 'closed' ? f.status : ''}
+                onChange={(e) => setFilter('status', e.target.value)}
+                options={[
+                  { value: '', label: t('staff.vacOpen') },
+                  { value: 'paused', label: t('ordVac.vacPaused') },
+                  { value: 'closed', label: t('staff.vacClosed') },
+                ]}
+              />
+            )}
+            <FilterReset
+              count={filterCount}
+              onReset={() => setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, null])))}
+            />
+          </span>
         </div>
       </Card>
 
@@ -452,6 +523,7 @@ function VacancyDrawer({
 }) {
   const { t, i18n } = useTranslation()
   const share = useShare()
+  const navigate = useNavigate()
   const edu = useDictionaryOptions(v?.education_level_code ? 'education_levels' : null)
   const emp = v?.employment_type ? EMPLOYMENT_KEYS[v.employment_type as keyof typeof EMPLOYMENT_KEYS] : undefined
   // Maosh oralig'i: «7 000 000 – 9 000 000», «… dan», «… gacha».
@@ -539,6 +611,12 @@ function VacancyDrawer({
               <Button variant="outline" className="w-full sm:w-auto" leftIcon={<Share2 size={16} />} onClick={() => void share(v)}>
                 {t('ordVac.share')}
               </Button>
+              {canManageStaff(user) && (
+                // TZ V2 «Редактирование вакансии» from the «Вакансии» section.
+                <Button variant="outline" className="w-full sm:w-auto" leftIcon={<Pencil size={16} />} onClick={() => navigate(`/staffing?open=${v.id}`)}>
+                  {t('common.edit')}
+                </Button>
+              )}
             </div>
           )}
         </>

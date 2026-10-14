@@ -22,6 +22,7 @@ import {
   useVacancyPushJobs,
   type StaffChange,
   type StaffPosition,
+  useStaffPositions,
 } from './useStaffPositions'
 
 interface Props {
@@ -35,6 +36,8 @@ interface Props {
   allowedDepartmentIds?: number[] | null
   /** TZ V2 1304 «Вакансия закрыта — предлагает создать новую вакансию»: copy this line. */
   onCopy?: (row: StaffPosition) => void
+  /** TZ V1 1277 «Копирование существующей вакансии»: the V1 form starts from this vacancy. */
+  copyFrom?: StaffPosition | null
 }
 
 const BLANK = {
@@ -51,13 +54,17 @@ const BLANK = {
   contact_person: '',
   contact_phone: '',
   contact_email: '',
-  publish_to_portal: true,
+  // TZ V1 1277: publishing is an explicit option.
+  publish_to_portal: false,
   experience_years: '',
   required_skills: '',
   work_schedule: '',
   employment_type: '',
   vacancy_status: 'open',
   recruiter_employee_id: '',
+  // TZ V1 1260 «количество вакантных единиц» and the staff line it opens on.
+  vacancy_units: '',
+  line_id: '',
 }
 
 type FieldErrors = Partial<Record<'department' | 'position' | 'units' | 'salary' | 'deadline' | 'reason' | 'recruiter', string>>
@@ -70,17 +77,37 @@ const SERVER_FIELD: Record<string, keyof FieldErrors> = {
   recruiter_employee_id: 'recruiter',
 }
 
+/** Announcement fields of a vacancy as form values (V1 copy / reopen). */
+function announcementOf(r: StaffPosition) {
+  return {
+    candidate_requirements: r.candidate_requirements ?? '',
+    education_level_code: r.education_level_code ?? '',
+    salary_from: r.salary_from != null ? String(Number(r.salary_from)) : '',
+    salary_to: r.salary_to != null ? String(Number(r.salary_to)) : '',
+    application_deadline: r.application_deadline && !dayjs(r.application_deadline).isBefore(dayjs(), 'day') ? r.application_deadline : '',
+    contact_person: r.contact_person ?? '',
+    contact_phone: r.contact_phone ?? '',
+    contact_email: r.contact_email ?? '',
+    publish_to_portal: r.publish_to_portal === true,
+    experience_years: r.experience_years != null ? String(r.experience_years) : '',
+    required_skills: r.required_skills ?? '',
+    work_schedule: r.work_schedule ?? '',
+    employment_type: r.employment_type ?? '',
+    recruiter_employee_id: r.recruiter_employee_id ? String(r.recruiter_employee_id) : '',
+  }
+}
+
 /**
  * One staff line and the vacancy announcement that hangs off it (TZ 4.2.6,
  * 4.2.10, V1, V2). The department/position pair is fixed after creation: a
  * line moved to another post is a different line. Every change may carry a
  * reason, which lands in the change log shown at the bottom (TZ V2 «История»).
  */
-export function StaffPositionModal({ open, onClose, row, vacancyMode = false, allowedDepartmentIds = null, onCopy }: Props) {
+export function StaffPositionModal({ open, onClose, row, vacancyMode = false, allowedDepartmentIds = null, onCopy, copyFrom = null }: Props) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const st = useServerText()
-  const { create, update } = useStaffMutations()
+  const { create, update, openVacancy } = useStaffMutations()
   const allDepartments = useDepartmentRecords<{ id: number; name?: string | null; parent_id?: number | null }>()
   const positions = useJobPositionOptions()
   const { options: eduRows } = useDictionaryOptions(open ? 'education_levels' : null)
@@ -110,7 +137,10 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     [departments],
   )
 
-  const isEdit = !!row?.id
+  // TZ V1: «Vakansiya yaratish» opens a vacancy on an EXISTING staff line
+  // (fixed when `row` is given, picked by department otherwise).
+  const isEdit = !!row?.id && !vacancyMode
+  const lineFixed = vacancyMode && !!row?.id
   const { changes } = useStaffChanges(open && isEdit ? row?.id : null)
   const selectedBranchId = useBranchStore((s) => s.selectedBranchId)
   // TZ V1 1277: the last job-portal delivery of this line (the caller's own pushes).
@@ -132,13 +162,24 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     setFormError(null)
     setNoFree(null)
     setClosedOffer(false)
+    const langSrc = vacancyMode ? copyFrom ?? (row && row.vacancy_announcement ? row : null) : row
     setLanguages(
-      Array.isArray(row?.required_languages)
-        ? row!.required_languages!.map((r) => ({ language_code: r.language_code || '', level_code: r.level_code ?? null }))
+      Array.isArray(langSrc?.required_languages)
+        ? langSrc!.required_languages!.map((r) => ({ language_code: r.language_code || '', level_code: r.level_code ?? null }))
         : [],
     )
+    const src = vacancyMode ? copyFrom ?? (row && row.vacancy_announcement ? row : null) : row
     setForm(
-      row
+      vacancyMode
+        ? {
+            ...BLANK,
+            ...(src ? announcementOf(src) : {}),
+            department_id: row?.department_id ? String(row.department_id) : allowedDepartmentIds?.length === 1 ? String(allowedDepartmentIds[0]) : '',
+            line_id: row?.id ? String(row.id) : '',
+            vacancy_units: row?.id ? fmtUnits(row.vacant_units) : '',
+            vacancy_status: 'open',
+          }
+        : row
         ? {
             department_id: String(row.department_id ?? ''),
             job_position_id: String(row.job_position_id ?? ''),
@@ -153,20 +194,22 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
             contact_person: row.contact_person ?? '',
             contact_phone: row.contact_phone ?? '',
             contact_email: row.contact_email ?? '',
-            publish_to_portal: row.publish_to_portal !== false,
+            publish_to_portal: row.publish_to_portal === true,
             experience_years: row.experience_years != null ? String(row.experience_years) : '',
             required_skills: row.required_skills ?? '',
             work_schedule: row.work_schedule ?? '',
             employment_type: row.employment_type ?? '',
             vacancy_status: row.vacancy_status ?? 'open',
             recruiter_employee_id: row.recruiter_employee_id ? String(row.recruiter_employee_id) : '',
+            vacancy_units: row.vacancy_units != null ? fmtUnits(row.vacancy_units) : '',
+            line_id: '',
           }
         : {
             ...BLANK,
             department_id: allowedDepartmentIds?.length === 1 ? String(allowedDepartmentIds[0]) : '',
           },
     )
-  }, [open, row, allowedDepartmentIds])
+  }, [open, row, allowedDepartmentIds, vacancyMode, copyFrom])
 
   const set = <K extends keyof typeof BLANK>(k: K, v: (typeof BLANK)[K]) => setForm((f) => ({ ...f, [k]: v }))
   const clearErr = (k: keyof FieldErrors) => setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e))
@@ -175,9 +218,17 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     setFormError(null)
     const next: FieldErrors = {}
     const units = Number(form.planned_units)
-    if (!isEdit && !form.department_id) next.department = t('staff.departmentRequired')
-    if (!isEdit && !form.job_position_id) next.position = t('staff.positionRequired')
-    if (form.planned_units.trim() === '' || !Number.isFinite(units) || units < 0) next.units = t('staff.unitsInvalid')
+    const vacUnits = form.vacancy_units.trim() === '' ? null : Number(form.vacancy_units)
+    if (vacancyMode) {
+      if (!form.department_id) next.department = t('staff.departmentRequired')
+      if (!form.line_id) next.position = t('ordVac.lineRequired')
+      if (vacUnits == null || !Number.isFinite(vacUnits) || vacUnits <= 0) next.units = t('staff.unitsInvalid')
+    } else {
+      if (!isEdit && !form.department_id) next.department = t('staff.departmentRequired')
+      if (!isEdit && !form.job_position_id) next.position = t('staff.positionRequired')
+      if (form.planned_units.trim() === '' || !Number.isFinite(units) || units < 0) next.units = t('staff.unitsInvalid')
+      if (vacUnits != null && (!Number.isFinite(vacUnits) || vacUnits <= 0)) next.units = t('staff.unitsInvalid')
+    }
     const sFrom = form.salary_from.trim() === '' ? null : Number(form.salary_from)
     const sTo = form.salary_to.trim() === '' ? null : Number(form.salary_to)
     if (sFrom != null && sTo != null && sFrom > sTo) next.salary = t('orgRef.salaryRange')
@@ -188,9 +239,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     ) {
       next.deadline = t('orgRef.deadlinePast')
     }
-    const statusChanged = isEdit
-      ? (form.vacancy_status || 'open') !== (row?.vacancy_status || 'open')
-      : vacancyMode && (form.vacancy_status === 'closed' || form.vacancy_status === 'paused')
+    const statusChanged = isEdit ? (form.vacancy_status || 'open') !== (row?.vacancy_status || 'open') : false
     if (statusChanged && form.reason.trim().length < 3) next.reason = t('orgRef.statusReason')
     if (Object.keys(next).length) {
       setErrors(next)
@@ -218,6 +267,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
       vacancy_status: text(form.vacancy_status) || 'open',
       required_languages: cleanLanguages(languages),
       recruiter_employee_id: form.recruiter_employee_id ? Number(form.recruiter_employee_id) : null,
+      vacancy_units: vacUnits,
     }
     // A plain staff line (not a vacancy) is created without a status: the free
     // units check of TZ V1 1267 runs only when a vacancy is OPENED.
@@ -225,7 +275,10 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     setNoFree(null)
 
     try {
-      if (isEdit) {
+      if (vacancyMode) {
+        const { vacancy_status: _status, ...ann } = announcement
+        await openVacancy.mutateAsync({ id: Number(form.line_id), body: { ...ann, reason: text(form.reason) } })
+      } else if (isEdit) {
         await update.mutateAsync({
           id: row!.id as number,
           body: { planned_units: units, note: text(form.note), reason: text(form.reason), ...announcement },
@@ -246,6 +299,10 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
       const msg = errorMessage(e, t('staff.saveFailed'))
       if (errorCode(e) === 'no_free_units') {
         setNoFree(errorParams(e))
+        return
+      }
+      if (errorCode(e) === 'vacancy_units_exceed') {
+        setErrors((cur) => ({ ...cur, units: msg }))
         return
       }
       if (errorCode(e) === 'vacancy_closed') {
@@ -272,9 +329,25 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
     }
   }
 
-  const saving = create.isPending || update.isPending
+  const saving = create.isPending || update.isPending || openVacancy.isPending
   const vacant = Number(row?.vacant_units ?? 0)
   const title = isEdit ? t('staff.editRow') : vacancyMode ? t('orgRef.newVacancy') : t('staff.newRow')
+  // TZ V1 «выбирает должность из штатного расписания»: the department's lines
+  // with a free unit and no open / paused vacancy.
+  const lineList = useStaffPositions(
+    { page: 1, size: 500, departmentId: form.department_id || undefined },
+    open && vacancyMode && !lineFixed && !!form.department_id,
+  )
+  const lineRows = (lineList.rows ?? []).filter(
+    (r) => r.id && r.has_staff_row !== false && !r.is_closed && Number(r.vacant_units ?? 0) > 0
+      && (r.vacancy_announcement == null || r.vacancy_announcement === 'closed'),
+  )
+  const lineOptions = lineRows.map((r) => ({
+    value: String(r.id),
+    label: r.job_position_name || `#${r.id}`,
+    subLabel: t('ordVac.freeUnits', { units: fmtUnits(r.vacant_units) }),
+  }))
+  const pickedLine = lineFixed ? row : lineRows.find((r) => String(r.id) === form.line_id) ?? null
 
   return (
     <Modal
@@ -295,7 +368,63 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
       }
     >
       <div className="flex flex-col gap-5">
-        {isEdit ? (
+        {vacancyMode ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {lineFixed ? (
+              <div className="flex flex-col gap-1 rounded-inner border border-line bg-surface-2/40 px-4 py-3 sm:col-span-2">
+                <span className="text-[14px] font-semibold text-fg">{row?.department_name}</span>
+                <span className="text-[13px] text-fg-muted">{row?.job_position_name}</span>
+              </div>
+            ) : (
+              <>
+                <Field label={t('employees.colDepartment')} required error={errors.department}>
+                  <Combobox
+                    value={form.department_id}
+                    onChange={(v) => {
+                      setForm((f) => ({ ...f, department_id: v, line_id: '', vacancy_units: '' }))
+                      clearErr('department')
+                    }}
+                    options={departmentOptions}
+                    placeholder={t('common.choose')}
+                    invalid={!!errors.department}
+                  />
+                </Field>
+                <Field label={t('ordVac.staffLine')} required hint={t('ordVac.staffLineHint')} error={errors.position}>
+                  <Combobox
+                    value={form.line_id}
+                    onChange={(v) => {
+                      const r = lineRows.find((x) => String(x.id) === v)
+                      setForm((f) => ({ ...f, line_id: v, vacancy_units: r ? fmtUnits(r.vacant_units) : '' }))
+                      clearErr('position')
+                    }}
+                    options={lineOptions}
+                    loading={lineList.loading}
+                    placeholder={form.department_id && !lineList.loading && !lineOptions.length ? t('ordVac.noFreeLines') : t('common.choose')}
+                    invalid={!!errors.position}
+                  />
+                </Field>
+              </>
+            )}
+            <Field
+              label={t('ordVac.vacancyUnits')}
+              required
+              hint={pickedLine ? t('ordVac.freeUnits', { units: fmtUnits(pickedLine.vacant_units) }) : t('ordVac.vacancyUnitsHint')}
+              error={errors.units}
+            >
+              <Input
+                type="number"
+                step="0.5"
+                min="0.5"
+                value={form.vacancy_units}
+                invalid={!!errors.units}
+                onChange={(e) => {
+                  set('vacancy_units', e.target.value)
+                  clearErr('units')
+                }}
+              />
+            </Field>
+          </div>
+        ) : isEdit ? (
           <div className="flex flex-col gap-1.5 rounded-inner border border-line bg-surface-2/40 px-4 py-3">
             <span className="text-[14px] font-semibold text-fg">{row?.department_name}</span>
             <span className="text-[13px] text-fg-muted">{row?.job_position_name}</span>
@@ -341,6 +470,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
           </div>
         )}
 
+        {!vacancyMode && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('staff.plannedUnits')} required hint={t('staff.unitsHint')} error={errors.units}>
             <Input
@@ -358,7 +488,13 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
           <Field label={t('staff.note')}>
             <Input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder={t('orgRef.optional')} />
           </Field>
+          {isEdit && (
+            <Field label={t('ordVac.vacancyUnits')} hint={t('ordVac.vacancyUnitsEditHint')}>
+              <Input type="number" step="0.5" min="0.5" value={form.vacancy_units} onChange={(e) => set('vacancy_units', e.target.value)} />
+            </Field>
+          )}
         </div>
+        )}
 
         {/* ── Vakansiya e'loni (TZ 4.2.10, V1) ──────────────────────────── */}
         <section className="rounded-inner border border-line bg-surface-2/40 p-4">
@@ -384,6 +520,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
                 onChange={(e) => set('experience_years', e.target.value)}
               />
             </Field>
+            {!vacancyMode && (
             <Field label={t('staff.vacancyStatus')}>
               <Select
                 value={form.vacancy_status}
@@ -398,6 +535,7 @@ export function StaffPositionModal({ open, onClose, row, vacancyMode = false, al
                 ]}
               />
             </Field>
+            )}
             <Field label={t('ordVac.recruiter')} hint={t('ordVac.recruiterHint')} error={errors.recruiter} wide>
               <EmployeeSelect
                 value={form.recruiter_employee_id}
