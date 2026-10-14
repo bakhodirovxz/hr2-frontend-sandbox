@@ -82,16 +82,24 @@ export function resolveNotificationUrl(n: NotificationLike): string | null {
   if (type.startsWith('medical')) return '/tibbiy-korik'
 
   if (n.work_leave_id) return `/vaqtinchalik-buyruqlar?doc=${n.work_leave_id}`
-  if (type.startsWith('hr_order')) return '/vaqtinchalik-buyruqlar'
+  // TZ L3 978: v2 routes — temporary-order expiry notices open the orders journal.
+  if (type.startsWith('hr_order')) return '/orders'
 
-  if (n.service_request_id) return `/interaktiv-xizmatlar?doc=${n.service_request_id}`
-  if (type.startsWith('service_request')) return '/interaktiv-xizmatlar'
+  // The reviewer's notice («new request») opens the inbox tab, the requester's
+  // one (status change) his own list — both with the request itself open.
+  if (type === 'service_request_new')
+    return n.service_request_id ? `/services?tab=inbox&open=${n.service_request_id}` : '/services?tab=inbox'
+  if (n.service_request_id) return `/services?open=${n.service_request_id}`
+  if (type.startsWith('service_request')) return '/services'
+  if (type.startsWith('inspection')) return '/audits'
+  if (type === 'department_head_changed') return '/structure'
+  if (type === 'certificate_expiry') return '/trainings'
 
   if (type.startsWith('navbatchilik')) return '/navbatchilik'
   if (type.startsWith('learning_')) return '/oquv-markazi'
   if (type.startsWith('visitor')) return '/guests'
   if (type.startsWith('zoom')) return '/zoom'
-  if (type.startsWith('vacancy')) return '/shtat'
+  if (type.startsWith('vacancy')) return '/vacancies'
   // «Boshqa doimiy ishga o'tkazish» buyrug'i (qabul kutilmoqda / qabul qilindi /
   // rad etildi) — Vaqtinchalik buyruqlar sahifasida hal qilinadi.
   if (type.startsWith('employee_transfer_order')) return '/vaqtinchalik-buyruqlar'
