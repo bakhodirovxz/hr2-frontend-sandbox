@@ -98,7 +98,7 @@ export function BoardTipHost() {
 
 export type DrillTone = 'brand' | 'success' | 'warning' | 'danger'
 const TONE_TILE: Record<DrillTone, string> = {
-  brand: 'from-[#8B5CF6] to-[#6D28D9] shadow-[0_8px_20px_-8px_rgba(124,58,237,0.8)]',
+  brand: 'from-[#0B7CD8] to-[#0967B4] shadow-[0_8px_20px_-8px_rgba(10,112,194,0.7)]',
   success: 'from-[#34D399] to-[#059669] shadow-[0_8px_20px_-8px_rgba(16,185,129,0.8)]',
   warning: 'from-[#FCD34D] to-[#F59E0B] shadow-[0_8px_20px_-8px_rgba(245,158,11,0.8)]',
   danger: 'from-[#FB7185] to-[#E11D48] shadow-[0_8px_20px_-8px_rgba(225,29,72,0.8)]',
@@ -185,7 +185,7 @@ export function DrillModal({
                 className={cn(
                   'flex h-[34px] shrink-0 items-center gap-2 rounded-[11px] px-3 text-[12.5px] font-semibold transition-colors',
                   tb.key === active
-                    ? 'bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] text-white'
+                    ? 'bg-gradient-to-br from-[#0B7CD8] to-[#0A70C2] text-white'
                     : cn('bg-surface-2 hover:bg-fg/[0.08]', tb.warn ? 'text-danger' : 'text-fg-muted'),
                 )}
               >

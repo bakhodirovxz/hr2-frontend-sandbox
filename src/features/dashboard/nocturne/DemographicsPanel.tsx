@@ -146,7 +146,7 @@ export function DemographicsPanel({ className }: { className?: string }) {
                   {...tipProps(t('dashboard.drill.byGender'), [[openHint, '']])}
                   className="flex shrink-0 items-baseline gap-2 rounded-control"
                 >
-                  <span className="bg-gradient-to-r from-[#7C3AED] via-[#C026D3] to-[#0EA5E9] bg-clip-text text-[40px] font-extrabold leading-none tracking-[-0.04em] text-transparent tabular-nums dark:from-[#C4B5FD] dark:via-[#F0ABFC] dark:to-[#7DD3FC]">
+                  <span className="bg-gradient-to-r from-[#0967B4] via-[#0A70C2] to-[#18A15E] bg-clip-text text-[40px] font-extrabold leading-none tracking-[-0.04em] text-transparent tabular-nums dark:from-[#C4B5FD] dark:via-[#F0ABFC] dark:to-[#7DD3FC]">
                     {headcount}
                   </span>
                   <span className="text-[12px] text-fg-subtle">{t('dashboard.drill.onRoster')}</span>
@@ -461,7 +461,7 @@ function PositionBars({
               'block h-full rounded-pill',
               warn
                 ? 'bg-[repeating-linear-gradient(135deg,rgb(var(--danger-mark))_0_4px,transparent_4px_7px)]'
-                : 'bg-gradient-to-r from-[#7C3AED] to-[#C026D3]',
+                : 'bg-gradient-to-r from-[#0967B4] to-[#18A15E]',
             )}
             style={{ width: `${Math.max(4, (count / max) * 100)}%` }}
           />

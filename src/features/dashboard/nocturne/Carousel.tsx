@@ -122,7 +122,7 @@ export function CarouselPanel({
                   className={cn(
                     'h-[7px] rounded-pill transition-all',
                     i === idx
-                      ? 'w-5 bg-gradient-to-r from-[#8B5CF6] to-[#C026D3]'
+                      ? 'w-5 bg-gradient-to-r from-[#0A70C2] to-[#2FC96B]'
                       : 'w-[7px] bg-fg/[0.16] hover:bg-fg/[0.3]',
                   )}
                 />
