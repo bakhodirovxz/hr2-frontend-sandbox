@@ -253,8 +253,10 @@
  * and white cards lifted off it by a long soft shadow — never by a border
  * alone. The meanings are unchanged from dark:
  *
- *   · VIOLET is the product's voice. #7958FF FILLS (buttons, active pills),
- *     #6247D9 SPEAKS (links, eyebrows, active labels).
+ *   · CORPORATE AZURE (TZ 436-437, the logo) is the product's voice.
+ *     #0A70C2 FILLS (buttons, active pills), #0967B4 SPEAKS (links, eyebrows,
+ *     active labels); the logo's green #2FC96B is the accent. Violet survives
+ *     only as a chart series (--chart-4).
  *   · GREEN passed / AMBER late / RED not passed stay reserved for exactly
  *     those states.
  *   · Neutrals are INDIGO-TINTED greys (#23244A ink), not warm greys — the
@@ -286,14 +288,14 @@
                              below AA. #5D5F84 is the design's own nav tone. */
   --fg-on-brand: 255 255 255;
 
-  /* ⚠️ #7C5CFF (design) carries WHITE at 4.35:1 — under AA for the active tab
-   * and page-number pills. Two points of lightness gets 4.52:1 and is
-   * indistinguishable side by side. */
-  --brand: 121 88 255; /* #7958FF — THE FILL: buttons, active pills, dots */
-  --brand-strong: 98 71 217; /* #6247D9 — THE VOICE: links, eyebrows, labels */
-  --brand-soft: 242 239 255; /* #F2EFFF (violet 10% on white) */
-  --brand-deep: 82 58 186; /* #523ABA — pressed */
-  --accent: 137 91 19; /* #895B13 — GOLD as TEXT (mark below) */
+  /* TZ 436-437: the header and chrome speak the CORPORATE colours of the
+   * UZBEKGIDROENERGO logo — azure, with the green of the lightning as the
+   * accent. White on #0A70C2 is 5.1:1 (AA); #0967B4 as text on white 5.8:1. */
+  --brand: 10 112 194; /* #0A70C2 — THE FILL: buttons, active pills, dots */
+  --brand-strong: 9 103 180; /* #0967B4 — THE VOICE: links, eyebrows, labels */
+  --brand-soft: 230 241 250; /* #E6F1FA (azure 10% on white) */
+  --brand-deep: 8 88 154; /* #08589A — pressed */
+  --accent: 23 128 63; /* #17803F — logo green as TEXT (5.0:1 on white) */
 
   --success: 17 114 67; /* #117243 */
   --success-soft: 227 244 236; /* #E3F4EC */
@@ -327,21 +329,21 @@
   --sidebar-fg: 93 95 132; /* #5D5F84 */
   --sidebar-muted: 110 113 145; /* #6E7191 — secondary rows only */
   --sidebar-active: 236 236 238; /* #ECECEE (ink 8%) */
-  --sidebar-active-fg: 98 71 217; /* #6247D9 — the voice, NOT white.
+  --sidebar-active-fg: 9 103 180; /* #0967B4 — the voice, NOT white.
                                      ⚠️ the source design has white here,
                                      carried over from the dark screen; on a
                                      light wash it renders invisible. */
-  --sidebar-accent: 121 88 255; /* #7958FF */
+  --sidebar-accent: 10 112 194; /* #0A70C2 */
   --sidebar-border: 231 232 234; /* #E7E8EA */
 
-  --ring: 124 92 255;
+  --ring: 10 112 194;
 
   /* ── MATERIAL LAYER ────────────────────────────────────────────────────
    * Gradients are LIGHT, not decoration: the pool of colour a lamp throws on
    * a surface. The card sheen is nearly invisible on purpose. */
-  --grad-hero: linear-gradient(120deg, #6247d9 0%, #7c5cff 55%, #1b87c9 100%);
-  --grad-accent: linear-gradient(135deg, #8d70ff 0%, #7958ff 55%, #6247d9 100%);
-  --grad-soft: linear-gradient(160deg, rgba(124, 92, 255, 0.08) 0%, rgba(27, 135, 201, 0.05) 60%, transparent 100%);
+  --grad-hero: linear-gradient(120deg, #0967b4 0%, #0a70c2 55%, #18a15e 100%);
+  --grad-accent: linear-gradient(135deg, #0b7cd8 0%, #0a70c2 55%, #0967b4 100%);
+  --grad-soft: linear-gradient(160deg, rgba(10, 112, 194, 0.08) 0%, rgba(47, 201, 107, 0.05) 60%, transparent 100%);
   --grad-card: linear-gradient(176deg, #ffffff 0%, #fbfbfe 100%);
   --grad-chrome: linear-gradient(180deg, #ffffff 0%, #fafafd 100%);
   --grad-panel: linear-gradient(150deg, #ffffff 0%, #f7f7fc 55%, #f2f3fa 100%);
@@ -354,8 +356,8 @@
   --shadow-md: 0 12px 32px rgba(35, 36, 74, 0.10);
   --shadow-lg: 0 20px 50px rgba(35, 36, 74, 0.16);
   --shadow-pop: 0 24px 60px rgba(35, 36, 74, 0.22);
-  --shadow-brand: 0 12px 32px -8px rgba(124, 92, 255, 0.45), 0 2px 8px rgba(124, 92, 255, 0.18);
-  --glow-brand: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 28px -6px rgba(124, 92, 255, 0.35);
+  --shadow-brand: 0 12px 32px -8px rgba(10, 112, 194, 0.45), 0 2px 8px rgba(10, 112, 194, 0.18);
+  --glow-brand: 0 0 0 1px rgba(10, 112, 194, 0.18), 0 0 28px -6px rgba(10, 112, 194, 0.35);
 
   /* THE HOUSING — the sign-in screen's left half. In this world it is the
    * NIGHT ground, so the two themes meet at the door. */
@@ -377,8 +379,8 @@
  * the depth comes from a real value step plus a long, soft drop shadow.
  *
  * Colour still carries meaning, and the meanings did not change:
- *   · VIOLET (#7C5CFF fill / #A99BFF text) is the product's voice — actions,
- *     the active thing, section eyebrows, anything backed by a document.
+ *   · CORPORATE AZURE (#4CC2FF fill and text, dark label on the fill) is the
+ *     product's voice — actions, the active thing, section eyebrows.
  *   · GREEN #5FE39C passed · AMBER #FFC876 late · RED #FF9B9B not passed.
  *     Those three stay reserved for the reader lamp above the turnstile.
  *   · CYAN #57C8FF is movement (xizmat safari, guests), GREY #6E7191 is
@@ -388,9 +390,8 @@
  * world separately ("hozircha faqat dark"); until it lands, `:root` above is
  * untouched on purpose. Do NOT "harmonise" the two by hand.
  *
- * Violet text: use `text-brand-strong` (#A99BFF, 7.5:1 on the ground), not
- * `text-brand` (#7C5CFF, 4.1:1) — --brand is the FILL colour, and it carries
- * white (--fg-on-brand) on top.
+ * Brand text: use `text-brand-strong`; --brand is the FILL colour and carries
+ * --fg-on-brand on top.
  */
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -407,15 +408,14 @@
   /* ⚠️ #8A8CB0 yer fonida 5.5:1, ammo `brand-soft` (binafsha chip) ustida
    * 4.16 ga tushardi. Yetti punkt yorishish to'rt fonning hammasida AA. */
   --fg-subtle: 145 147 183; /* #9193B7 — tertiary / placeholder (≥4.5:1 har fonda) */
-  --fg-on-brand: 255 255 255; /* white label on the violet fill */
-
-  /* ⚠️ #7C5CFF ustidagi OQ yorliq 4.35:1 edi (faol tab, sahifa raqami) —
-   * uch punkt qorayish 4.52:1 beradi, ko'zga bilinmaydi. */
-  --brand: 121 89 252; /* #7959FC — THE FILL: buttons, active pills, dots */
-  --brand-strong: 169 155 255; /* #A99BFF — THE VOICE: links, eyebrows, icons */
-  --brand-soft: 43 39 93; /* #2B275D (≈ violet 16% on the card) */
-  --brand-deep: 91 65 204; /* #5B41CC — pressed */
-  --accent: 255 182 72; /* #FFB648 — the one warm metal */
+  /* Dark rendition of the corporate azure (TZ 436-437): the light #4CC2FF
+   * fill carries a DARK label (#04263F, 7.9:1), not white (2.0:1). */
+  --fg-on-brand: 4 38 63; /* #04263F — ink label on the azure fill */
+  --brand: 76 194 255; /* #4CC2FF — THE FILL: active pills, dots, bars */
+  --brand-strong: 76 194 255; /* #4CC2FF — THE VOICE: links, eyebrows, icons (≥7:1) */
+  --brand-soft: 14 46 74; /* #0E2E4A (≈ azure 16% on the card) */
+  --brand-deep: 10 112 194; /* #0A70C2 — pressed */
+  --accent: 47 201 107; /* #2FC96B — logo green */
 
   --success: 95 227 156; /* #5FE39C — passed */
   --success-soft: 35 53 73; /* #233549 */
@@ -447,17 +447,18 @@
   --sidebar-muted: 154 156 190; /* #9A9CBE (6.9:1 on the drawer) */
   --sidebar-active: 36 38 75; /* #24264B (≈ white 7%) */
   --sidebar-active-fg: 255 255 255;
-  --sidebar-accent: 169 155 255; /* #A99BFF */
+  --sidebar-accent: 76 194 255; /* #4CC2FF */
   --sidebar-border: 42 44 82; /* #2A2C52 */
 
-  --ring: 124 92 255;
+  --ring: 76 194 255;
 
   /* ── MATERIAL LAYER (dark) ─────────────────────────────────────────────── */
-  --grad-hero: linear-gradient(120deg, #7c5cff 0%, #57c8ff 55%, #5fe39c 100%);
-  --grad-accent: linear-gradient(135deg, #8d70ff 0%, #7c5cff 55%, #5b41cc 100%);
-  --grad-soft: linear-gradient(160deg, rgba(124, 92, 255, 0.12) 0%, rgba(87, 200, 255, 0.06) 60%, transparent 100%);
-  /* The card's own wash: violet light falling across the top-left corner. */
-  --grad-card: linear-gradient(165deg, rgba(124, 92, 255, 0.09) 0%, rgba(124, 92, 255, 0) 50%), linear-gradient(180deg, #1b1d3e 0%, #1b1d3e 100%);
+  --grad-hero: linear-gradient(120deg, #4cc2ff 0%, #6fd0ff 55%, #2fc96b 100%);
+  /* Same corporate gradient as light: it carries a WHITE label (accent-tile). */
+  --grad-accent: linear-gradient(135deg, #0b7cd8 0%, #0a70c2 55%, #0967b4 100%);
+  --grad-soft: linear-gradient(160deg, rgba(76, 194, 255, 0.12) 0%, rgba(47, 201, 107, 0.06) 60%, transparent 100%);
+  /* The card's own wash: azure light falling across the top-left corner. */
+  --grad-card: linear-gradient(165deg, rgba(76, 194, 255, 0.07) 0%, rgba(76, 194, 255, 0) 50%), linear-gradient(180deg, #1b1d3e 0%, #1b1d3e 100%);
   --grad-chrome: linear-gradient(180deg, #1d1f42 0%, #191a38 100%);
   --grad-panel: linear-gradient(150deg, #24264b 0%, #1b1d3e 55%, #15173a 100%);
 
@@ -467,8 +468,8 @@
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.25);
   --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-pop: 0 32px 64px -20px rgba(0, 0, 0, 0.75), 0 6px 16px rgba(0, 0, 0, 0.45);
-  --shadow-brand: 0 10px 28px rgba(124, 92, 255, 0.45), 0 2px 8px rgba(124, 92, 255, 0.2);
-  --glow-brand: 0 0 0 1px rgba(124, 92, 255, 0.24), 0 0 32px -6px rgba(124, 92, 255, 0.45);
+  --shadow-brand: 0 10px 28px rgba(10, 112, 194, 0.45), 0 2px 8px rgba(10, 112, 194, 0.2);
+  --glow-brand: 0 0 0 1px rgba(76, 194, 255, 0.24), 0 0 32px -6px rgba(76, 194, 255, 0.45);
 
   --housing: 25 26 56;
   --housing-fg: 234 234 244;

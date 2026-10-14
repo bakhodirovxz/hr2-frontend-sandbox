@@ -148,11 +148,17 @@ export function LoginPage() {
         <div className="relative flex h-full flex-col justify-between p-12">
           <div className="flex items-center gap-3">
             <LogoMark size={34} />
-            <span
-              className="text-[17px] font-bold tracking-[-0.02em]"
-              style={{ color: 'rgb(var(--housing-fg))' }}
-            >
-              UGE<span style={{ color: 'rgb(var(--housing-muted))' }}>HR</span>
+            <span className="min-w-0">
+              {/* TZ 291-292: the system is designated «HRM». */}
+              <span
+                className="block text-[17px] font-bold tracking-[-0.02em]"
+                style={{ color: 'rgb(var(--housing-fg))' }}
+              >
+                HRM
+              </span>
+              <span className="block max-w-xs text-[12px] leading-snug" style={{ color: 'rgb(var(--housing-muted))' }}>
+                {t('login.systemName')}
+              </span>
             </span>
           </div>
           <div className="max-w-md">
@@ -189,9 +195,8 @@ export function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="mb-8 flex flex-col items-center text-center lg:hidden">
             <LogoMark size={44} />
-            <span className="mt-3 text-lg font-extrabold tracking-tight text-fg">
-              UGE<span className="text-brand">HR</span>
-            </span>
+            <span className="mt-3 text-lg font-extrabold tracking-tight text-fg">HRM</span>
+            <span className="mt-1 text-[12px] leading-snug text-fg-muted">{t('login.systemName')}</span>
           </div>
 
           <h2 className="text-2xl font-bold text-fg">{t('login.welcome')}</h2>

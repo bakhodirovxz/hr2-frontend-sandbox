@@ -24,18 +24,19 @@ const GUEST_FLAG = 'hrm_last_user_guest'
 
 export function rememberGuest(guest: boolean): void {
   try {
-    if (guest) localStorage.setItem(GUEST_FLAG, '1')
-    else localStorage.removeItem(GUEST_FLAG)
+    localStorage.setItem(GUEST_FLAG, guest ? '1' : '0')
   } catch {
     /* storage yopiq — faqat bitta ortiqcha so'rov */
   }
 }
 
-function lastUserWasGuest(): boolean {
+/** true / false — the previous account's type; null — unknown (first load). */
+function lastUserWasGuest(): boolean | null {
   try {
-    return localStorage.getItem(GUEST_FLAG) === '1'
+    const v = localStorage.getItem(GUEST_FLAG)
+    return v === '1' ? true : v === '0' ? false : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -52,14 +53,27 @@ export function primeBootQueries(): void {
     queryFn: () => apiGet<User>(USER_INFO),
     staleTime: BOOT_STALE,
   })
-  if (lastUserWasGuest()) {
+  const prefetchBranches = () =>
+    queryClient.prefetchQuery({
+      queryKey: ['organization-branches', 'slim'],
+      queryFn: () => apiGet<ListResponse<OrganizationBranch>>(ORGANIZATION_BRANCHES, { slim: true }),
+      staleTime: 10 * 60_000,
+    })
+  const wasGuest = lastUserWasGuest()
+  if (wasGuest === true) {
     bootReady = me.then(() => undefined)
     return
   }
-  void queryClient.prefetchQuery({
-    queryKey: ['organization-branches', 'slim'],
-    queryFn: () => apiGet<ListResponse<OrganizationBranch>>(ORGANIZATION_BRANCHES, { slim: true }),
-    staleTime: 10 * 60_000,
-  })
+  if (wasGuest === null) {
+    // Unknown account type: ask for the branch list only once /auth/me says
+    // it is not a guest — a guest would get a 403 in the console.
+    void me.then(() => {
+      const u = queryClient.getQueryData<User>(['auth', 'me'])
+      if (u && u.type !== 'guest') void prefetchBranches()
+    })
+    bootReady = me.then(() => undefined)
+    return
+  }
+  void prefetchBranches()
   bootReady = me.then(() => undefined)
 }

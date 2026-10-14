@@ -218,9 +218,9 @@
     background-image:
       radial-gradient(900px 320px at 28% -10%, rgba(0, 153, 181, 0.1), transparent 62%),
       radial-gradient(760px 300px at 58% -12%, rgba(30, 181, 58, 0.07), transparent 60%),
-      radial-gradient(1100px 620px at 82% -14%, rgba(124, 92, 255, 0.12), transparent 62%),
+      radial-gradient(1100px 620px at 82% -14%, rgba(10, 112, 194, 0.12), transparent 62%),
       radial-gradient(900px 560px at -10% 115%, rgba(27, 135, 201, 0.1), transparent 60%),
-      radial-gradient(640px 400px at 55% 120%, rgba(124, 92, 255, 0.16), transparent 65%);
+      radial-gradient(640px 400px at 55% 120%, rgba(47, 201, 107, 0.08), transparent 65%);
   }
   /* NOCTURNE (dark): the ground is a night sky over water. Five wide washes —
    * teal and green breaking over the top, a deep violet dome top-right, an
@@ -231,9 +231,9 @@
     background-image:
       radial-gradient(900px 320px at 28% -10%, rgba(0, 153, 181, 0.22), transparent 62%),
       radial-gradient(760px 300px at 58% -12%, rgba(30, 181, 58, 0.13), transparent 60%),
-      radial-gradient(1100px 620px at 82% -14%, rgba(72, 48, 150, 0.5), transparent 62%),
+      radial-gradient(1100px 620px at 82% -14%, rgba(10, 80, 150, 0.45), transparent 62%),
       radial-gradient(900px 560px at -10% 115%, rgba(34, 52, 120, 0.55), transparent 60%),
-      radial-gradient(640px 400px at 55% 120%, rgba(124, 92, 255, 0.16), transparent 65%);
+      radial-gradient(640px 400px at 55% 120%, rgba(76, 194, 255, 0.12), transparent 65%);
   }
 
   /* ⚠️ «TOOTH» QATLAMI OLIB TASHLANDI. Bu yerda `.app-bg::after` 3px nuqta

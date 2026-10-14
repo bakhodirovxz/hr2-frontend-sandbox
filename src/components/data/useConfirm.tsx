@@ -36,9 +36,9 @@ const TONE: Record<ConfirmKind, string> = {
   reject: 'from-[#FB7185] to-[#E11D48]',
   sign: 'from-[#34D399] to-[#059669]',
   approve: 'from-[#34D399] to-[#059669]',
-  send: 'from-[#8B5CF6] to-[#6D28D9]',
+  send: 'from-[#0B7CD8] to-[#0967B4]',
   status: 'from-[#FCD34D] to-[#F59E0B]',
-  action: 'from-[#8B5CF6] to-[#6D28D9]',
+  action: 'from-[#0B7CD8] to-[#0967B4]',
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {

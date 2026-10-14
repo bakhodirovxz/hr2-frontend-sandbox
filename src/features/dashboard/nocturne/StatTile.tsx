@@ -14,9 +14,9 @@ type StatTone = 'brand' | 'success' | 'warning' | 'danger' | 'info'
  */
 const TONE: Record<StatTone, { tile: string; num: string; bar: string }> = {
   brand: {
-    tile: 'from-[#8B5CF6] to-[#6D28D9] shadow-[0_8px_20px_-8px_rgba(124,58,237,0.8)]',
-    num: 'from-[#7C3AED] to-[#C026D3] dark:from-[#C4B5FD] dark:to-[#F0ABFC]',
-    bar: 'from-[#7C3AED] to-[#C026D3]',
+    tile: 'from-[#0B7CD8] to-[#0967B4] shadow-[0_8px_20px_-8px_rgba(10,112,194,0.7)]',
+    num: 'from-[#0967B4] to-[#18A15E] dark:from-[#4CC2FF] dark:to-[#2FC96B]',
+    bar: 'from-[#0967B4] to-[#18A15E]',
   },
   success: {
     tile: 'from-[#34D399] to-[#059669] shadow-[0_8px_20px_-8px_rgba(16,185,129,0.8)]',

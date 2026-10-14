@@ -77,6 +77,9 @@ export function BranchSelector() {
   const isStatic = !canSwitchScope && allowedBranches.length <= 1
 
   if (isStatic) {
+    // A branch-scoped account (e.g. a branch administrator) never sees «all
+    // branches» — the chip names the one organisation it works in.
+    const staticLabel = allowedBranches[0]?.name ?? label
     return (
       <div
         ref={chipRef}
@@ -89,7 +92,7 @@ export function BranchSelector() {
         )}
       >
         <Building2 size={16} className="shrink-0 text-brand" />
-        <span className="min-w-0 truncate font-medium text-fg">{label}</span>
+        <span className="min-w-0 truncate font-medium text-fg">{staticLabel}</span>
       </div>
     )
   }

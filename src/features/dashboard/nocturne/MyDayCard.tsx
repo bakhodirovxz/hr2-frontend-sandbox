@@ -199,7 +199,7 @@ function DayPath({ events }: { events: TurnstileEvent[] }) {
           <span
             key={i}
             {...tipProps(t('dashboard.myDay.inside'), [[from, to]])}
-            className="absolute top-0.5 h-3 rounded-pill bg-gradient-to-r from-[#8B5CF6] to-[#C026D3]"
+            className="absolute top-0.5 h-3 rounded-pill bg-gradient-to-r from-[#0A70C2] to-[#2FC96B]"
             style={{ left: `${a}%`, width: `${Math.max(1.5, b - a)}%` }}
           />
         ))}
