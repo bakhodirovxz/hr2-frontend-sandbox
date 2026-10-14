@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Link } from 'react-router-dom'
+import { isAxiosError } from 'axios'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,6 +11,9 @@ import {
   FileText,
   History,
   Paperclip,
+  Pencil,
+  Printer,
+  Trash2,
   PlayCircle,
   Send,
   Undo2,
@@ -109,6 +113,9 @@ export function OrderDetailDrawer({
   readOnly = false,
   onOpenOrder,
   onCorrective,
+  onEdit,
+  onDelete,
+  onPrint,
 }: {
   id: number | null
   onClose: () => void
@@ -119,6 +126,12 @@ export function OrderDetailDrawer({
   onCorrective?: (id: number) => void
   /** «Sana bo'yicha holat» — the list is a past snapshot: no workflow buttons. */
   readOnly?: boolean
+  /** TZ O2 «Редактировать» on the order card. */
+  onEdit?: (o: OrderAct) => void
+  /** TZ 2197 «Удаление приказов» on the order card. */
+  onDelete?: (o: OrderAct) => void
+  /** TZ O1/O3 «Печать» — the printable decree. */
+  onPrint?: (o: OrderAct) => void
 }) {
   const { t } = useTranslation()
   const { order, loading, error } = useOrder(id)
@@ -229,7 +242,20 @@ export function OrderDetailDrawer({
           {t('orders.apply')}
         </Button>,
       )
+    if (powers.delete && onDelete)
+      actions.unshift(
+        <Button key="delete" variant="outline" className="text-danger" leftIcon={<Trash2 size={15} />} disabled={busy} onClick={() => onDelete(order)}>
+          {t('common.delete')}
+        </Button>,
+      )
+    if (powers.edit && onEdit)
+      actions.unshift(
+        <Button key="edit" variant="outline" leftIcon={<Pencil size={15} />} disabled={busy} onClick={() => onEdit(order)}>
+          {t('common.edit')}
+        </Button>,
+      )
   }
+  const errStatus = isAxiosError(error) ? error.response?.status : undefined
 
   return (
     <Modal
@@ -241,16 +267,30 @@ export function OrderDetailDrawer({
       footer={
         <>
           {order && (
-            <Button variant="ghost" className="mr-auto" leftIcon={<FileText size={15} />} onClick={() => onOpenDocument(order)}>
-              {t('orders.openDocument')}
-            </Button>
+            <div className="mr-auto flex gap-1">
+              <Button variant="ghost" leftIcon={<FileText size={15} />} onClick={() => onOpenDocument(order)}>
+                {t('orders.openDocument')}
+              </Button>
+              {onPrint && (
+                <Button variant="ghost" leftIcon={<Printer size={15} />} onClick={() => onPrint(order)}>
+                  {t('ordVac.print')}
+                </Button>
+              )}
+            </div>
           )}
           {actions.length ? actions : <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>}
         </>
       }
     >
       {error ? (
-        <EmptyState icon={<FileText size={22} />} title={t('orders.notFound')} description={errorMessage(error, t('orders.notFoundHint'))} />
+        errStatus === 403 ? (
+          // TZ O3 1248 «Нет доступа к приказу — «Доступ запрещён»».
+          <EmptyState icon={<FileText size={22} />} title={t('ordVac.accessDenied')} description={t('ordVac.accessDeniedHint')} />
+        ) : errStatus === 404 ? (
+          <EmptyState icon={<FileText size={22} />} title={t('orders.notFound')} description={t('orders.notFoundHint')} />
+        ) : (
+          <EmptyState icon={<FileText size={22} />} title={t('orders.notFound')} description={errorMessage(error, t('orders.notFoundHint'))} />
+        )
       ) : loading || !order ? (
         <div className="space-y-3">
           <Skeleton className="h-6 w-56" />
@@ -303,6 +343,7 @@ export function OrderDetailDrawer({
 
           <DetailsBlock order={order} type={orderType} />
           <EmployeesBlock order={order} />
+          <MentionedBlock order={order} />
 
           {order.rejection_reason && (
             <div className="rounded-panel border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px]">
@@ -485,6 +526,32 @@ function EmployeesBlock({ order }: { order: OrderAct }) {
               className="inline-flex rounded-pill border border-line bg-surface px-2.5 py-1 text-[12.5px] text-brand transition-colors hover:bg-brand-soft"
             >
               {names.get(eid) || `#${eid}`}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** TZ 2173/2204: employees named in the text, linked to their cards on save. */
+function MentionedBlock({ order }: { order: OrderAct }) {
+  const { t } = useTranslation()
+  const people = order.mentioned_employees ?? []
+  if (!people.length) return null
+  return (
+    <section>
+      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-brand-strong">
+        <Users size={14} /> {t('ordVac.mentionedCount', { n: people.length })}
+      </h3>
+      <ul className="flex flex-wrap gap-1.5">
+        {people.map((p) => (
+          <li key={p.id}>
+            <Link
+              to={`/employees/${p.id}`}
+              className="inline-flex rounded-pill border border-dashed border-line bg-surface px-2.5 py-1 text-[12.5px] text-brand transition-colors hover:bg-brand-soft"
+            >
+              {p.full_name || `#${p.id}`}
             </Link>
           </li>
         ))}

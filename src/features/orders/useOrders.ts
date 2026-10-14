@@ -89,6 +89,9 @@ export interface OrderAct {
   employee_ids?: number[] | null
   details?: Record<string, unknown> | null
   employees?: { id: number; full_name?: string | null }[] | null
+  /** TZ 2173/2204: employees named in the text (linked on save). */
+  mentioned_employee_ids?: number[] | null
+  mentioned_employees?: { id: number; full_name?: string | null }[] | null
   /** TZ O2 1224: this order corrects that (confirmed / applied) order. */
   corrects_order_act_id?: number | null
   /** TZ O2 1224: orders that correct this one (read of one order only). */

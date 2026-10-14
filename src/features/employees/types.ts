@@ -307,6 +307,8 @@ export interface EmployeeOrder {
   summary?: string | null
   short_text?: string | null
   status?: string | null
+  /** Linked because the text names him (TZ 2173), not a subject. */
+  mentioned?: boolean
   details?: { leave_from?: string | null; leave_to?: string | null } | null
   category_rel?: { id: number; name?: string | null; code?: string | null } | null
   effective_start_date?: string | null

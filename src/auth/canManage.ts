@@ -24,11 +24,6 @@ export function canManageHolidays(user?: User | null): boolean {
   return canWriteOrg(user, 'attendance')
 }
 
-/** 4.2.9 — buyruq turlari (`/order-types`): buyruqlar moduli to'liq daraja. */
-export function canManageOrderTypes(user?: User | null): boolean {
-  return canWriteOrg(user, 'orders', 'full')
-}
-
 /** C1/C3/C4 — xodim kartalarini tashkilot darajasida boshqarish. */
 export function canManageEmployees(user?: User | null): boolean {
   return canManageEmployeesPerm(user)

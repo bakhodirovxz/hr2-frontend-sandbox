@@ -48,7 +48,6 @@ const WorkPlanPage = page(() => import('@/pages/WorkPlanPage'), 'WorkPlanPage')
 const TrainingsPage = page(() => import('@/pages/TrainingsPage'), 'TrainingsPage')
 const InspectionsPage = page(() => import('@/pages/InspectionsPage'), 'InspectionsPage')
 const OrdersPage = page(() => import('@/pages/OrdersPage'), 'OrdersPage')
-const OrderTypesPage = page(() => import('@/pages/OrderTypesPage'), 'OrderTypesPage')
 const ServicesPage = page(() => import('@/pages/ServicesPage'), 'ServicesPage')
 const AttendancePage = page(() => import('@/pages/AttendancePage'), 'AttendancePage')
 const HolidaysPage = page(() => import('@/pages/HolidaysPage'), 'HolidaysPage')
@@ -109,7 +108,6 @@ export function App() {
                       <Route path="/audits" element={<InspectionsPage />} />
                       {/* 4.2.9 */}
                       <Route path="/orders" element={<OrdersPage />} />
-                      <Route path="/order-types" element={<OrderTypesPage />} />
                       {/* 4.2.12, I1, I2 */}
                       <Route path="/services" element={<ServicesPage />} />
                       <Route path="/employee-attendance" element={<AttendancePage />} />

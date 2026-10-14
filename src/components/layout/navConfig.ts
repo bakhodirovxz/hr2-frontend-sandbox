@@ -106,7 +106,6 @@ const ORDERS_GROUP: NavGroup = {
   icon: FileText,
   children: [
     { key: 'orders', labelKey: 'orders', path: '/orders', icon: FileText, module: 'orders' },
-    { key: 'orderTypes', labelKey: 'orderTypes', path: '/order-types', icon: ClipboardList, module: 'orders', writeOrg: ['orders', 'full'] },
   ],
 }
 

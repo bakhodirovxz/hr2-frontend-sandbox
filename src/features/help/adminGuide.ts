@@ -108,7 +108,7 @@ export const ADMIN_GUIDE: GuideSection[] = [
   {
     id: 'hujjatlar',
     titleKey: 'guide.hujjatlar.title',
-    routes: ["/orders", "/order-types"],
+    routes: ["/orders"],
     blocks: [
       p('guide.hujjatlar.b1'),
       list('guide.hujjatlar.b2_1', 'guide.hujjatlar.b2_2', 'guide.hujjatlar.b2_3', 'guide.hujjatlar.b2_4', 'guide.hujjatlar.b2_5', 'guide.hujjatlar.b2_6'),

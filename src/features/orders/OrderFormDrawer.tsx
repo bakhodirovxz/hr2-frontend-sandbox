@@ -29,7 +29,7 @@ import { employeeOption } from '@/features/employees/subLabel'
 import { EmployeeMultiPicker, type PickedPerson } from '@/features/employees/EmployeeMultiPicker'
 import { EmployeeSelect } from './EmployeeSelect'
 import { OrderTypeFields } from './OrderTypeFields'
-import { isOrderLockedError, isOrdersHr } from './orderFlow'
+import { isOrderInApprovalError, isOrderLockedError, isOrdersHr } from './orderFlow'
 import {
   buildDetailsPayload,
   orderTypeOfCategory,
@@ -172,6 +172,7 @@ export function OrderFormDrawer({
   onSaved,
   correctsId = null,
   onLocked,
+  onInApproval,
 }: {
   open: boolean
   editId: number | null
@@ -181,6 +182,8 @@ export function OrderFormDrawer({
   correctsId?: number | null
   /** The saved order turned out locked (409 `order_locked`) — offer a corrective order. */
   onLocked?: (id: number) => void
+  /** TZ O2 1224: the order is out for approval (409 `order_in_approval`) — offer withdrawal. */
+  onInApproval?: (id: number) => void
 }) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -382,11 +385,11 @@ export function OrderFormDrawer({
     const e: Record<string, string> = {}
     if (!form.category_id) e.category_id = t('orders.errCategory')
     if (!form.description.trim()) e.description = t('orders.errText')
-    if (!form.leadership_id) e.leadership_id = t('orders.errLeadership')
+    // TZ O1: a draft is saved without signers; the leadership signer is
+    // required only to send it for approval (server `leadership_required`).
     if (numberFieldShown && form.act_number.trim() && numberCheck.taken) e.act_number = t('orders.numberTaken')
     const approvers = form.approvers.filter((a) => a.employee_id)
-    if (approvers.length === 0) e.approvers = t('orders.errApprovers')
-    else if (form.submitter_id && approvers.some((a) => a.employee_id === form.submitter_id))
+    if (form.submitter_id && approvers.some((a) => a.employee_id === form.submitter_id))
       e.approvers = t('orders.errSubmitterApprover')
     if (orderType) Object.assign(e, validateOrderDetails(t, orderType, form.details, form.effective_start_date))
     if (editId && !form.change_reason.trim()) e.change_reason = t('orders.errReasonRequired')
@@ -404,7 +407,9 @@ export function OrderFormDrawer({
       submitter_id: form.submitter_id ? Number(form.submitter_id) : null,
       assigned_signers: [
         ...approvers.map((a) => ({ employee_id: Number(a.employee_id), signer_type: 'approver', can_edit_document: a.can_edit_document })),
-        { employee_id: Number(form.leadership_id), signer_type: 'leadership', can_edit_document: false },
+        ...(form.leadership_id
+          ? [{ employee_id: Number(form.leadership_id), signer_type: 'leadership', can_edit_document: false }]
+          : []),
       ],
       employee_ids: form.employees.map((p) => p.id),
     }
@@ -448,6 +453,7 @@ export function OrderFormDrawer({
       // Create errors are toasted by the mutation cache; the edit is silent so a
       // locked order can offer the corrective order instead of a bare toast.
       if (editId && isOrderLockedError(err) && onLocked) onLocked(editId)
+      else if (editId && isOrderInApprovalError(err) && onInApproval) onInApproval(editId)
       else if (editId) toast.error(errorMessage(err, t('common.actionFailed')))
     } finally {
       setSaving(false)
@@ -704,7 +710,7 @@ export function OrderFormDrawer({
             />
           </Field>
 
-          <Field label={t('orders.fLeadership')} required error={errors.leadership_id}>
+          <Field label={t('orders.fLeadership')} hint={t('ordVac.leadershipHint')} error={errors.leadership_id}>
             <Combobox
               value={form.leadership_id}
               onChange={(v) => set('leadership_id', v)}
@@ -779,7 +785,6 @@ export function OrderFormDrawer({
           <div className="sm:col-span-2">
             <span className={LABEL_CLS}>
               {t('orders.fApprovers')}
-              <span className="ml-0.5 text-danger">*</span>
             </span>
             <div className="space-y-2">
               {form.approvers.map((a, i) => (

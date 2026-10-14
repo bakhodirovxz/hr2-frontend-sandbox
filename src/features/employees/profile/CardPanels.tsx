@@ -67,10 +67,11 @@ export function OrdersTab({ employeeId }: { employeeId: number }) {
                 <tr key={o.id} className="border-t border-line/70 align-top">
                   <td className="py-2 pr-3 text-fg-subtle">{i + 1}.</td>
                   <td className="whitespace-nowrap py-2 pr-3 tabular-nums text-fg-muted">{fmtDate(o.act_date)}</td>
-                  <td className="whitespace-nowrap py-2 pr-3 text-fg-muted">№{o.act_number || o.id}</td>
+                  <td className="whitespace-nowrap py-2 pr-3 text-fg-muted">{o.act_number ? `№${o.act_number}` : '—'}</td>
                   <td className="max-w-[380px] py-2 pr-3 text-fg">
                     <span className="line-clamp-2">{text(o)}</span>
                     {o.category_rel?.name && <span className="mt-0.5 block text-[11px] text-fg-subtle">{o.category_rel.name}</span>}
+                    {o.mentioned && <span className="mt-0.5 block text-[11px] text-brand">{t('ordVac.mentionedInText')}</span>}
                   </td>
                   <td className="py-2 pr-3">
                     <Badge tone={ORDER_TONE[o.status ?? ''] ?? 'info'}>{statusLabel(o.status)}</Badge>

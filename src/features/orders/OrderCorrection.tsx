@@ -69,10 +69,13 @@ export function WithdrawOrderModal({
   loading,
   onClose,
   onSubmit,
+  forEdit = false,
 }: {
   open: boolean
   number?: string | number | null
   loading: boolean
+  /** Opened by «Tahrirlash» on an order out for approval (TZ O2 1224). */
+  forEdit?: boolean
   onClose: () => void
   onSubmit: (reason: string) => void
 }) {
@@ -99,6 +102,11 @@ export function WithdrawOrderModal({
         </>
       }
     >
+      {forEdit && (
+        <p role="alert" className="mb-3 rounded-inner border border-warning/30 bg-warning-soft px-3 py-2 text-[13px] text-warning">
+          {t('ordVac.inApprovalText')}
+        </p>
+      )}
       <p className="mb-3 text-[13px] text-fg-muted">{t('ordVac.withdrawHint')}</p>
       <Field label={t('ordVac.withdrawReason')}>
         <Textarea rows={3} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder={t('ordVac.optional')} />
