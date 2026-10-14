@@ -258,3 +258,16 @@ export function textMatches(haystack: string | null | undefined, needle: string)
   if (!needle) return true
   return foldForSearch(haystack ?? '').includes(foldForSearch(needle.trim()))
 }
+
+/**
+ * One apostrophe style for displayed Uzbek Latin (TZ 4.1.7 consistency):
+ * o‘ / g‘ with U+2018 and the tutuq belgisi with U+2019, as most of `uz.ts`
+ * already writes them. Server data and older dictionary lines mixed in the
+ * straight `'`, so one screen showed «Bo'lim» next to «Bo‘lim».
+ */
+export function normalizeUzApostrophes(text: string): string {
+  if (!text || typeof text !== 'string' || !/['`ʻʼ‘’]/.test(text)) return text
+  return text
+    .replace(/([OoGg])['`ʻʼ’‘](?=\p{L})/gu, '$1‘')
+    .replace(/(?<=\p{L})['`ʻʼ‘](?=\p{L})/gu, '’')
+}

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { toCyrillic } from './translit'
+import { normalizeUzApostrophes, toCyrillic } from './translit'
 import { ruLookup } from './index'
 
 /**
@@ -29,7 +29,7 @@ export function localizedName(obj: NamedRow | null | undefined, lang: string): s
   // in the database but their Uzbek text is in the interface dictionary.
   if (lang === 'ru') return ruNameOf(obj) || ruLookup(name) || name
   if (lang === 'uz_cyrl') return toCyrillic(name)
-  return name
+  return normalizeUzApostrophes(name)
 }
 
 /** A plain Uzbek name with an optional Russian form. */

@@ -27,6 +27,7 @@ const QrLoginPanel = lazy(() =>
   import('@/features/auth/QrLoginPanel').then((m) => ({ default: m.QrLoginPanel })),
 )
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
+import { siteText, useSiteInfo } from '@/features/site/useSiteInfo'
 import { LowVisionPanel } from '@/a11y/LowVisionPanel'
 import { publicClient } from '@/api/client'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
@@ -37,7 +38,8 @@ import { Input } from '@/components/ui/Input'
 import { Footer } from '@/components/layout/Footer'
 
 export function LoginPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { data: site } = useSiteInfo()
   const navigate = useNavigate()
   const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -176,7 +178,11 @@ export function LoginPage() {
             </p>
           </div>
           <p className="engrave" style={{ color: 'rgb(var(--housing-muted))' }}>
-            {t('login.copyright', { year: new Date().getFullYear() })}
+            {/* Owner from the site settings in the reader's language (FX-GEN
+                per-language fields); the dictionary text is the fallback. */}
+            {site?.owner_name
+              ? `© ${new Date().getFullYear()} ${siteText(i18n.language, site.owner_name, site.owner_name_ru)}`
+              : t('login.copyright', { year: new Date().getFullYear() })}
           </p>
         </div>
       </div>

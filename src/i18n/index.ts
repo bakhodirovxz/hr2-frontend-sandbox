@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import core from './uz.core'
-import { toCyrillic } from './translit'
+import { normalizeUzApostrophes, toCyrillic } from './translit'
 import { joinApiUrl } from '@/api/apiBase'
 
 /**
@@ -110,7 +110,8 @@ function mapTree(node: Tree, fn: (s: string) => string): Tree {
  * The Cyrillic and Russian trees are DERIVED from the full tree, so building
  * them waits for `rest` too.
  */
-let uzTree: Tree = core as unknown as Tree
+const coreTree: Tree = mapTree(core as unknown as Tree, normalizeUzApostrophes)
+let uzTree: Tree = coreTree
 let restLoaded = false
 const restListeners = new Set<() => void>()
 
@@ -127,7 +128,7 @@ export function loadRest(): Promise<void> {
   if (!restPromise) {
     restPromise = import('./uz.rest')
       .then((m) => {
-        const rest = m.default as unknown as Tree
+        const rest = mapTree(m.default as unknown as Tree, normalizeUzApostrophes)
         // Deep merge is not needed: core and rest hold DISJOINT top-level namespaces.
         uzTree = { ...uzTree, ...rest }
         i18n.addResourceBundle('uz', 'translation', rest, true, true)
@@ -287,7 +288,7 @@ async function ensureLanguage(lang: Lang): Promise<void> {
 i18n.use(initReactI18next).init({
   // Only the Uzbek CORE is inlined; `restReady` adds the rest of Uzbek and
   // `ensureLanguage` registers the other languages.
-  resources: { uz: { translation: core } },
+  resources: { uz: { translation: coreTree } },
   lng: readSavedLang(),
   fallbackLng: 'uz',
   supportedLngs: LANGS.map((l) => l.code),
