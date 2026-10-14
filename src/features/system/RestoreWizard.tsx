@@ -25,7 +25,7 @@ import { useToast } from '@/components/ui/Toast'
 import { LoadError } from '@/components/data/LoadError'
 import { apiPost } from '@/api/http'
 import { errorCode, errorMessage, errorParams } from '@/api/errorMessage'
-import { formatDateTime, inTashkent } from '@/lib/format'
+import { formatDateTime, inTashkent, numberLocale } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import {
   BACKUP_RESTORE,
@@ -519,7 +519,7 @@ function RestoreResult({ report }: { report: RestoreReport }) {
         <dl className="mt-2 grid gap-x-6 gap-y-1 text-fg sm:grid-cols-2">
           <Item label={t('sysOps.repSafety')} value={report.safety_backup_id ? `#${report.safety_backup_id}` : '—'} />
           <Item label={t('sysOps.repTables')} value={String(report.tables?.length ?? Object.keys(report.row_counts ?? {}).length)} />
-          <Item label={t('sysOps.repRows')} value={rows.toLocaleString('ru-RU')} />
+          <Item label={t('sysOps.repRows')} value={rows.toLocaleString(numberLocale())} />
           <Item label={t('sysOps.repElapsed')} value={t('sysHealth.seconds', { n: report.elapsed_seconds ?? 0 })} />
           <Item
             label={t('sysHealth.repIntegrity')}

@@ -137,9 +137,19 @@ export function localToIso(local?: string | null): string | null {
   return d.isValid() ? d.toISOString() : null
 }
 
+/**
+ * Number locale of the UI language. Numbers used to be formatted with a fixed
+ * 'ru-RU' everywhere, so Uzbek readers got Russian formatting.
+ */
+export function numberLocale(): string {
+  const lang = i18n.language ?? 'uz'
+  if (lang.startsWith('ru')) return 'ru-RU'
+  return lang === 'uz_cyrl' ? 'uz-Cyrl-UZ' : 'uz-UZ'
+}
+
 /** Compact number, e.g. 1250 → "1 250". */
 export function formatNumber(n: number): string {
-  return n.toLocaleString('ru-RU')
+  return n.toLocaleString(numberLocale())
 }
 
 /** Seconds → "m:ss" (or "h:mm:ss"). */

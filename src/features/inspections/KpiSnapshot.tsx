@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { inTashkent } from '@/lib/format'
+import { inTashkent, numberLocale } from '@/lib/format'
 import { Gauge } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { KpiSnapshotData, SnapshotRow } from './useInspections'
 
-const num = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ru-RU', { maximumFractionDigits: 2 }))
+const num = (v?: number | null) => (v == null ? '—' : v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 }))
 
 /**
  * TZ K5: the KPI indicators gathered for the audit (`inspections.kpi_snapshot`)

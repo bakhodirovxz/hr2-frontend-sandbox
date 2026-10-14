@@ -40,7 +40,7 @@ import {
   type VacancyFilters,
   type VacancySortKey,
 } from '@/features/vacancies/useVacancies'
-import { inTashkent } from '@/lib/format'
+import { inTashkent, numberLocale } from '@/lib/format'
 import { isInvalidRange } from '@/lib/dateRange'
 import { todayIso } from '@/lib/today'
 import { cn } from '@/lib/cn'
@@ -130,7 +130,7 @@ function useShare() {
   }
 }
 
-const fmtCount = (n?: number | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toLocaleString('ru-RU'))
+const fmtCount = (n?: number | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toLocaleString(numberLocale()))
 
 export function VacanciesPage() {
   const { t } = useTranslation()
@@ -455,7 +455,7 @@ function VacancyDrawer({
   const edu = useDictionaryOptions(v?.education_level_code ? 'education_levels' : null)
   const emp = v?.employment_type ? EMPLOYMENT_KEYS[v.employment_type as keyof typeof EMPLOYMENT_KEYS] : undefined
   // Maosh oralig'i: «7 000 000 – 9 000 000», «… dan», «… gacha».
-  const money = (x: number) => Number(x).toLocaleString('ru-RU')
+  const money = (x: number) => Number(x).toLocaleString(numberLocale())
   const salary = !v
     ? null
     : v.salary_from != null && v.salary_to != null

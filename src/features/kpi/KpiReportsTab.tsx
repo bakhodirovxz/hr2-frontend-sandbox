@@ -47,6 +47,7 @@ import { useListParams } from '@/hooks/useListParams'
 import { ADMIN_SUPPORT, type TemplateParams } from './extApi'
 import { PositionGroupFilter } from './PositionGroupControls'
 import { KpiCompareView, ReportTemplatesBar, SendReportModal } from './ReportExtras'
+import { numberLocale } from '@/lib/format'
 
 // recharts (~420 KB) loads only when a report is opened.
 const ReportBarChart = lazy(() => import('@/features/statistics/ReportBarChart'))
@@ -448,7 +449,7 @@ function KpiReportView({
 
   const cell = (v: unknown, type: string) => {
     if (v == null || v === '') return '—'
-    if (type === 'number' && typeof v === 'number') return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    if (type === 'number' && typeof v === 'number') return v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 })
     return sx(String(v))
   }
 

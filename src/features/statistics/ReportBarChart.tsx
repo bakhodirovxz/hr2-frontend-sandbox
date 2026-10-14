@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltip } from '@/components/data/ChartTooltip'
 import { CHART_TOKENS, tokenColor } from './reportUtils'
+import { numberLocale } from '@/lib/format'
 
 /**
  * Ustunli diagramma (TZ R1 «столбчатые диаграммы» + «настройка осей», R2
@@ -77,7 +78,7 @@ export default function ReportBarChart({
               cursor={{ fill: 'rgb(var(--fg) / 0.05)' }}
               content={
                 <ChartTooltip
-                  formatValue={(v) => (typeof v === 'number' ? v.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : v)}
+                  formatValue={(v) => (typeof v === 'number' ? v.toLocaleString(numberLocale(), { maximumFractionDigits: 2 }) : v)}
                 />
               }
             />

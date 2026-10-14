@@ -47,6 +47,7 @@ import {
   type OrderTypeCode,
 } from './orderTypes'
 import { useOrder, useOrderHistory, useOrderMutations, type OrderAct, type OrderHistoryRow } from './useOrders'
+import { numberLocale } from '@/lib/format'
 
 /** Categories whose apply takes only a start date (+ «Doimiy»): v1 SPECIAL_APPLY_TYPES. */
 const SPECIAL_APPLY_TYPES = [7, 8, 9, 11, 13]
@@ -445,7 +446,7 @@ function DetailsBlock({ order, type }: { order: OrderAct; type: OrderTypeCode | 
     if (DATE_KEYS.has(k)) return isoToDmy(v)
     if (k === 'salary') {
       const n = Number(v)
-      return Number.isFinite(n) ? `${n.toLocaleString('ru-RU')} ${t('orders.sum')}` : String(v)
+      return Number.isFinite(n) ? `${n.toLocaleString(numberLocale())} ${t('orders.sum')}` : String(v)
     }
     if (k === 'position_id') return positions.find((o) => o.value === String(v))?.label ?? `#${v}`
     if (k === 'department_id') return departments.find((o) => o.value === String(v))?.label ?? `#${v}`
