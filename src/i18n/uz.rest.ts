@@ -728,11 +728,8 @@ const rest = {
     order_withdrawn: 'Nº{{num}} buyruq kelishuvdan qaytarib olindi.',
     order_withdrawn_reason: 'Nº{{num}} buyruq kelishuvdan qaytarib olindi. Sabab: {{reason}}',
     order_sent_to_leadership: 'Nº{{num}} buyruq rahbariyat tasdig\'i uchun sizga yuborildi.',
-    feedback_received: 'Fikr-mulohaza — {{sender}}: {{subject}}
-{{message}}',
-    feedback_received_page: 'Fikr-mulohaza — {{sender}}: {{subject}}
-{{message}}
-Sahifa: {{page}}',
+    feedback_received: 'Fikr-mulohaza — {{sender}}: {{subject}}\n{{message}}',
+    feedback_received_page: 'Fikr-mulohaza — {{sender}}: {{subject}}\n{{message}}\nSahifa: {{page}}',
     audit_export_ready: 'Audit jurnali eksporti tayyor ({{count}} ta yozuv, {{format}}). Yuklab olish: /jobs/{{job_id}}/download',
     audit_export_failed: 'Audit jurnali eksporti bajarilmadi (vazifa №{{job_id}}).',
     dept_head_removed: 'Siz «{{name}}» bo\'limi rahbari lavozimidan ozod etildingiz.',

@@ -8096,14 +8096,8 @@ const ru: Record<string, string> = {
   'Nº{{num}} buyruq kelishuvdan qaytarib olindi.': 'Приказ №{{num}} отозван с согласования.',
   'Nº{{num}} buyruq kelishuvdan qaytarib olindi. Sabab: {{reason}}': 'Приказ №{{num}} отозван с согласования. Причина: {{reason}}',
   'Nº{{num}} buyruq rahbariyat tasdig\'i uchun sizga yuborildi.': 'Приказ №{{num}} направлен вам на утверждение руководства.',
-  'Fikr-mulohaza — {{sender}}: {{subject}}
-{{message}}': 'Обратная связь — {{sender}}: {{subject}}
-{{message}}',
-  'Fikr-mulohaza — {{sender}}: {{subject}}
-{{message}}
-Sahifa: {{page}}': 'Обратная связь — {{sender}}: {{subject}}
-{{message}}
-Страница: {{page}}',
+  'Fikr-mulohaza — {{sender}}: {{subject}}\n{{message}}': 'Обратная связь — {{sender}}: {{subject}}\n{{message}}',
+  'Fikr-mulohaza — {{sender}}: {{subject}}\n{{message}}\nSahifa: {{page}}': 'Обратная связь — {{sender}}: {{subject}}\n{{message}}\nСтраница: {{page}}',
   'Audit jurnali eksporti tayyor ({{count}} ta yozuv, {{format}}). Yuklab olish: /jobs/{{job_id}}/download': 'Экспорт журнала аудита готов ({{count}} записей, {{format}}). Скачать: /jobs/{{job_id}}/download',
   'Audit jurnali eksporti bajarilmadi (vazifa №{{job_id}}).': 'Экспорт журнала аудита не выполнен (задача №{{job_id}}).',
   'Siz «{{name}}» bo\'limi rahbari lavozimidan ozod etildingiz.': 'Вы освобождены от должности руководителя отдела «{{name}}».',
@@ -8457,20 +8451,6 @@ Sahifa: {{page}}': 'Обратная связь — {{sender}}: {{subject}}
   'Hisob topilmadi — xat yuborilmadi': 'Учётная запись не найдена — письмо не отправлено',
   'Hisobda email manzil yo\'q — xat yuborilmadi': 'В учётной записи нет адреса электронной почты — письмо не отправлено',
   '{{full_name}} {{organization}} tashkilotining «{{department}}» bo\'limida «{{position}}» lavozimida {{employment_period}}.': '{{full_name}} в организации {{organization}}, в подразделении «{{department}}», в должности «{{position}}» {{employment_period}}.',
-  '
-
-Ushbu ma\'lumotnoma {{purpose}} uchun berildi.': '
-
-Настоящая справка выдана для предоставления {{purpose}}.',
-  '
-
-Mehnat faoliyati davomida o\'ziga yuklatilgan vazifalarni o\'z vaqtida va sifatli bajarib keldi. Jamoada o\'zini intizomli tutadi, kasbiy mahoratini oshirib boradi.
-
-Ushbu tavsifnoma {{purpose}} uchun berildi.': '
-
-В период трудовой деятельности своевременно и качественно выполнял возложенные на него обязанности. В коллективе проявляет дисциплинированность, повышает свой профессиональный уровень.
-
-Настоящая характеристика выдана для предоставления {{purpose}}.',
   'Noma\'lum o\'rin egasi: ': 'Неизвестный владелец должности: ',
   'jadval topilmadi': 'таблица не найдена',
   'jadvalni o\'qib bo\'lmadi': 'не удалось прочитать таблицу',
