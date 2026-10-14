@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { apiGet } from '@/api/http'
 import { useBranchStore } from '@/store/branchStore'
+import { useAuthStore } from '@/store/authStore'
+import { can } from '@/auth/permissions'
 import type { Page } from './useEmployees'
 import type { EmployeeKpiRow, EmployeeRow } from './types'
 
@@ -49,7 +51,7 @@ export function useEmployeeKpiList(args: KpiListArgs, enabled = true) {
         { signal },
       ),
     placeholderData: (prev) => prev,
-    enabled,
+    enabled: enabled && can(useAuthStore.getState().user, 'kpi'),
   })
 }
 
@@ -60,7 +62,7 @@ export function useEmployeeKpiRanked(sort: 'best_kpi' | 'worst_kpi', size: numbe
   const q = useQuery({
     queryKey: ['employee-kpi-ranked', { sort, size, branchId, range }],
     queryFn: () => apiGet<Page<EmployeeKpiRow>>('dashboard/employee-kpi', { ...range, sort, page: 1, size }),
-    enabled,
+    enabled: enabled && can(useAuthStore.getState().user, 'kpi'),
   })
   return { rows: q.data?.items ?? [], loading: q.isLoading }
 }
@@ -95,22 +97,23 @@ export interface MainStats {
  * categories and the average age (v1 `EmployeesAdminKpiRow`).
  */
 export function useRosterHeadline(adminView: boolean) {
+  const user = useAuthStore((st) => st.user)
   const branchId = useBranchStore((s) => s.selectedBranchId)
   const range = defaultKpiRange()
   const summary = useQuery({
     queryKey: ['employee-kpi', 'summary', { branchId, range }],
     queryFn: () => apiGet<KpiSummary>('dashboard/kpi-summary', range),
-    enabled: adminView,
+    enabled: adminView && can(user, 'kpi'),
   })
   const categories = useQuery({
     queryKey: ['employees-by-category', branchId],
     queryFn: () => apiGet<CategorizedEmployees>('dashboard/employees-by-category'),
-    enabled: adminView,
+    enabled: adminView && can(user, 'attendance') && !!user?.actor?.attendance_roster,
   })
   const main = useQuery({
     queryKey: ['dashboard-main', branchId],
     queryFn: () => apiGet<MainStats>('dashboard/main'),
-    enabled: !adminView,
+    enabled: !adminView && can(user, 'attendance'),
   })
   const c = categories.data
   const other =
@@ -165,32 +168,33 @@ export interface ExperienceYear {
 
 /** The demographic charts (age, nationality, KPI trend, head-count, hire years). */
 export function useEmployeeStats(enabled = true) {
+  const user = useAuthStore((st) => st.user)
   const branchId = useBranchStore((s) => s.selectedBranchId)
 
   const age = useQuery({
     queryKey: ['age-stats', branchId],
     queryFn: () => apiGet<AgeStats>('dashboard/age-stats'),
-    enabled,
+    enabled: enabled && can(user, 'employees'),
   })
   const nationality = useQuery({
     queryKey: ['nationality-stats', branchId],
     queryFn: () => apiGet<NationalityStat[]>('dashboard/nationality-stats'),
-    enabled,
+    enabled: enabled && can(user, 'employees'),
   })
   const kpiTrend = useQuery({
     queryKey: ['kpi-monthly', branchId],
     queryFn: () => apiGet<MonthlyKpi[]>('dashboard/kpi-monthly-average'),
-    enabled,
+    enabled: enabled && can(user, 'kpi'),
   })
   const headcount = useQuery({
     queryKey: ['employee-count', branchId],
     queryFn: () => apiGet<HeadcountStats>('dashboard/employee-count'),
-    enabled,
+    enabled: enabled && can(user, 'employees'),
   })
   const experience = useQuery({
     queryKey: ['experience-stats', branchId],
     queryFn: () => apiGet<ExperienceYear[]>('dashboard/experience-stats'),
-    enabled,
+    enabled: enabled && can(user, 'employees'),
   })
 
   return {

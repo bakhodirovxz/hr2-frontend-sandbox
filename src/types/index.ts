@@ -201,6 +201,9 @@ export interface User {
   type: UserType
   username?: string
   /** Hisobdagi F.I.Sh. (xodim kartasi bo'lmagan hisoblar uchun). */
+  /** TZ L2: phone and photo of an account (card holders: from the card). */
+  phone_number?: string | null
+  photo_url?: string | null
   full_name?: string | null
   email?: string | null
   is_active?: boolean

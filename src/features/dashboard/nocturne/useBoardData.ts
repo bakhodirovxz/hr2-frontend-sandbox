@@ -4,6 +4,8 @@ import dayjs from 'dayjs'
 import { apiGet } from '@/api/http'
 import { toItems, type ListResponse } from '@/types'
 import { useDashboardBranchId } from '@/features/dashboard/useKadrBlocks'
+import { useAuthStore } from '@/store/authStore'
+import { can } from '@/auth/permissions'
 
 /** Ro'yxat yoki sahifalangan javob — ikkalasini ham qabul qiladi. */
 function listOf<T>(data: T[] | ListResponse<T> | undefined): T[] {
@@ -41,6 +43,8 @@ export interface DepartmentAttendance {
  */
 export function useDepartmentsAttendance(enabled: boolean) {
   const branchId = useDashboardBranchId()
+  // GEN#3: the server answers only to an account the matrix opens the module to.
+  const allowed = can(useAuthStore((st) => st.user), 'attendance')
   const q = useQuery({
     queryKey: ['board', 'departments-attendance', branchId],
     queryFn: () =>
@@ -48,7 +52,7 @@ export function useDepartmentsAttendance(enabled: boolean) {
         DASHBOARD_DEPARTMENTS_ATTENDANCE,
         { organization_branch_id: branchId },
       ),
-    enabled,
+    enabled: enabled && allowed,
     retry: false,
   })
   const rows = useMemo(
@@ -84,6 +88,7 @@ export interface KpiSummary {
  */
 export function useKpiSummary(enabled: boolean) {
   const branchId = useDashboardBranchId()
+  const allowed = can(useAuthStore((st) => st.user), 'kpi')
   const from = dayjs().subtract(1, 'month').format('YYYY-MM-DD')
   const to = dayjs().format('YYYY-MM-DD')
   const q = useQuery({
@@ -94,7 +99,7 @@ export function useKpiSummary(enabled: boolean) {
         date_from: from,
         date_to: to,
       }),
-    enabled,
+    enabled: enabled && allowed,
     retry: false,
   })
   return { summary: q.data ?? null, period: { from, to }, loading: q.isLoading }
