@@ -25,6 +25,7 @@ import { DepartmentCardModal, type CardTab } from '@/features/structure/Departme
 import { DepartmentFormModal } from '@/features/structure/DepartmentFormModal'
 import { OrgChart } from '@/features/structure/OrgChart'
 import { RestructureWizard } from '@/features/structure/RestructureWizard'
+import { StructureHistoryModal } from '@/features/structure/StructureHistoryModal'
 import {
   DepartmentListView,
   DepartmentTreeView,
@@ -54,7 +55,6 @@ export function StructurePage() {
   const toast = useToast()
   const user = useAuthStore((s) => s.user)
   const branchId = useBranchStore((s) => s.selectedBranchId)
-  const canEdit = canWriteOrg(user, 'structure')
   const canEditDepartments = canWriteOrg(user, 'structure', 'edit')
 
   const [params, setParams] = useSearchParams()
@@ -89,6 +89,7 @@ export function StructurePage() {
   const [asOfNode, setAsOfNode] = useState<StructureNode | null>(null)
   const [form, setForm] = useState<{ value: DepartmentRow | null } | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
 
   const { branches } = useBranches()
@@ -115,7 +116,8 @@ export function StructurePage() {
     try {
       await downloadFile({
         url: `${DEPARTMENTS_LIST}/export`,
-        params: { format },
+        // TZ 2029 / 2061: in the «на дату» view the file shows that day's structure.
+        params: historyMode ? { format, on: asOf } : { format },
         filename: `${t('orgAdmin.exportFile')}.${format}`,
       })
     } catch (e) {
@@ -141,7 +143,7 @@ export function StructurePage() {
   } else if (view === 'scheme') {
     body = (
       <div className="relative h-[max(520px,calc(100dvh-17rem))]">
-        <OrgChart branchId={branchId} canEdit={canEdit} />
+        <OrgChart branchId={branchId} canEdit={canEditDepartments} onAddDepartment={() => setForm({ value: null })} />
       </div>
     )
   } else if (historyMode) {
@@ -189,6 +191,11 @@ export function StructurePage() {
             {branchId && (
               <Button size="sm" variant="outline" leftIcon={<Printer size={14} />} loading={printing} onClick={() => void doPrint()}>
                 {t('structure.print.action')}
+              </Button>
+            )}
+            {branchId && (
+              <Button size="sm" variant="outline" leftIcon={<History size={14} />} onClick={() => setHistoryOpen(true)}>
+                {t('orgAdmin.structureHistory')}
               </Button>
             )}
             {canEditDepartments && branchId && view !== 'scheme' && !historyMode && (
@@ -263,6 +270,7 @@ export function StructurePage() {
       />
       <DepartmentFormModal open={!!form} value={form?.value ?? null} all={all} onClose={() => setForm(null)} />
       <RestructureWizard open={wizard} all={active} onClose={() => setWizard(false)} />
+      <StructureHistoryModal open={historyOpen} branchId={branchId} onClose={() => setHistoryOpen(false)} />
     </PageContainer>
   )
 }
