@@ -451,6 +451,14 @@ const core = {
     // ── TZ sandbox backend kodlari (hr-frontend-sandbox errorMessages.js) ──
     no_free_units: 'Bo‘sh shtat birligi yo‘q: tasdiqlangan {{planned}}, band {{occupied}}. Avval shtat jadvalini o‘zgartiring (shtat sonini oshiring).',
     invalid_group_by: 'Bu hisobot uchun tanlangan guruhlash mumkin emas',
+    // FX-OPS: coded errors of statistics / services / attendance.
+    invalid_dashboard_status: 'Bu toifa uchun holat noto‘g‘ri tanlangan',
+    services_availability_forbidden: 'Xizmatlar mavjudligini faqat bosh administrator yoki markaziy kadrlar boshqarmasi o‘zgartiradi',
+    assignee_not_reviewer: 'Bu xodim so‘rovlarni ko‘rib chiqa olmaydi (kadrlar xizmati emas)',
+    skud_import_forbidden: 'СКУД ma’lumotini faqat tizim administratori yoki kadrlar xizmati yuklaydi',
+    skud_branch_out_of_scope: 'Faylda sizning darajangizdan tashqaridagi tashkilot bor',
+    skud_not_configured: 'СКУД manzili sozlanmagan',
+    skud_pull_failed: 'СКУД dan ma’lumot olib bo‘lmadi',
     template_no_draft: 'Tasdiqlash uchun qoralama yo‘q — avval shablonni tahrirlang',
     template_unknown_placeholder: 'Noma’lum o‘rin egasi: {{placeholders}}',
     template_title_required: 'Shablon sarlavhasi bo‘sh bo‘lmasligi kerak',

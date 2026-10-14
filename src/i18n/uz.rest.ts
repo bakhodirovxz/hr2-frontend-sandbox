@@ -1537,7 +1537,7 @@ const rest = {
 
   /** Interaktiv xizmatlar — TZ 4.2.12. */
   services: {
-    subtitle: 'Ma‘lumotnoma, tavsifnoma va nomzodlik arizasi',
+    subtitle: 'Ma’lumotnoma, tavsifnoma va nomzodlik arizasi',
     request: 'So‘rov',
     newRequest: 'Yangi so‘rov',
     send: 'Yuborish',
@@ -1552,11 +1552,11 @@ const rest = {
     lastName: 'Familiya',
     firstName: 'Ism',
     middleName: 'Otasining ismi',
-    desiredPosition: 'Da‘vogarlik lavozimi',
+    desiredPosition: 'Da’vogarlik lavozimi',
     phone: 'Telefon',
     branch: 'Filial',
 
-    type_work_certificate: 'Ish joyidan ma‘lumotnoma',
+    type_work_certificate: 'Ish joyidan ma’lumotnoma',
     type_reference_letter: 'Ish joyidan tavsifnoma',
     type_job_application: 'Lavozimga nomzodlik arizasi',
 
@@ -1572,7 +1572,7 @@ const rest = {
     tab_inbox: 'Ko‘rib chiqish',
     number: 'Raqami',
     applicant: 'Ariza beruvchi',
-    assignee: 'Mas‘ul',
+    assignee: 'Mas’ul',
     submittedAt: 'Yuborilgan',
     dueDate: 'Muddat',
     allStatuses: 'Barcha holat',
@@ -4154,6 +4154,7 @@ const rest = {
     grouped: 'Yonma-yon',
     stacked: 'Ustma-ust',
     shareTitle: 'Holatlar ulushi',
+    splitByType: 'Murojaat turi bo‘yicha ajratish (sana × tur)',
     tableTitle: 'Ma’lumot jadvali',
     rowCount: '{{count}} ta qator',
     share: 'Ulushi',
@@ -4162,7 +4163,8 @@ const rest = {
     comparedPeriod: 'Solishtirilgan davr',
     comparedTotal: 'jami',
     noPrevious: 'Oldingi davrda ma’lumot yo‘q — solishtirish ko‘rsatilmadi',
-    noData: 'Tanlangan shartlar bo‘yicha ma’lumot yo‘q',
+    // TZ R1 1503 / R2 1528: «Данные не найдены».
+    noData: 'Ma’lumotlar topilmadi',
     noDataHint: 'Davrni kengaytiring yoki filtrlarni tozalang.',
     loadFailed: 'Hisobotni yuklab bo‘lmadi',
     exported: 'Fayl yuklab olindi',
@@ -4175,9 +4177,9 @@ const rest = {
     preset1y: '1 yil',
     src_services: 'Interaktiv xizmatlar',
     src_support: 'Texnik yordam',
-    type_work_certificate: 'Mehnat faoliyati ma’lumotnomasi',
-    type_reference_letter: 'Tavsifnoma',
-    type_job_application: 'Ish bilan ta’minlash arizasi',
+    type_work_certificate: 'Ish joyidan ma’lumotnoma',
+    type_reference_letter: 'Ish joyidan tavsifnoma',
+    type_job_application: 'Lavozimga nomzodlik arizasi',
     type_support: 'Texnik yordam murojaati',
     st_accepted: 'Qabul qilingan',
     st_in_progress: 'Ko‘rib chiqilmoqda',
@@ -5915,6 +5917,26 @@ const rest = {
     pdfFailed: 'Hujjatni ochib bo‘lmadi',
   },
   // TZ I2 — davomat, Davomatim, bayramlar, tabel sozlamalari (hr-backend-sandbox).
+  /** TZ I2 1639 «Импорт данных из СКУД». */
+  skud: {
+    button: 'СКУД dan import',
+    title: 'СКУД ma’lumotlarini import qilish',
+    hint: 'Turniket o‘tishlari fayldan yuklanadi; takroriy yozuvlar o‘tkazib yuboriladi.',
+    pickFile: 'Faylni tanlang (JSON yoki CSV)',
+    formats: 'Ustunlar: {{columns}}',
+    rows: 'Faylda {{count}} ta yozuv',
+    emptyFile: 'Faylda yozuv topilmadi',
+    badFile: 'Faylni o‘qib bo‘lmadi',
+    import: 'Import qilish',
+    imported: 'Qabul qilindi: {{received}}, yangi: {{created}}',
+    rowError: '{{row}}-qator, {{field}}',
+    autoTitle: 'Avtomatik yuklash',
+    autoOff: 'СКУД manzili sozlanmagan — o‘tishlar fayl yoki СКУД ning o‘zi yuborganda keladi.',
+    autoOn: 'Har {{minutes}} daqiqada СКУД dan avtomatik olinadi.',
+    autoDisabled: 'СКУД manzili sozlangan, avtomatik yuklash o‘chirilgan.',
+    lastPull: 'Oxirgi yuklash: {{at}}, yangi yozuvlar: {{created}}',
+    pullNow: 'Hozir olish',
+  },
   davomat: {
     title: 'Xodimlar davomati',
     subtitle: 'Ish vaqti, kechikishlar va yo‘qliklarni nazorat qilish',
@@ -6084,6 +6106,16 @@ const rest = {
 
   /** Interaktiv xizmatlar sahifasi (TZ 4.2.12, I1) — `services.*` bilan birga. */
   svc: {
+    // FX-OPS: TZ I1 1608 user comment, TZ 2292 assignee, TZ 2303–2304 HR text.
+    commentLabel: 'Izoh',
+    commentHint: 'Ixtiyoriy',
+    field_comment: 'Izoh',
+    field_document_notes: 'Hujjatga qo‘shimcha matn',
+    assigned: 'Mas’ul tayinlandi',
+    assigneeNone: '— tanlang —',
+    me: 'men',
+    docNotes: 'Hujjatga qo‘shimcha matn (shu xodim haqida)',
+    docNotesHint: 'Tasdiqlangan shablon matni ostiga qo‘shiladi; shablonning o‘zi o‘zgarmaydi.',
     tabInbox: 'Kiruvchi so‘rovlar',
     tabTemplates: 'Hujjat shablonlari',
     refresh: 'Yangilash',
@@ -7360,6 +7392,16 @@ const rest = {
     type_background_job: 'Fon vazifasi (eksport) tayyor',
   },
   statDelivery: {
+    periodPreset: 'Hisobot davri',
+    periodPresetHint: 'Har yurishda davr shu kunga nisbatan hisoblanadi.',
+    pp_fixed: 'Shablondagi sanalar (o‘zgarmas)',
+    pp_last_7_days: 'Oxirgi 7 kun',
+    pp_last_30_days: 'Oxirgi 30 kun',
+    pp_previous_week: 'O‘tgan hafta',
+    pp_current_month: 'Joriy oy',
+    pp_previous_month: 'O‘tgan oy',
+    pp_current_year: 'Joriy yil',
+    pp_previous_year: 'O‘tgan yil',
     multiFormat: 'Bir nechta format',
     multiFormatTitle: 'Bir nechta formatda yuklash',
     multiFormatHint: 'Tanlangan formatlar bitta zip arxivda yuklab olinadi.',
@@ -7422,6 +7464,7 @@ const rest = {
     charts: 'Diagrammalar',
     openDetails: '«{{name}}» — batafsil ko‘rish',
     drillCount: 'Jami: {{count}} ta qator',
+    allStatuses: 'Barcha holatlar',
   },
   kpiExt: {
     adminSupport: 'Ma’muriy va yordamchi xodimlar',
