@@ -7,6 +7,8 @@ interface ErrorBody {
   message?: string
   code?: string
   params?: Record<string, unknown>
+  /** Language the server localised `message` into (`core/error_i18n.py`). */
+  lang?: string
 }
 
 /**
@@ -19,8 +21,14 @@ export function normalizeErrorBody(raw: unknown): ErrorBody | undefined {
   const body = raw as ErrorBody
   const d = body.detail
   if (d && typeof d === 'object' && !Array.isArray(d) && 'code' in d) {
-    const inner = d as { code?: string; message?: string; params?: Record<string, unknown> }
-    return { code: inner.code, message: inner.message, params: inner.params ?? {}, detail: inner.message }
+    const inner = d as { code?: string; message?: string; params?: Record<string, unknown>; lang?: string }
+    return {
+      code: inner.code,
+      message: inner.message,
+      params: inner.params ?? {},
+      detail: inner.message,
+      lang: inner.lang,
+    }
   }
   return body
 }
@@ -96,7 +104,10 @@ function baseErrorMessage(err: unknown, fallback: string): string {
   const serverText = typeof data.message === 'string' && data.message.trim() ? data.message.trim() : null
   const isKeyText = (s: string) => /^[a-z0-9_]+(\.[a-z0-9_]+)+$/i.test(s)
   if (serverText && !isKeyText(serverText) && data.code) {
-    if (lang === 'uz') return serverText
+    // The server localises its own sentence (X-Lang header, FX-LANG) and says
+    // which language it produced; a sentence in the reader's language is the
+    // most specific text there is.
+    if (data.lang === lang || lang === 'uz') return serverText
     if (lang === 'uz_cyrl') return toCyrillic(serverText)
     const key = `errors.${data.code}`
     if (i18n.exists(key)) return tr(key, data.params)
@@ -154,11 +165,17 @@ function baseErrorMessage(err: unknown, fallback: string): string {
   if (typeof detail === 'string' && detail.trim()) return detail
   if (Array.isArray(detail)) {
     // FastAPI 422: [{loc: ['body', 'description'], msg: '...'}]
+    // The server already localises `msg`; the raw field name is replaced by
+    // the form label (`fields.<name>`), or dropped when there is none — a
+    // reader should never see «date_from: …».
     const parts = detail
       .map((d) => {
         const item = d as { loc?: unknown[]; msg?: string }
-        const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null
-        return field ? `${String(field)}: ${item.msg ?? ''}` : (item.msg ?? '')
+        const loc = Array.isArray(item.loc) ? item.loc.filter((x) => typeof x === 'string' && x !== 'body') : []
+        const field = loc.length ? String(loc[loc.length - 1]) : null
+        const msg = item.msg ?? ''
+        const label = field && i18n.exists(`fields.${field}`) ? tr(`fields.${field}`) : null
+        return label ? `${label}: ${msg}` : msg
       })
       .filter(Boolean)
     if (parts.length) return parts.join('; ')
