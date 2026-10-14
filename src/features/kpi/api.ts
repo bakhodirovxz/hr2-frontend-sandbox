@@ -112,6 +112,9 @@ export interface KpiIndicator {
   department_id?: number | null
   /** `{employee_ids, department_ids, position_categories, employees:[{id, legal_name}]}` */
   assignees?: (Partial<KpiAssignees> & { employees?: { id: number; legal_name?: string | null }[] }) | null
+  /** TZ 2161: a basis proposed by HR waits for the main administrator. */
+  approval_status?: 'pending' | 'approved' | 'rejected' | null
+  approval?: { action?: string; by?: string | null; at?: string | null; comment?: string | null } | null
 }
 
 export interface KpiEmployeeMin {
@@ -606,6 +609,12 @@ export function useKpiMutations() {
       ...opts,
     }),
     deleteIndicator: useMutation({ mutationFn: (id: number) => apiDelete(KPI.indicator(id)), ...opts }),
+    // TZ 2161: the main administrator approves / rejects a proposed basis.
+    decideIndicator: useMutation({
+      mutationFn: ({ id, approve, comment }: { id: number; approve: boolean; comment?: string | null }) =>
+        apiPost<KpiIndicator>(`${KPI.indicator(id)}/${approve ? 'approve' : 'reject'}`, { comment: comment || null }),
+      ...opts,
+    }),
     seedDefaultIndicators: useMutation({
       mutationFn: () => apiPost<{ created_indicators: number; branches: number }>(KPI.seedDefaultIndicators),
       ...opts,
@@ -768,4 +777,28 @@ export function useGroupNames(indicators: KpiIndicator[]) {
     () => [...new Set(indicators.map((i) => i.group_name).filter((g): g is string => !!g))].sort(),
     [indicators],
   )
+}
+
+/** TZ 2161 «одинаковое количество оценок» — the current month's balance. */
+export interface EvaluationBalance {
+  period_begin: string
+  period_end: string
+  central_expected: number
+  employees: number
+  balanced: boolean
+  short: { employee_id: number; legal_name: string; central: number; total: number }[]
+  short_count: number
+  no_department: { employee_id: number; legal_name: string }[]
+  no_department_count: number
+  distribution: { entries: number; employees: number }[]
+  fixed: number
+}
+
+export function useEvaluationBalance(enabled: boolean) {
+  return useQuery({
+    queryKey: ['kpi', 'evaluation-balance'],
+    queryFn: () => apiGet<EvaluationBalance>('/kpi/evaluation-balance'),
+    enabled,
+    staleTime: 60_000,
+  })
 }
