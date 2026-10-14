@@ -71,6 +71,8 @@ export interface Extension {
 
 export interface Inspection {
   id: number
+  /** Author (employee id) — a department head conducts the audits he opened. */
+  created_by_id?: number | null
   title: string
   purpose?: string | null
   period_start?: string | null

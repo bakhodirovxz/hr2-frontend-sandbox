@@ -66,6 +66,8 @@ const APPROVAL_ERRORS: Record<string, string> = {
   not_plan_approver: 'kpiExt.errNotApprover',
   approver_required: 'kpiExt.errApproverRequired',
   comment_required: 'kpiExt.errCommentRequired',
+  work_plan_nothing_to_submit: 'kpiExt.errNothingToSubmit',
+  work_plan_nothing_to_decide: 'kpiExt.errNothingToDecide',
 }
 export const approvalError = (e: unknown, t: (k: never) => string, fallback: string) => {
   const key = APPROVAL_ERRORS[errorCode(e) ?? '']
@@ -416,5 +418,135 @@ export function TreeToggle({ open, onToggle, className }: { open: boolean; onTog
     >
       {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
     </IconButton>
+  )
+}
+
+/**
+ * TZ K2 1385 «Согласование плана»: the WHOLE plan of one employee (or one
+ * department) for a period — every top task with its sub-tasks — is sent to
+ * the superior, or approved / returned by him, in one step.
+ */
+export function WholePlanModal({
+  mode,
+  onClose,
+  defaults,
+}: {
+  mode: 'submit' | 'approve' | 'return' | null
+  onClose: () => void
+  defaults: { emp?: string; dept?: string; from?: string; to?: string }
+}) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const mut = useWorkPlanMutations()
+  const branchId = useBranchStore((s) => s.selectedBranchId)
+  const departments = useDepartmentOptions(branchId)
+  const [empQuery, setEmpQuery] = useState('')
+  const empSearch = useEmployeeSearch(branchId, !!mode, empQuery)
+  const [f, setF] = useState({ from: '', to: '', emp: '', dept: '' })
+  const [approver, setApprover] = useState<Employee | null>(null)
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!mode) return
+    setF({
+      from: defaults.from || dayjs().startOf('month').format('YYYY-MM-DD'),
+      to: defaults.to || dayjs().endOf('month').format('YYYY-MM-DD'),
+      emp: defaults.emp ?? '',
+      dept: defaults.emp ? '' : defaults.dept ?? '',
+    })
+    setApprover(null)
+    setComment('')
+    setError('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  const run = async () => {
+    if (!mode) return
+    setError('')
+    if (!f.emp && !f.dept) return setError(t('kpiExt.planOwnerRequired'))
+    if (!f.from || !f.to) return setError(t('kpiExt.copyDatesRequired'))
+    if (isInvalidRange(f.from, f.to)) return setError(t('list.invalidRange'))
+    if (mode === 'return' && comment.trim().length < 3) return setError(t('kpiExt.errCommentRequired'))
+    try {
+      const r = await mut.plan.mutateAsync({
+        action: mode,
+        employee_id: f.emp ? Number(f.emp) : null,
+        department_id: f.emp ? null : f.dept ? Number(f.dept) : null,
+        period_start: f.from,
+        period_end: f.to,
+        approver_employee_id: mode === 'submit' ? approver?.id ?? null : null,
+        comment: comment.trim() || null,
+      })
+      const n = r.submitted ?? r.decided ?? 0
+      toast.ok(mode === 'submit' ? t('kpiExt.planSubmitted', { count: n }) : mode === 'approve' ? t('kpiExt.planApproved', { count: n }) : t('kpiExt.planReturned', { count: n }))
+      onClose()
+    } catch (e) {
+      setError(approvalError(e, t as never, t('common.actionFailed')))
+    }
+  }
+
+  const title = mode === 'submit' ? t('kpiExt.planSubmitTitle') : mode === 'approve' ? t('kpiExt.planApproveTitle') : t('kpiExt.planReturnTitle')
+  return (
+    <Modal
+      open={!!mode}
+      onClose={onClose}
+      size="md"
+      title={title}
+      description={t('kpiExt.planHint')}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant={mode === 'return' ? 'danger' : 'primary'}
+            leftIcon={mode === 'submit' ? <Send size={14} /> : mode === 'approve' ? <Check size={14} /> : <Undo2 size={14} />}
+            loading={mut.plan.isPending}
+            onClick={run}
+          >
+            {mode === 'submit' ? t('kpiExt.submitAction') : mode === 'approve' ? t('kpiExt.approveAction') : t('kpiExt.returnAction')}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t('workPlan.colEmployee')}>
+          <Combobox
+            value={f.emp}
+            onChange={(v) => setF((p) => ({ ...p, emp: v, dept: v ? '' : p.dept }))}
+            options={empSearch.options}
+            onSearchChange={setEmpQuery}
+            loading={empSearch.loading}
+            hasMore={empSearch.hasMore}
+            onLoadMore={empSearch.loadMore}
+            placeholder={t('workPlan.allEmployees')}
+          />
+        </Field>
+        <Field label={t('workPlan.orDepartment')}>
+          <Combobox
+            value={f.dept}
+            onChange={(v) => setF((p) => ({ ...p, dept: v, emp: v ? '' : p.emp }))}
+            options={departments}
+            placeholder={t('workPlan.allDepartments')}
+          />
+        </Field>
+        <Field label={t('kpiExt.planFrom')} required>
+          <DateInput value={f.from} onChange={(v) => setF((p) => ({ ...p, from: v }))} invalid={isInvalidRange(f.from, f.to)} />
+        </Field>
+        <Field label={t('kpiExt.planTo')} required>
+          <DateInput value={f.to} onChange={(v) => setF((p) => ({ ...p, to: v }))} min={f.from || undefined} invalid={isInvalidRange(f.from, f.to)} />
+        </Field>
+        {mode === 'submit' && (
+          <Field label={t('kpiExt.approver')} hint={t('kpiExt.approverHint')} wide>
+            <EmployeePicker value={approver} onChange={setApprover} allBranches placeholder={t('kpiExt.approverAuto')} />
+          </Field>
+        )}
+        <Field label={mode === 'return' ? t('kpiExt.returnReason') : t('kpiExt.comment')} required={mode === 'return'} wide>
+          <Textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} />
+        </Field>
+        <FormError className="text-xs sm:col-span-2">{error}</FormError>
+      </div>
+    </Modal>
   )
 }

@@ -10,7 +10,8 @@ const URL = 'trainings'
  * The form offers the four TZ types; the API also knows attestation, grade
  * and rank — a row of those still shows its server label.
  */
-export const TRAINING_TYPES = ['qualification', 'course', 'training', 'seminar'] as const
+// TZ 429 «Повышение квалификации (категория, курсы и т.п.)»: grade = razryad / category.
+export const TRAINING_TYPES = ['qualification', 'course', 'training', 'seminar', 'attestation', 'grade', 'rank'] as const
 export const TRAINING_STATUSES = ['completed', 'planned', 'cancelled'] as const
 export const TRAINING_RESULTS = ['passed', 'failed'] as const
 

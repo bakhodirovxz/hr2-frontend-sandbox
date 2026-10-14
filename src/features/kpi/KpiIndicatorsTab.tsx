@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, ExternalLink, GitBranch, Pencil, Plus, Sparkles, Trash2, TrendingDown, TrendingUp, Upload } from 'lucide-react'
+import { Check, Copy, ExternalLink, GitBranch, Pencil, Plus, Sparkles, Trash2, TrendingDown, TrendingUp, Upload, X } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -128,6 +128,30 @@ export function KpiIndicatorsTab() {
     else toast.ok(t('kpi.bulkDeleteDone', { count: selected.length }))
   }
 
+  // TZ 2161: the main administrator approves / rejects a basis proposed by HR.
+  const [rejecting, setRejecting] = useState<KpiIndicator | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const approveOne = async (i: KpiIndicator) => {
+    try {
+      await mut.decideIndicator.mutateAsync({ id: i.id, approve: true })
+      toast.ok(t('kpi.approvalApproved'))
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.actionFailed')))
+    }
+  }
+  const rejectOne = async () => {
+    if (!rejecting) return
+    if (rejectReason.trim().length < 3) return toast.error(t('kpi.approvalReasonRequired'))
+    try {
+      await mut.decideIndicator.mutateAsync({ id: rejecting.id, approve: false, comment: rejectReason.trim() })
+      toast.ok(t('kpi.approvalRejected'))
+      setRejecting(null)
+      setRejectReason('')
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.actionFailed')))
+    }
+  }
+
   const seed = async () => {
     if (!(await confirm({ kind: 'action', title: t('kpi.seedDefaults'), description: t('kpi.seedDefaultsHint') }))) return
     try {
@@ -207,11 +231,34 @@ export function KpiIndicatorsTab() {
     { key: 'assignees', header: t('kpi.colAssignees'), skeleton: 'w-16', className: 'text-[12.5px] text-fg-muted', cell: (i) => <AssigneesSummary value={i.assignees} departments={departments} /> },
     { key: 'active', header: t('kpi.colStatus'), skeleton: 'w-12', cell: (i) => <Badge tone={i.is_active ? 'success' : 'neutral'}>{i.is_active ? t('kpi.active') : t('kpi.inactive')}</Badge> },
     {
+      key: 'approval',
+      header: t('kpi.colApproval'),
+      skeleton: 'w-16',
+      cell: (i) => {
+        const st = i.approval_status ?? 'approved'
+        return (
+          <span title={i.approval?.comment ?? undefined}>
+            <Badge tone={st === 'approved' ? 'success' : st === 'pending' ? 'warning' : 'danger'}>{t(`kpi.approval_${st}` as never)}</Badge>
+          </span>
+        )
+      },
+    },
+    {
       key: 'actions',
       header: '',
       className: 'whitespace-nowrap text-right',
       cell: (i) => (
         <span className="inline-flex gap-0.5">
+          {acc.master && i.approval_status === 'pending' && (
+            <>
+              <IconButton size="sm" label={t('kpi.approvalApprove')} onClick={() => approveOne(i)}>
+                <Check size={14} />
+              </IconButton>
+              <IconButton size="sm" label={t('kpi.approvalReject')} onClick={() => setRejecting(i)}>
+                <X size={14} />
+              </IconButton>
+            </>
+          )}
           {canEdit && (
             <IconButton size="sm" label={t('common.edit')} onClick={() => setEditing({ row: i })}>
               <Pencil size={14} />
@@ -335,6 +382,23 @@ export function KpiIndicatorsTab() {
       <IntervalManager />
 
       {acc.master && <AdminSupportSettingsCard />}
+      <Modal
+        open={!!rejecting}
+        onClose={() => setRejecting(null)}
+        size="md"
+        title={t('kpi.approvalReject')}
+        description={rejecting ? sx(rejecting.name) : undefined}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRejecting(null)}>{t('common.cancel')}</Button>
+            <Button variant="danger" loading={mut.decideIndicator.isPending} onClick={rejectOne}>{t('kpi.approvalReject')}</Button>
+          </>
+        }
+      >
+        <Field label={t('kpi.approvalReason')} required>
+          <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+        </Field>
+      </Modal>
 
       <BulkBar count={selected.length} onClear={() => { selGeneral.clear(); selDept.clear() }} progress={bulk.progress}>
         <Button size="sm" variant="danger" leftIcon={<Trash2 size={14} />} disabled={bulk.progress.running} onClick={bulkDelete}>
@@ -498,9 +562,11 @@ function IndicatorModal({
       if (form.scope === 'department') body.department_id = Number(form.department_id)
     }
     try {
-      if (editing) await mut.updateIndicator.mutateAsync({ id: row!.id, body })
-      else await mut.createIndicator.mutateAsync(body)
-      toast.ok(t('kpi.indicatorSaved'))
+      const saved = editing
+        ? await mut.updateIndicator.mutateAsync({ id: row!.id, body })
+        : await mut.createIndicator.mutateAsync(body)
+      // TZ 2161: a basis proposed by HR / management waits for the main administrator.
+      toast.ok(saved?.approval_status === 'pending' ? t('kpi.indicatorSavedPending') : t('kpi.indicatorSaved'))
       onClose()
     } catch (e) {
       // K1 · 1356 «Показатель с таким наименованием существует» — on the name, with a way to the other one.

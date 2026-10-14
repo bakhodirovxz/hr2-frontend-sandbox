@@ -50,15 +50,19 @@ export function KpiPage() {
   }, [stateEntry]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const options: { value: Tab; label: string }[] = [
+    // TZ K1 1334–1335: opening «KPI» shows the list of indicators first.
     ...(acc.manager
       ? [
+          { value: 'settings' as Tab, label: t('kpi.tabSettings') },
           { value: 'results' as Tab, label: t('kpi.tabResults') },
           { value: 'sheets' as Tab, label: t('kpi.tabSheets') },
           ...(acc.can('kpi_report') ? [{ value: 'reports' as Tab, label: t('kpi.tabReports') }] : []),
-          { value: 'settings' as Tab, label: t('kpi.tabSettings') },
           { value: 'justifications' as Tab, label: t('kpi.tabJustifications') },
         ]
       : []),
+    // TZ K3 «Руководитель … желает сформировать отчёт»: a department head
+    // reports on his own unit (the server limits the rows).
+    ...(!acc.manager && acc.can('kpi_report', 'run') ? [{ value: 'reports' as Tab, label: t('kpi.tabReports') }] : []),
     ...(acc.hasEmployee ? [{ value: 'mine' as Tab, label: t('kpi.tabMine') }] : []),
     ...(members.length > 0 ? [{ value: 'team' as Tab, label: t('kpi.tabTeam', { count: members.length }) }] : []),
   ]

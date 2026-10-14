@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookMarked, Pencil, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import { BookMarked, Pencil, Plus, Scale, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiPost } from '@/api/http'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -17,7 +19,7 @@ import { DataTable, type Column } from '@/components/data/DataTable'
 import { useConfirm } from '@/components/data/useConfirm'
 import { useServerText } from '@/features/statistics/serverText'
 import { errorMessage } from '@/api/errorMessage'
-import { useJustifications, useKpiMutations, type KpiIndicator, type PeriodType } from './api'
+import { useEvaluationBalance, useJustifications, useKpiMutations, type EvaluationBalance, type KpiIndicator, type PeriodType } from './api'
 import { PERIOD_TYPES } from './KpiIntervals'
 
 const PERIOD_ADJ_KEY: Record<PeriodType, string> = { month: 'kpi.monthly', quarter: 'kpi.quarterly', year: 'kpi.yearly' }
@@ -121,6 +123,7 @@ export function JustificationsTab({ canManage }: { canManage: boolean }) {
   ]
 
   return (
+    <div className="flex flex-col gap-4">
     <Card className="flex flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-line p-4">
         <BookMarked size={17} className="text-brand" aria-hidden />
@@ -134,6 +137,58 @@ export function JustificationsTab({ canManage }: { canManage: boolean }) {
       </div>
       <DataTable rows={rows} columns={columns} loading={loading} error={error} onRetry={refetch} emptyTitle={t('kpi.justificationsEmpty')} minWidth={760} skeletonRows={4} />
       <JustificationModal value={editing} onClose={() => setEditing(null)} />
+    </Card>
+    <EvaluationBalanceCard />
+    </div>
+  )
+}
+
+/** TZ 2161 «Все сотрудники … одинаковое количество оценок за определенный момент времени». */
+function EvaluationBalanceCard() {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const q = useEvaluationBalance(true)
+  const qc = useQueryClient()
+  const fix = useMutation({
+    mutationFn: () => apiPost<EvaluationBalance>('/kpi/evaluation-balance/fix'),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['kpi'] }),
+  })
+  const b = q.data
+  return (
+    <Card className="flex flex-col gap-2 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Scale size={17} className="text-brand" aria-hidden />
+        <h3 className="text-[14px] font-semibold text-fg">{t('kpi.balanceTitle')}</h3>
+        {b && <Badge tone={b.balanced ? 'success' : 'warning'}>{b.balanced ? t('kpi.balanceOk', { employees: b.employees, expected: b.central_expected }) : t('kpi.balanceShort', { count: b.short_count })}</Badge>}
+        {b && !b.balanced && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto"
+            loading={fix.isPending}
+            onClick={async () => {
+              try {
+                await fix.mutateAsync()
+                toast.ok(t('common.saved'))
+              } catch (e) {
+                toast.error(errorMessage(e, t('common.actionFailed')))
+              }
+            }}
+          >
+            {t('kpi.balanceFix')}
+          </Button>
+        )}
+      </div>
+      <p className="text-[12.5px] text-fg-muted">{t('kpi.balanceHint')}</p>
+      {b && (
+        <p className="text-[12.5px] text-fg-muted">
+          {t('kpi.balanceDistribution', { list: b.distribution.map((d) => `${d.entries} → ${d.employees}`).join(', ') || '—' })}
+        </p>
+      )}
+      {b && b.short.length > 0 && (
+        <p className="text-[12.5px] text-warning">{b.short.slice(0, 10).map((x) => `${x.legal_name} (${x.central}/${b.central_expected})`).join(', ')}</p>
+      )}
+      {b && b.no_department_count > 0 && <p className="text-[12.5px] text-fg-subtle">{t('kpi.balanceNoDept', { count: b.no_department_count })}</p>}
     </Card>
   )
 }

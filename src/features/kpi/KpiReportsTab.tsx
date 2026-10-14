@@ -102,7 +102,7 @@ export function KpiReportsTab() {
   const confirm = useConfirm()
   const acc = useKpiAccess()
   const mut = useKpiMutations()
-  const canRun = acc.may('kpi_report', 'run')
+  const canRun = acc.can('kpi_report', 'run')
   const { reports, loading, error, refetch } = useReports()
   const { indicators } = useIndicators({}, canRun)
   const groups = useGroupNames(indicators)

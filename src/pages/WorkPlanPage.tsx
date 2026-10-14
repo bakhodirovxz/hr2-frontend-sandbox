@@ -29,6 +29,7 @@ import {
   ApprovalBadge,
   ApprovalModal,
   CopyPlanModal,
+  WholePlanModal,
   SubtaskTree,
   TreeToggle,
   approvalOf,
@@ -146,6 +147,7 @@ export function WorkPlanPage() {
   const [deleting, setDeleting] = useState<WorkPlan | null>(null)
   const [approval, setApproval] = useState<ApprovalAction | null>(null)
   const [copying, setCopying] = useState(false)
+  const [wholePlan, setWholePlan] = useState<'submit' | 'approve' | 'return' | null>(null)
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set())
   const toggle = (id: number) =>
     setCollapsed((prev) => {
@@ -299,13 +301,16 @@ export function WorkPlanPage() {
   return (
     <PageContainer>
       <PageHeader
-        title={t('workPlan.title')}
+        title={t('workPlan.pageTitle')}
         subtitle={t('workPlan.subtitle')}
         actions={
           canWrite ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" leftIcon={<Copy size={15} />} onClick={() => setCopying(true)}>
                 {t('kpiExt.copyAction')}
+              </Button>
+              <Button variant="outline" leftIcon={<Send size={15} />} onClick={() => setWholePlan('submit')}>
+                {t('kpiExt.planSubmitAction')}
               </Button>
               <Button leftIcon={<Plus size={16} />} onClick={() => setEditing('new')}>{t('workPlan.create')}</Button>
             </div>
@@ -326,6 +331,16 @@ export function WorkPlanPage() {
         </div>
       )}
 
+      {tab === 'approvals' && (
+        <div className="mb-3 flex flex-wrap justify-end gap-2">
+          <Button variant="outline" size="sm" leftIcon={<Undo2 size={14} />} onClick={() => setWholePlan('return')}>
+            {t('kpiExt.planReturnTitle')}
+          </Button>
+          <Button size="sm" leftIcon={<Check size={14} />} onClick={() => setWholePlan('approve')}>
+            {t('kpiExt.planDecideAction')}
+          </Button>
+        </div>
+      )}
       {tab === 'approvals' ? (
         <ApprovalsInbox
           status={filters.ap === 'all' ? '' : filters.ap || 'submitted'}
@@ -481,6 +496,7 @@ export function WorkPlanPage() {
       />
       <ApprovalModal value={approval} onClose={() => setApproval(null)} />
       <CopyPlanModal open={copying} onClose={() => setCopying(false)} defaults={{ emp: filters.emp, dept: filters.dept }} />
+      <WholePlanModal mode={wholePlan} onClose={() => setWholePlan(null)} defaults={{ emp: filters.emp, dept: filters.dept, from: filters.from, to: filters.to }} />
     </PageContainer>
   )
 }
