@@ -269,8 +269,8 @@ export function useEmployeeMutations() {
         apiPost(`employees/${id}/set-password`, { password }, { params: { _no_branch_inject: true } }),
     }),
     archive: useMutation({
-      mutationFn: ({ id, reason_code, note }: { id: number; reason_code: string; note: string | null }) =>
-        apiPost(`employees/${id}/archive`, { reason_code, note }, { params: { _no_branch_inject: true } }),
+      mutationFn: ({ id, reason_code, note, basis }: { id: number; reason_code: string; note: string | null; basis?: EditBasis | null }) =>
+        apiPost(`employees/${id}/archive`, { reason_code, note, basis: basis ?? undefined }, { params: { _no_branch_inject: true } }),
       onSuccess: done,
     }),
     rehire: useMutation({

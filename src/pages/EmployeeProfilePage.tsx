@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Archive, ArchiveRestore, ArrowLeft, ArrowRightLeft, FileDown, Info, Pencil, Trash2, UserCheck } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRightLeft, FileDown, History, Info, Pencil, Trash2, UserCheck } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/Page'
 import { ForbiddenState } from '@/components/layout/RequireRole'
 import { Button } from '@/components/ui/Button'
 import { CenteredSpinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
-import { useConfirm } from '@/components/data/useConfirm'
 import { LoadError } from '@/components/data/LoadError'
 import { errorMessage } from '@/api/errorMessage'
 import { downloadFile } from '@/lib/download'
@@ -20,7 +19,7 @@ import { PlacementModal } from '@/features/employees/PlacementModal'
 import { CARD_TABS, CardTabs, type CardTab } from '@/features/employees/profile/CardTabs'
 import { ProfileInfo } from '@/features/employees/profile/ProfileInfo'
 import { useT2Card } from '@/features/employees/t2/useT2'
-import { useArchivedRow, useEmployeeDetail, useEmployeeMutations } from '@/features/employees/useEmployees'
+import { useArchivedRow, useEmployeeDetail } from '@/features/employees/useEmployees'
 import { RestoreEmployeeModal, canRestoreUntil } from '@/features/employees/RestoreEmployeeModal'
 import { inUtc } from '@/lib/format'
 import { fmtDate } from '@/features/employees/format'
@@ -35,7 +34,6 @@ const LEGACY_TABS: Record<string, CardTab> = { t2: 'general' }
 export function EmployeeProfilePage() {
   const { t } = useTranslation()
   const toast = useToast()
-  const confirm = useConfirm()
   const navigate = useNavigate()
   const { id: rawId } = useParams()
   const id = Number(rawId) || null
@@ -43,11 +41,10 @@ export function EmployeeProfilePage() {
   const user = useAuthStore((s) => s.user)
   const q = useEmployeeDetail(id)
   const t2 = useT2Card(id)
-  const { remove } = useEmployeeMutations()
   const [editOpen, setEditOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [placement, setPlacement] = useState<'rehire' | 'migrate' | null>(null)
-  const [exporting, setExporting] = useState<'' | 'docx' | 'pdf'>('')
+  const [exporting, setExporting] = useState('')
   const [restoreOpen, setRestoreOpen] = useState(false)
   // TZ C4: the archive list's «Tiklash» dialog sends here with `?action=rehire`
   // when the server says the card can only be rehired.
@@ -106,29 +103,22 @@ export function EmployeeProfilePage() {
   const restoreUntil = archivedRow.data?.restore_until ?? null
   const restorable = archived && canFull && canRestoreUntil(restoreUntil)
 
-  const exportT2 = async (format: 'docx' | 'pdf') => {
-    setExporting(format)
+  // T-2 card (TZ 2157) and «Ma'lumotnoma» / объективка (TZ 360).
+  const exportDoc = async (kind: 't2' | 'obyektivka', format: 'docx' | 'pdf') => {
+    setExporting(`${kind}-${format}`)
     const safe = String(employee.legal_name || employee.id).replace(/[\\/:*?"<>|]+/g, '_').trim()
+    const url = kind === 't2' ? `employees/${employee.id}/t2/export` : `employees/${employee.id}/obyektivka`
+    const prefix = kind === 't2' ? 'T-2' : 'Obyektivka'
     try {
-      await downloadFile({ url: `employees/${employee.id}/t2/export`, params: { format, _no_branch_inject: true }, filename: `T-2_${safe}.${format}` })
+      await downloadFile({ url, params: { format, _no_branch_inject: true }, filename: `${prefix}_${safe}.${format}` })
     } catch (e) {
       toast.error(errorMessage(e, t('personnel.card.exportFailed')))
     } finally {
       setExporting('')
     }
   }
-
-  const doDelete = async () => {
-    const ok = await confirm({ kind: 'delete', title: t('personnel.card.deleteTitle'), description: t('personnel.card.deleteConfirm', { name: employee.legal_name ?? '' }) })
-    if (!ok) return
-    try {
-      await remove.mutateAsync(employee.id)
-      toast.ok(t('personnel.card.deleted'))
-      navigate('/employees')
-    } catch (e) {
-      toast.error(errorMessage(e, t('common.actionFailed')))
-    }
-  }
+  const own = user?.employee?.id === employee.id
+  const canObyektivka = canFull || own
 
   return (
     <PageContainer>
@@ -150,16 +140,29 @@ export function EmployeeProfilePage() {
               </Button>
             )}
             {canFull && !archived && (
-              <Button size="sm" variant="danger-ghost" leftIcon={<Trash2 size={14} />} onClick={() => void doDelete()} loading={remove.isPending}>
+              <Button size="sm" variant="danger-ghost" leftIcon={<Trash2 size={14} />} onClick={() => setArchiveOpen(true)}>
                 {t('common.delete')}
               </Button>
             )}
-            <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 'docx'} onClick={() => void exportT2('docx')}>
+            <Button size="sm" variant="outline" leftIcon={<History size={14} />} onClick={() => setTab('asof')}>
+              {t('personnel.card.history')}
+            </Button>
+            <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 't2-docx'} onClick={() => void exportDoc('t2', 'docx')}>
               {t('personnel.card.exportWord')}
             </Button>
-            <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 'pdf'} onClick={() => void exportT2('pdf')}>
+            <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 't2-pdf'} onClick={() => void exportDoc('t2', 'pdf')}>
               {t('personnel.card.exportPdf')}
             </Button>
+            {canObyektivka && (
+              <>
+                <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 'obyektivka-docx'} onClick={() => void exportDoc('obyektivka', 'docx')}>
+                  {t('personnel.card.obyektivkaWord')}
+                </Button>
+                <Button size="sm" variant="outline" leftIcon={<FileDown size={14} />} loading={exporting === 'obyektivka-pdf'} onClick={() => void exportDoc('obyektivka', 'pdf')}>
+                  {t('personnel.card.obyektivkaPdf')}
+                </Button>
+              </>
+            )}
             <Button size="sm" variant="ghost" leftIcon={<Info size={14} />} onClick={() => setTab('general')}>
               {t('personnel.card.fullInfo')}
             </Button>
@@ -217,7 +220,7 @@ export function EmployeeProfilePage() {
       </div>
 
       <EmployeeFormDrawer open={editOpen} editId={employee.id} onClose={() => setEditOpen(false)} />
-      <ArchiveEmployeeModal employee={archiveOpen ? employee : null} onClose={() => setArchiveOpen(false)} />
+      <ArchiveEmployeeModal employee={archiveOpen ? employee : null} onClose={() => setArchiveOpen(false)} onDone={() => navigate('/employees')} />
       <PlacementModal mode={placement} employee={employee} onClose={() => setPlacement(null)} />
       <RestoreEmployeeModal
         target={restoreOpen ? { id: employee.id, legal_name: employee.legal_name, restore_until: restoreUntil } : null}

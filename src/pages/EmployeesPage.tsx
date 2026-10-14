@@ -7,7 +7,6 @@ import { DataTable, type Column } from '@/components/data/DataTable'
 import { Pagination } from '@/components/data/Pagination'
 import { SearchInput } from '@/components/data/SearchInput'
 import { FilterReset } from '@/components/data/FilterReset'
-import { useConfirm } from '@/components/data/useConfirm'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -16,8 +15,6 @@ import { Card } from '@/components/ui/Card'
 import { Combobox } from '@/components/ui/Combobox'
 import { Segmented } from '@/components/ui/Segmented'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { useToast } from '@/components/ui/Toast'
-import { errorMessage } from '@/api/errorMessage'
 import { useListParams } from '@/hooks/useListParams'
 import { useDepartmentOptions, useJobPositionOptions } from '@/hooks/useReferenceData'
 import { useAuthStore } from '@/store/authStore'
@@ -34,7 +31,7 @@ import { KpiBar, Sparkline } from '@/features/employees/kpiCells'
 import { KpiRangeSlider } from '@/features/employees/KpiRangeSlider'
 import { STATUS_KPI_RANGE, STATUS_TONE, kpiStatusKey, type KpiStatusKey } from '@/features/employees/kpiStatus'
 import { useEmployeeKpiList, useEmployeeStats } from '@/features/employees/useEmployeeKpi'
-import { useEmployeeMutations, useEmployeeRows } from '@/features/employees/useEmployees'
+import { useEmployeeRows } from '@/features/employees/useEmployees'
 import { fmtDate, usePersonnelLabels } from '@/features/employees/format'
 import { useNationalityLabel } from '@/features/employees/nationalityLabel'
 import { CONTRACT_TYPES, type EmployeeKpiRow, type EmployeeRow } from '@/features/employees/types'
@@ -57,8 +54,6 @@ type Target = { id: number; legal_name?: string | null }
  */
 export function EmployeesPage() {
   const { t } = useTranslation()
-  const toast = useToast()
-  const confirm = useConfirm()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const labels = usePersonnelLabels()
@@ -85,7 +80,6 @@ export function EmployeesPage() {
   const contractOptions = useMemo(() => CONTRACT_TYPES.map((c) => ({ value: c, label: t(`personnel.contract.${c}`) })), [t])
   const statusOptions = useMemo(() => STATUS_KEYS.map((k) => ({ value: k, label: t(`personnel.kpiStatus.${k}`) })), [t])
 
-  const { remove } = useEmployeeMutations()
   const [drawer, setDrawer] = useState<{ open: boolean; id: number | null }>({ open: false, id: null })
   const [archiveTarget, setArchiveTarget] = useState<Target | null>(null)
   const [pwdTarget, setPwdTarget] = useState<Target | null>(null)
@@ -97,17 +91,6 @@ export function EmployeesPage() {
   const resetFilters = () => setFilters({ q: null, department_id: null, pos: null, contract: null, kstatus: null, kmin: null, kmax: null })
   const setTab = (v: 'active' | 'archive') => setFilters({ status: v === 'archive' ? 'archive' : null, pos: null, contract: null, kstatus: null, kmin: null, kmax: null })
 
-  const hardDelete = async (row: Target) => {
-    const ok = await confirm({ kind: 'delete', title: t('personnel.card.deleteTitle'), description: t('personnel.card.deleteConfirm', { name: row.legal_name ?? '' }) })
-    if (!ok) return
-    try {
-      await remove.mutateAsync(row.id)
-      toast.ok(t('personnel.card.deleted'))
-    } catch (e) {
-      toast.error(errorMessage(e, t('common.actionFailed')))
-    }
-  }
-
   const rowActions = (row: { id: number; legal_name?: string | null; department_id?: number | null; supervisor_id?: number | null }) => {
     const items = []
     if (canManageEmployee(user, row))
@@ -115,7 +98,9 @@ export function EmployeesPage() {
     if (hr) items.push({ key: 'pwd', label: t('personnel.pwd.title'), icon: <KeyRound size={14} />, onClick: () => setPwdTarget(row) })
     if (canFull) {
       items.push({ key: 'archive', label: t('personnel.archive.title'), icon: <Archive size={14} />, onClick: () => setArchiveTarget(row) })
-      items.push({ key: 'delete', label: t('common.delete'), icon: <Trash2 size={14} />, danger: true, onClick: () => void hardDelete(row) })
+      // TZ C4: «Удалить» runs the archive flow (related data, reason, basis);
+      // the outright delete is offered inside it when nothing references the card.
+      items.push({ key: 'delete', label: t('common.delete'), icon: <Trash2 size={14} />, danger: true, onClick: () => setArchiveTarget(row) })
     }
     if (!items.length) return null
     return (
@@ -203,7 +188,7 @@ export function EmployeesPage() {
             )}
             {canCreate && (
               <Button leftIcon={<Plus size={16} />} onClick={() => setDrawer({ open: true, id: null })}>
-                {t('common.add')}
+                {t('personnel.list.createRecord')}
               </Button>
             )}
           </>
