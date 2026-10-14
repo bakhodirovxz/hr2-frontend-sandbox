@@ -75,6 +75,10 @@ export interface ReportRow extends Record<StatusKey, number> {
   total: number
   /** Umumiy hajmdagi ulush, foizda — SERVER hisoblaydi. */
   share: number
+  /** TZ 4.2.11 · 2247: with `split_by_type` — the period/group part and the type. */
+  group_label?: string
+  type?: string
+  type_label?: string
 }
 
 export type Totals = Record<'total' | StatusKey, number>
@@ -93,6 +97,7 @@ export interface StatisticsReport {
   deltas: Partial<Record<'total' | StatusKey, number | null>>
   done_rate: number
   period: { date_from: string | null; date_to: string | null }
+  split_by_type?: boolean
 }
 
 /** `POST statistics/report` tanasi. Bo'sh ro'yxat YUBORILMAYDI — backend
@@ -105,6 +110,8 @@ export interface ReportParams {
   statuses?: string[] | null
   branch_id?: number | null
   group_by: string
+  /** TZ 4.2.11 · 2247–2253: request date AND type in one table. */
+  split_by_type?: boolean
 }
 
 /** Backend `ExportRequest` (`api/v1/statistics.py`). */
@@ -171,7 +178,21 @@ export interface ReportSchedule {
   weekday: number
   /** Oyning kuni, 1–28 */
   day: number
+  /** TZ R1 1503: period of each run relative to its date («fixed» = saved dates). */
+  period_preset?: PeriodPreset
 }
+
+export const PERIOD_PRESETS = [
+  'fixed',
+  'last_7_days',
+  'last_30_days',
+  'previous_week',
+  'current_month',
+  'previous_month',
+  'current_year',
+  'previous_year',
+] as const
+export type PeriodPreset = (typeof PERIOD_PRESETS)[number]
 
 export interface ScheduleInput {
   schedule: ReportSchedule
@@ -217,6 +238,8 @@ export interface DashboardParams {
   branch_id?: number
   department_id?: number
   job_position_id?: number
+  /** TZ R2 1526 «статус» — meaning per category (`status_options`). */
+  status?: string
 }
 
 export interface DashboardWidget {
@@ -245,6 +268,10 @@ export interface StatisticsDashboard {
   comparison: 'previous' | 'custom'
   widgets: DashboardWidget[]
   charts: DashboardChart[]
+  /** TZ R2 1528: false — nothing for the period («Данные не найдены»). */
+  has_data?: boolean
+  status?: string | null
+  status_options?: { value: string; label: string }[]
   preferences?: { widgets: string[] | null; charts: string[] | null; customized: boolean }
 }
 

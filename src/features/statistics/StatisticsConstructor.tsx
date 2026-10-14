@@ -5,8 +5,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
@@ -34,6 +32,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
+import { Checkbox } from '@/components/ui/Checkbox'
 import { Select } from '@/components/ui/Select'
 import { DateInput } from '@/components/ui/DateInput'
 import { Modal } from '@/components/ui/Modal'
@@ -116,7 +115,7 @@ const COLUMN_TOKEN: Record<ColumnKey, string> = {
  * (`cat`/`report` — katalog, `d…` — panel). Bir xil nom qo'yilsa, tab
  * almashtirilganda bir hisobotning filtri ikkinchisiga sizib o'tardi.
  */
-const FILTER_KEYS = ['cfrom', 'cto', 'cgroup', 'csrc', 'ctype', 'cstate', 'cbranch'] as const
+const FILTER_KEYS = ['cfrom', 'cto', 'cgroup', 'csrc', 'ctype', 'cstate', 'cbranch', 'csplit'] as const
 
 const isoDate = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, '0')
@@ -174,6 +173,8 @@ export function StatisticsConstructor() {
   const dateFrom = filters.cfrom || defaults.from
   const dateTo = filters.cto || defaults.to
   const groupBy = filters.cgroup || 'month'
+  // TZ 4.2.11 · 2247–2253: «дата обращения» and «тип обращения» together.
+  const splitByType = filters.csplit === '1' && groupBy !== 'type'
   const sources = useMemo(() => splitCsv(filters.csrc), [filters.csrc])
   const types = useMemo(() => splitCsv(filters.ctype), [filters.ctype])
   const statuses = useMemo(() => splitCsv(filters.cstate), [filters.cstate])
@@ -207,8 +208,9 @@ export function StatisticsConstructor() {
       statuses: statuses.length ? statuses : null,
       branch_id: branchId,
       group_by: groupBy,
+      ...(splitByType ? { split_by_type: true } : {}),
     }),
-    [dateFrom, dateTo, sources, types, statuses, branchId, groupBy],
+    [dateFrom, dateTo, sources, types, statuses, branchId, groupBy, splitByType],
   )
 
   const meta = useStatisticsMeta()
@@ -234,7 +236,16 @@ export function StatisticsConstructor() {
   /** Kesim TUR / HOLAT / MANBA bo'lganda qator kaliti — KODNING o'zi, ya'ni
    *  qator nomini ham tarjima qilsa bo'ladi. Sana kesimlarida nom allaqachon
    *  raqamli (05.2026) va tarjimaga muhtoj emas. */
-  const rowLabel = (row: ReportRow) => {
+  const split = !!data?.split_by_type
+  const typeOf = (row: ReportRow) => codeLabel('type_', row.type ?? '', row.type_label ?? row.type ?? '')
+  /** The period / group part of a row (without the type when split). */
+  const groupPart = (row: ReportRow) => {
+    if (!split) return rowLabel(row)
+    const base = { ...row, type: undefined, key: String(row.key).split('|')[0], label: row.group_label ?? row.label }
+    return rowLabel(base)
+  }
+  const rowLabel = (row: ReportRow): string => {
+    if (split && row.type) return `${groupPart(row)} · ${typeOf(row)}`
     if (groupBy === 'type') return codeLabel('type_', row.key, row.label)
     if (groupBy === 'status') return codeLabel('st_', row.key, row.label)
     if (groupBy === 'source') return codeLabel('src_', row.key, row.label)
@@ -269,7 +280,9 @@ export function StatisticsConstructor() {
     [rows, groupBy, i18n.language],
   )
 
-  const donut = useMemo(
+  // TZ 4.2.11 · 2239 «Должны быть использованы столбчатые диаграммы»: the
+  // status shares are drawn as a (horizontal) bar chart, not a donut.
+  const shares = useMemo(
     () =>
       STATUS_KEYS.map((k) => ({ key: k, name: statusLabel(k), value: totals?.[k] ?? 0 })).filter(
         (d) => d.value > 0,
@@ -303,6 +316,8 @@ export function StatisticsConstructor() {
       await downloadStatisticsExport(kind, {
         ...params,
         columns,
+        // TZ 4.2.11 · 2270: the file keeps the on-screen order.
+        ...(sort ? { sort_by: sort.key, sort_dir: sort.dir } : {}),
         title: t('statistics.title'),
         subtitle: `${dmy(dateFrom)} — ${dmy(dateTo)}`,
         // Diagramma FAQAT PDF ga kerak; rasm chizilmasa ham jadval baribir
@@ -356,6 +371,7 @@ export function StatisticsConstructor() {
       cstate: joinCsv(p.statuses ?? []),
       // Filialsiz saqlangan shablon — barcha filiallar uchun.
       cbranch: p.branch_id ? String(p.branch_id) : ALL_BRANCHES,
+      csplit: p.split_by_type ? '1' : null,
     })
     if (p.columns?.length) setColumns(p.columns.filter((c): c is ColumnKey => ALL_COLUMNS.includes(c as ColumnKey)))
     toast.info(t('statistics.templateApplied', { name: tpl.name }))
@@ -520,6 +536,15 @@ export function StatisticsConstructor() {
           </div>
         ))}
 
+        <div className="mt-3">
+          <Checkbox
+            label={t('statistics.splitByType')}
+            checked={splitByType}
+            disabled={groupBy === 'type'}
+            onChange={(e) => setFilter('csplit', e.target.checked ? '1' : '')}
+          />
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
           <Button
             variant="outline"
@@ -569,6 +594,7 @@ export function StatisticsConstructor() {
               buildParams={() => ({
                 ...params,
                 columns,
+                ...(sort ? { sort_by: sort.key, sort_dir: sort.dir } : {}),
                 title: t('statistics.title'),
                 subtitle: `${dmy(dateFrom)} — ${dmy(dateTo)}`,
               })}
@@ -731,32 +757,33 @@ export function StatisticsConstructor() {
         <Card>
           <CardHeader title={t('statistics.shareTitle')} />
           <div className="p-4">
-            {donut.length === 0 ? (
+            {shares.length === 0 ? (
               <EmptyState title={t('statistics.noData')} />
             ) : (
               <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={donut}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={50}
-                      outerRadius={78}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {donut.map((d) => (
+                <ResponsiveContainer width="100%" height={Math.max(120, shares.length * 34)}>
+                  <BarChart data={shares} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
+                    <XAxis type="number" hide allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={110}
+                      tick={{ fill: v('--fg-muted'), fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <RTooltip cursor={{ fill: `rgb(var(--fg) / 0.05)` }} content={<ChartTooltip />} />
+                    <Bar dataKey="value" name={t('statistics.col_total')} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                      {shares.map((d) => (
                         <Cell key={d.key} fill={v(STATUS_TOKEN[d.key])} />
                       ))}
-                    </Pie>
-                    <RTooltip content={<ChartTooltip />} />
-                  </PieChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
                 {/* Bevosita yorliqlar: to'rttadan oshmaydi, shuning uchun har
                     bo'lak nomi va soni ro'yxatda yoziladi. */}
                 <ul className="mt-2 flex flex-col gap-1.5">
-                  {donut.map((d) => (
+                  {shares.map((d) => (
                     <li key={d.key} className="flex items-center gap-2 text-xs">
                       <span
                         className="h-2 w-2 shrink-0 rounded-pill"
@@ -796,11 +823,15 @@ export function StatisticsConstructor() {
                         sort?.key === c ? 'text-brand-strong' : 'hover:text-fg',
                       )}
                     >
-                      {columnLabel(c, groupLabel)}
+                      {columnLabel(c, split ? codeLabel('group_', groupBy, groupBy) : groupLabel)}
                       {sort?.key === c && (sort.dir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
                     </button>
                   </th>
-                ))}
+                )).flatMap((th, i) =>
+                  split && columns[i] === 'label'
+                    ? [th, <th key="type" className={cn(TH, 'text-left')}>{t('statistics.requestType')}</th>]
+                    : [th],
+                )}
                 <th className={cn(TH, 'w-32 text-right')}>{t('statistics.share')}</th>
               </tr>
             </thead>
@@ -820,7 +851,7 @@ export function StatisticsConstructor() {
                 ))
               ) : sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-6 py-12">
+                  <td colSpan={columns.length + (split ? 2 : 1)} className="px-6 py-12">
                     <EmptyState title={t('statistics.noData')} description={t('statistics.noDataHint')} />
                   </td>
                 </tr>
@@ -837,9 +868,13 @@ export function StatisticsConstructor() {
                             : undefined
                         }
                       >
-                        {c === 'label' ? rowLabel(r) : (r[c] || 0).toLocaleString()}
+                        {c === 'label' ? groupPart(r) : (r[c] || 0).toLocaleString()}
                       </td>
-                    ))}
+                    )).flatMap((td, i) =>
+                      split && columns[i] === 'label'
+                        ? [td, <td key="type" className={TD}>{typeOf(r)}</td>]
+                        : [td],
+                    )}
                     <td className={TD}>
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-2">
@@ -867,7 +902,7 @@ export function StatisticsConstructor() {
                     >
                       {i === 0 ? t('statistics.totalRow') : totalFor(c).toLocaleString()}
                     </td>
-                  ))}
+                  )).flatMap((td, i) => (split && columns[i] === 'label' ? [td, <td key="type" className={TD} />] : [td]))}
                   <td className={cn(TD, 'text-right text-fg-subtle')}>100%</td>
                 </tr>
               </tfoot>

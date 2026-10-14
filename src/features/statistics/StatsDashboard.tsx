@@ -43,7 +43,7 @@ const CATEGORIES: { value: DashboardCategory; Icon: typeof Users }[] = [
   { value: 'training', Icon: GraduationCap },
 ]
 
-const FILTER_KEYS = ['dcat', 'dfrom', 'dto', 'dbranch', 'ddept', 'dpos', 'dcmp', 'dcfrom', 'dcto'] as const
+const FILTER_KEYS = ['dcat', 'dfrom', 'dto', 'dbranch', 'ddept', 'dpos', 'dstat', 'dcmp', 'dcfrom', 'dcto'] as const
 
 const fmt = (v: number | null | undefined) =>
   v == null ? '—' : Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
@@ -75,6 +75,7 @@ export function StatsDashboard() {
     ...(branchId ? { branch_id: branchId } : {}),
     ...(filters.ddept ? { department_id: Number(filters.ddept) } : {}),
     ...(filters.dpos ? { job_position_id: Number(filters.dpos) } : {}),
+    ...(filters.dstat ? { status: filters.dstat } : {}),
     ...(compareActive ? { compare_from: filters.dcfrom, compare_to: filters.dcto } : {}),
   }
   const q = useDashboard(params, !badPeriod && !badCompare)
@@ -105,7 +106,7 @@ export function StatsDashboard() {
           <Segmented
             aria-label={t('statReports.category')}
             value={category}
-            onChange={(v) => setFilter('dcat', v === 'staff' ? '' : v)}
+            onChange={(v) => setFilters({ dcat: v === 'staff' ? null : v, dstat: null })}
             options={CATEGORIES.map(({ value, Icon }) => ({
               value,
               label: t(`statReports.dash_${value}` as 'statReports.dash_staff'),
@@ -147,7 +148,7 @@ export function StatsDashboard() {
             </Button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <Field label={t('statistics.dateFrom')} error={badPeriod ? t('list.invalidRange') : undefined}>
             <DateInput value={from} onChange={(x) => setFilter('dfrom', x)} invalid={badPeriod} />
           </Field>
@@ -178,6 +179,17 @@ export function StatsDashboard() {
               onChange={(v) => setFilter('dpos', v)}
               options={posOptions}
               placeholder={t('statReports.allPositions')}
+            />
+          </Field>
+          {/* TZ R2 1526 «Параметры фильтрации (подразделение, должность, статус)». */}
+          <Field label={t('statistics.state')}>
+            <Select
+              value={filters.dstat}
+              onChange={(e) => setFilter('dstat', e.target.value)}
+              options={[
+                { value: '', label: t('statDash.allStatuses') },
+                ...(data?.status_options ?? []).map((o) => ({ value: o.value, label: st(o.label) })),
+              ]}
             />
           </Field>
         </div>
@@ -212,7 +224,7 @@ export function StatsDashboard() {
             <Skeleton key={i} className="h-28 w-full" />
           ))}
         </div>
-      ) : !allWidgets.length && !allCharts.length ? (
+      ) : (!allWidgets.length && !allCharts.length) || data?.has_data === false ? (
         <Card className="p-10">
           <EmptyState title={t('statistics.noData')} description={t('statistics.noDataHint')} />
         </Card>

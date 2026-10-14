@@ -24,6 +24,8 @@ import {
   type DeliveryFormat,
   type ExportParams,
   type ReportRun,
+  PERIOD_PRESETS,
+  type PeriodPreset,
   type ReportSchedule,
   type ReportTemplate,
 } from './api'
@@ -234,7 +236,7 @@ function MailModal({ buildParams, onClose }: Pick<DeliveryActionsProps, 'buildPa
 // ── Shablon jadvali ──────────────────────────────────────────────────────
 
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
-const DEFAULT_SCHEDULE: ReportSchedule = { enabled: true, frequency: 'daily', hour: 8, weekday: 0, day: 1 }
+const DEFAULT_SCHEDULE: ReportSchedule = { enabled: true, frequency: 'daily', hour: 8, weekday: 0, day: 1, period_preset: 'last_30_days' }
 
 export function TemplateScheduleButton({ tpl }: { tpl: ReportTemplate }) {
   const { t } = useTranslation()
@@ -347,6 +349,14 @@ function ScheduleModal({ tpl, onClose }: { tpl: ReportTemplate; onClose: () => v
             />
           </Field>
         </div>
+        {/* TZ R1 1503: each run covers a period relative to its own date. */}
+        <Field label={t('statDelivery.periodPreset')} hint={t('statDelivery.periodPresetHint')}>
+          <Select
+            value={sch.period_preset ?? 'fixed'}
+            onChange={(e) => set({ period_preset: e.target.value as PeriodPreset })}
+            options={PERIOD_PRESETS.map((p) => ({ value: p, label: t(`statDelivery.pp_${p}` as 'statDelivery.pp_fixed') }))}
+          />
+        </Field>
         <EmailChips value={emails} onChange={(v) => { setEmails(v); setError('') }} error={needMail ? t('statDelivery.recipientsRequired') : undefined} />
         <Field label={t('statDelivery.formats')}>
           <FormatPicker value={formats} onChange={setFormats} />

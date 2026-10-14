@@ -411,11 +411,14 @@ export function ReportCatalog({ catalog }: { catalog: CatalogReport[] }) {
                   </Button>
                   {result && (
                     <div className="ml-auto flex flex-wrap items-center gap-2">
-                      <Checkbox
-                        label={t('statReports.anonymize')}
-                        checked={anonymize}
-                        onChange={(e) => setAnonymize(e.target.checked)}
-                      />
+                      {/* Only a report listing people has personal data to hide (TZ 2352). */}
+                      {selected.code === 'leave_by_employee' && (
+                        <Checkbox
+                          label={t('statReports.anonymize')}
+                          checked={anonymize}
+                          onChange={(e) => setAnonymize(e.target.checked)}
+                        />
+                      )}
                       {EXPORTS.map((x) => (
                         <Button
                           key={x.kind}
