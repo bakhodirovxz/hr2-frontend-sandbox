@@ -53,6 +53,8 @@ export function NotificationsBell() {
   // either version to fall back to.
   const shown = items
   const navigate = useNavigate()
+  // TZ L3 974–975: the selected notification shows its full text.
+  const [expanded, setExpanded] = useState<number | null>(null)
 
   /**
    * Opening a notification is what marks it read — keeping the tick button as
@@ -214,14 +216,31 @@ export function NotificationsBell() {
                           turns a bare `card_member_added` into a sentence. */}
                       {n.title || t(notificationTitleKey(n.notification_type) as never)}
                     </p>
-                    {(n.message || n.description) && (
-                      <p
-                        className="mt-0.5 line-clamp-2 text-xs text-fg-muted hover:line-clamp-none"
-                        title={notificationText(n)}
-                      >
-                        {notificationText(n)}
-                      </p>
-                    )}
+                    {(n.message || n.description) && (() => {
+                      const text = notificationText(n)
+                      const isOpen = expanded === n.id
+                      return (
+                        <>
+                          <p className={cn('mt-0.5 text-xs text-fg-muted', !isOpen && 'line-clamp-2')} title={text}>
+                            {text}
+                          </p>
+                          {text.length > 90 && (
+                            <button
+                              type="button"
+                              aria-expanded={isOpen}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (!n.is_read) void markNotificationRead(n.id)
+                                setExpanded(isOpen ? null : n.id)
+                              }}
+                              className="mt-0.5 text-[11px] font-semibold text-brand-strong hover:underline"
+                            >
+                              {isOpen ? t('header.collapseText') : t('header.fullText')}
+                            </button>
+                          )}
+                        </>
+                      )
+                    })()}
                     {n.created_at && (
                       <p className="mt-1 text-[11px] text-fg-subtle">
                         {inTashkent(n.created_at).format('DD.MM.YYYY HH:mm')}

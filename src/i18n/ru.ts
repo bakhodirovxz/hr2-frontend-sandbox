@@ -8751,6 +8751,8 @@ const ru: Record<string, string> = {
   "Tashkilot muvaffaqiyatli o‘chirildi": "Организация успешно удалена",
   "«{{name}}» tashkilotini o‘chirmoqchimisiz? Tashkilotga bog‘liq bo‘lim va xodimlar ta’sirlanadi.": "Удалить организацию «{{name}}»? Это затронет связанные с ней подразделения и сотрудников.",
   "Qatorni bosing — tashkilot sarlavhadagi tanlovga o‘rnatiladi.": "Нажмите на строку — организация будет выбрана в заголовке.",
+  // ---- FX-NOTIF ----
+  'Matnni yig‘ish': 'Свернуть',
 }
 
 export default ru

@@ -1121,6 +1121,8 @@ const core = {
     tab_unread: 'O‘qilmagan',
     tab_all: 'Hammasi',
     markRead: 'O‘qildi deb belgilash',
+    fullText: 'To‘liq matn',
+    collapseText: 'Matnni yig‘ish',
     clearRead: 'O‘qilganlarni tozalash',
     menu: 'Menyu',
     expandMenu: 'Menyuni yoyish',
