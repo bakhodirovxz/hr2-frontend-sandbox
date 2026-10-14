@@ -179,6 +179,15 @@ export interface CopyPlanResult {
   items: WorkPlan[]
 }
 
+export interface WholePlanBody {
+  employee_id?: number | null
+  department_id?: number | null
+  period_start: string
+  period_end: string
+  approver_employee_id?: number | null
+  comment?: string | null
+}
+
 export function useWorkPlanMutations() {
   const qc = useQueryClient()
   const done = () => qc.invalidateQueries({ queryKey: ['work-plans'] })
@@ -196,6 +205,12 @@ export function useWorkPlanMutations() {
     decide: useMutation({
       mutationFn: ({ id, approve, comment }: { id: number; approve: boolean; comment?: string | null }) =>
         apiPost<WorkPlan>(`${PLANS}/${id}/${approve ? 'approve' : 'return'}`, { comment: comment || null }),
+      onSuccess: done,
+    }),
+    // TZ K2 1385 «Согласование плана»: the whole plan of one employee / department for a period.
+    plan: useMutation({
+      mutationFn: ({ action, ...body }: WholePlanBody & { action: 'submit' | 'approve' | 'return' }) =>
+        apiPost<{ submitted?: number; decided?: number }>(`${PLANS}/plan/${action}`, body),
       onSuccess: done,
     }),
     create: useMutation({ mutationFn: (body: Record<string, unknown>) => apiPost<WorkPlan>(PLANS, body), onSuccess: done }),
