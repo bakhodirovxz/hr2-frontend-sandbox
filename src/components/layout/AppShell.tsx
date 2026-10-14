@@ -22,6 +22,7 @@ import { auditPageTitle, pathVerdict } from './navConfig'
 import { initPageTracker, trackPageChange } from '@/lib/pageTracker'
 import { useAuthStore } from '@/store/authStore'
 import { RequireRole } from './RequireRole'
+import { MaintenanceBanner } from '@/features/system/MaintenanceBanner'
 
 export function AppShell() {
   const { t } = useTranslation()
@@ -163,6 +164,7 @@ export function AppShell() {
         <TopNav badges={badges} />
         <main className="scroll-thin flex flex-1 flex-col overflow-y-auto">
           <div className="flex-1">
+          <MaintenanceBanner />
           {/* Keyed on the route: a crashed page clears itself once you navigate,
               and the sidebar/header stay usable meanwhile. */}
           <ErrorBoundary resetKey={location.pathname}>

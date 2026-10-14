@@ -5,7 +5,9 @@ import { formatDateTime } from '@/lib/format'
 import {
   componentLabel,
   localizeDetail,
+  stepDetail,
   stepLabel,
+  type OpenTransaction,
   type OpsReport,
   type ServiceStop,
   type Step,
@@ -24,8 +26,8 @@ export function StepList({ steps }: { steps: Step[] }) {
           ) : (
             <XCircle size={14} className="mt-0.5 shrink-0 text-danger" aria-hidden />
           )}
-          <span className="min-w-[240px] text-fg">{stepLabel(t, s.step)}</span>
-          <span className="min-w-0 flex-1 break-words text-fg-muted">{localizeDetail(t, s.detail)}</span>
+          <span className="min-w-[240px] text-fg">{stepLabel(t, s.step, s.code)}</span>
+          <span className="min-w-0 flex-1 break-words text-fg-muted">{stepDetail(t, s)}</span>
           {s.ms != null && <span className="tabular-nums text-fg-subtle">{t('sysHealth.msValue', { n: s.ms })}</span>}
         </li>
       ))}
@@ -53,13 +55,39 @@ export function OpsReportView({
   const checks = Array.isArray(report.checks) ? report.checks : []
   const modules = report.modules?.results ?? []
   const hasRecovery = !!report.integrity || !!report.modules
+  const txItems: OpenTransaction[] = Array.isArray(report.transactions?.items) ? report.transactions.items : []
   const empty = steps.length === 0 && checks.length === 0 && !hasRecovery && services.length === 0
 
   if (empty) return <p className="text-[13px] text-fg-subtle">{t('sysHealth.noReportDetails')}</p>
 
   return (
     <div className="flex flex-col gap-4">
+      {(report.failure_type || report.error_code || report.grace_seconds != null) && (
+        <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px]">
+          {report.failure_type && (
+            <div className="flex gap-1.5">
+              <dt className="text-fg-muted">{t('sysHealth.failureType')}:</dt>
+              <dd className="text-fg">{t(`sysHealth.ft_${report.failure_type}` as never, { defaultValue: report.failure_type }) as string}</dd>
+            </div>
+          )}
+          {report.error_code && (
+            <div className="flex gap-1.5">
+              <dt className="text-fg-muted">{t('sysHealth.errorCode')}:</dt>
+              <dd className="font-mono text-fg">{report.error_code}</dd>
+            </div>
+          )}
+          {report.grace_seconds != null && (
+            <div className="flex gap-1.5">
+              <dt className="text-fg-muted">{t('sysHealth.graceLabel')}:</dt>
+              <dd className="text-fg">{t('sysHealth.seconds', { n: report.grace_seconds })}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+
       {steps.length > 0 && <StepList steps={steps} />}
+
+      {txItems.length > 0 && <TxTable items={txItems} />}
 
       {services.length > 0 && <ServiceStopList services={services} physical={report.physical_stop} />}
 
@@ -116,6 +144,17 @@ export function OpsReportView({
               })}
             />
           )}
+          {report.integrity_after && (
+            <Item
+              ok={!!report.integrity_after.ok}
+              label={t('sysHealth.repIntegrityAfter')}
+              value={
+                report.integrity_after.ok
+                  ? t('sysHealth.repIntegrityOk')
+                  : t('sysHealth.repProblems', { count: report.integrity_after.problems?.length ?? 0 })
+              }
+            />
+          )}
           {report.repaired && (
             <Item
               ok={!(report.repaired.failed?.length ?? 0)}
@@ -151,7 +190,9 @@ export function OpsReportView({
                 ) : (
                   <XCircle size={12} className="shrink-0 text-danger" aria-hidden />
                 )}
-                <span className="flex-1 text-fg">{r.module}</span>
+                <span className="flex-1 text-fg">
+                  {r.code ? (t(`sysOps.comp_${r.code}` as never, { defaultValue: r.module }) as string) : r.module}
+                </span>
                 <span className="tabular-nums text-fg-subtle" title={r.error}>
                   {r.status === 'ok' ? r.rows : r.error}
                 </span>
@@ -208,9 +249,10 @@ export function ServiceStopList({ services, physical }: { services: ServiceStop[
             <span className="min-w-0">
               <span className="block font-semibold text-fg">
                 {t(`sysOps.svc_${x.service}` as never, { defaultValue: x.service }) as string}
-                {x.action ? <span className="ml-1.5 font-mono text-[11px] font-normal text-fg-subtle">{x.action}</span> : null}
               </span>
-              <span className="block break-words text-fg-muted">{x.detail || '—'}</span>
+              <span className="block break-words text-fg-muted">
+                {x.action ? (t(`sysOps.act_${x.action}` as never, { defaultValue: x.detail || '—' }) as string) : x.detail || '—'}
+              </span>
               {x.workers && x.workers.length > 0 && (
                 <span className="block break-words font-mono text-[11px] text-fg-subtle">{x.workers.join(', ')}</span>
               )}
@@ -218,7 +260,7 @@ export function ServiceStopList({ services, physical }: { services: ServiceStop[
           </li>
         ))}
       </ul>
-      {physical && <p className="mt-1.5 text-[11.5px] text-fg-subtle">{t('sysOps.physicalStop', { how: physical })}</p>}
+      {physical && <p className="mt-1.5 text-[11.5px] text-fg-subtle">{t('sysOps.physicalStopHint', { how: physical })}</p>}
     </div>
   )
 }
@@ -241,6 +283,44 @@ export function SuggestRestoreBox({ s, onRestore }: { s: SuggestRestore; onResto
           {t('sysOps.suggestOpen')}
         </Button>
       )}
+    </div>
+  )
+}
+
+/** TZ E2 1698 / E3 1728: the transactions saved to / resolved from the journal. */
+export function TxTable({ items }: { items: OpenTransaction[] }) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <h4 className="mb-1.5 text-[13px] font-semibold text-fg">{t('sysHealth.txReportTitle')}</h4>
+      <div className="scroll-thin overflow-x-auto rounded-lg border border-line">
+        <table className="w-full min-w-[560px] text-left text-[12.5px]">
+          <thead className="bg-surface-2 text-[11.5px] font-semibold text-fg-muted">
+            <tr>
+              <th scope="col" className="px-3 py-1.5">ID</th>
+              <th scope="col" className="px-3 py-1.5">{t('sysHealth.txColUser')}</th>
+              <th scope="col" className="px-3 py-1.5">{t('sysHealth.txColTables')}</th>
+              <th scope="col" className="px-3 py-1.5">{t('sysHealth.txColAge')}</th>
+              <th scope="col" className="px-3 py-1.5">{t('sysHealth.txColResult')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((x, i) => (
+              <tr key={x.key ?? i} className="border-t border-line/60 text-fg">
+                <td className="px-3 py-1 font-mono">{x.pid ?? x.gid ?? '—'}</td>
+                <td className="px-3 py-1">{x.user || '—'}</td>
+                <td className="px-3 py-1">
+                  {x.tables && x.tables.length ? x.tables.join(', ') : x.writes ? t('sysHealth.txWrites') : t('sysHealth.txReadOnly')}
+                </td>
+                <td className="px-3 py-1 tabular-nums">{x.age_seconds != null ? t('sysHealth.seconds', { n: x.age_seconds }) : '—'}</td>
+                <td className="px-3 py-1">
+                  {x.result ? (t(`sysHealth.txRes_${x.result}` as never, { defaultValue: x.result }) as string) : t('sysHealth.txSaved')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

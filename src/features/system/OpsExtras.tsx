@@ -93,15 +93,31 @@ export function BlockedModulesCard() {
       void qc.invalidateQueries({ queryKey: ['sysops', 'blocked'] })
     },
   })
+  // TZ E3 1717–1718 «Администратор запускает проверку критических модулей»:
+  // failed modules are blocked by the server (1729).
+  const check = useMutation({
+    mutationFn: () =>
+      apiPost<{ ok: boolean; failed: number; blocked: string[] }>(OPS.modulesCheck, {}, { params: NB }),
+    onSuccess: (r) => {
+      if (r.ok) toast.ok(t('sysOps.modulesCheckOk'))
+      else toast.error(t('sysOps.modulesCheckFailed', { count: r.failed, blocked: r.blocked.length }))
+      void qc.invalidateQueries({ queryKey: ['sysops', 'blocked'] })
+    },
+  })
   const name = (code: string, fallback?: string) =>
     t(`roleAdmin.mod_${code}` as never, { defaultValue: fallback || code }) as string
   const entries = Object.entries(q.data ?? {})
   return (
     <Card className="p-card">
-      <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold text-fg">
-        <Lock size={17} className="text-warning" aria-hidden />
-        {t('sysOps.blockedTitle')}
-      </h2>
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="flex flex-1 items-center gap-2 text-[15px] font-semibold text-fg">
+          <Lock size={17} className="text-warning" aria-hidden />
+          {t('sysOps.blockedTitle')}
+        </h2>
+        <Button size="sm" variant="outline" leftIcon={<RotateCw size={14} />} loading={check.isPending} onClick={() => check.mutate()}>
+          {t('sysOps.modulesCheck')}
+        </Button>
+      </div>
       {q.isLoading ? (
         <Skeleton className="h-10 w-full" />
       ) : q.isError ? (

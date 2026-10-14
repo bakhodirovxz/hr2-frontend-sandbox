@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -94,7 +95,7 @@ function BackupsPageInner() {
 
   const { rows, running, loading, fetching, error, refetch } = useBackups((b) => {
     if (b.status === 'done') toast.ok(t('backups.done'))
-    else toast.error(b.error ? t('backups.failedWith', { error: b.error }) : t('backups.failed'))
+    else toast.error(b.error ? t('backups.failedWith', { error: backupError(t, b.error) }) : t('backups.failed'))
   })
 
   useEffect(() => {
@@ -113,6 +114,24 @@ function BackupsPageInner() {
     onSuccess: () => {
       toast.ok(t('common.deleted'))
       setDeleting(null)
+      void qc.invalidateQueries({ queryKey: ['backups', 'list'] })
+    },
+    onError: onBlocked,
+  })
+
+  // TZ E1 1669: a failed copy is retried with the same parameters, a failed
+  // remote copy can be saved locally instead.
+  const retry = useMutation({
+    mutationFn: ({ b, storage }: { b: Backup; storage: BackupStorage }) =>
+      apiPost(BACKUPS, {
+        type: b.type || 'full',
+        storage,
+        description: b.description || null,
+        compression_level: b.compression_level ?? 6,
+        encrypt: !!b.encrypted,
+      }, { params: NB }),
+    onSuccess: () => {
+      toast.ok(t('backups.started'))
       void qc.invalidateQueries({ queryKey: ['backups', 'list'] })
     },
     onError: onBlocked,
@@ -202,8 +221,23 @@ function BackupsPageInner() {
       cell: (b) => (
         <>
           <span className="break-words">{b.description || '—'}</span>
+          {b.safety && <span className="mt-0.5 block text-[11.5px] text-fg-subtle">{t('backups.safetyCopy')}</span>}
           {b.status === 'failed' && b.error && (
-            <span className="mt-0.5 block break-words text-[12px] text-danger">{b.error}</span>
+            <span className="mt-0.5 block break-words text-[12px] text-danger" title={b.error_detail ?? undefined}>
+              {backupError(t, b.error)}
+            </span>
+          )}
+          {b.status === 'failed' && !b.safety && (
+            <span className="mt-1 flex flex-wrap gap-1.5">
+              <Button size="sm" variant="outline" disabled={running || retry.isPending} onClick={() => retry.mutate({ b, storage: b.storage || 'local' })}>
+                {t('backups.retry')}
+              </Button>
+              {b.storage === 'remote' && (
+                <Button size="sm" variant="outline" disabled={running || retry.isPending} onClick={() => retry.mutate({ b, storage: 'local' })}>
+                  {t('backups.saveLocally')}
+                </Button>
+              )}
+            </span>
           )}
         </>
       ),
@@ -329,6 +363,11 @@ function BackupsPageInner() {
   )
 }
 
+/** Backup error code → text in the interface language (TZ E1 1669). */
+function backupError(t: TFunction, code: string): string {
+  return t(`backups.err_${code}` as never, { defaultValue: code }) as string
+}
+
 function StatusCell({ b }: { b: Backup }) {
   const { t } = useTranslation()
   const progress = Math.max(0, Math.min(100, b.progress ?? 0))
@@ -354,7 +393,7 @@ function StatusCell({ b }: { b: Backup }) {
   }
   if (b.status === 'failed') {
     return (
-      <Badge tone="danger" title={b.error ?? undefined}>
+      <Badge tone="danger" title={b.error_detail ?? undefined}>
         <XCircle size={12} aria-hidden className="mr-1 inline" />
         {t('backups.statusFailed')}
       </Badge>
@@ -510,7 +549,13 @@ function CreateModal({
     setCheck({ ok: false, loading: true })
     try {
       const data = await apiGet<StorageCheck>(BACKUPS_STORAGE_CHECK, { storage: where, ...NB })
-      setCheck({ ok: !!data?.ok, free_bytes: data?.free_bytes ?? null, detail: data?.detail ?? '' })
+      setCheck({
+        ok: !!data?.ok,
+        code: data?.code ?? null,
+        free_bytes: data?.free_bytes ?? null,
+        detail: data?.detail ?? '',
+        technical: data?.technical ?? null,
+      })
     } catch (e) {
       setCheck({ ok: false, free_bytes: null, detail: errorMessage(e, t('list.loadFailed')) })
     }
@@ -605,9 +650,22 @@ function CreateModal({
             ) : check ? (
               <span className="flex items-start gap-1.5 text-danger">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
-                <span>
-                  {t('backups.storageBad')}
-                  {check.detail ? `: ${check.detail}` : ''}. {t('backups.storageBadHint')}{' '}
+                <span title={check.technical ?? undefined}>
+                  {t('backups.storageBad')}:{' '}
+                  {check.code ? (t(`backups.check_${check.code}` as never, { defaultValue: check.detail ?? '' }) as string) : check.detail}
+                  . {t('backups.storageBadHint')}{' '}
+                  {storage === 'remote' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStorage('local')
+                        void runCheck('local')
+                      }}
+                      className="mr-2 font-medium text-brand underline"
+                    >
+                      {t('backups.saveLocally')}
+                    </button>
+                  )}
                   <button type="button" onClick={() => void runCheck(storage)} className="font-medium text-brand underline">
                     {t('backups.recheck')}
                   </button>

@@ -27,6 +27,8 @@ const core = {
    * Yangi kod qo'shilsa SHU YERGA yoziladi, komponentga emas.
    */
   errors: {
+    full_backup_required_after_restore: 'Zaxiradan tiklangandan keyin avval yangi to‘liq nusxa oling',
+    backup_chain_after_restore: 'Bu inkremental nusxa zaxiradan tiklashdan keyingi holatni to‘liq aks ettirmaydi — to‘liq nusxadan tiklang',
     attendance_period_locked: 'Davomat davri yopilgan — avval davrni oching',
     basic_auth_not_configured: 'Boshqaruv paneli sozlanmagan',
     callback_document_mismatch: 'Hujjat mos kelmadi — muharrirni yopib qayta oching',
