@@ -60,6 +60,8 @@ export interface StatForm {
   created_at?: string | null
   updated_by?: string | null
   updated_at?: string | null
+  /** System form (TZ 2139): rendered like an uploaded one, never edited. */
+  builtin?: boolean
 }
 
 interface PlaceholderCatalog {
@@ -166,8 +168,8 @@ export function StatisticsForms() {
       className: 'whitespace-nowrap text-fg-muted',
       cell: (f) => (
         <span className="flex flex-col">
-          <span className="tabular-nums">{inUtc(f.updated_at || f.created_at)}</span>
-          <span className="truncate text-[11px]">{f.updated_by || f.created_by || '—'}</span>
+          <span className="tabular-nums">{f.builtin ? t('hrExt.forms.builtin') : inUtc(f.updated_at || f.created_at)}</span>
+          <span className="truncate text-[11px]">{f.builtin ? '' : f.updated_by || f.created_by || '—'}</span>
         </span>
       ),
     },
@@ -183,7 +185,7 @@ export function StatisticsForms() {
           <IconButton size="sm" label={t('hrExt.forms.downloadTemplate')} onClick={() => void downloadTemplate(f)} disabled={busy === `tpl:${f.code}`}>
             <Download size={15} />
           </IconButton>
-          {canEdit && (
+          {canEdit && !f.builtin && (
             <>
               <IconButton size="sm" label={t('hrExt.forms.replace')} onClick={() => setEditing({ form: f })}>
                 <Pencil size={15} />

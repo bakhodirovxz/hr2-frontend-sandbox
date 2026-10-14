@@ -28,6 +28,7 @@ export const MARITAL = [
   { value: "Bo'ydoq", key: 'single' },
   { value: 'Ajrashgan', key: 'divorced' },
   { value: 'Turmushga chiqmagan', key: 'unmarried' },
+  { value: 'Beva', key: 'widowed' },
 ] as const
 
 /** Labels that depend on the language: contract type, gender, period length. */

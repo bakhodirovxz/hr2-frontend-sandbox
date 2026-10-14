@@ -112,7 +112,12 @@ const DUP_FIELD: Record<string, string> = {
   duplicate_inn: 'taxpayer_identification_number',
   duplicate_pinfl: 'personal_identification_number',
   personal_identification_number_exists: 'personal_identification_number',
+  duplicate_passport: 'pasport_number',
 }
+// Fields of step 1 the server may name in `params.fields` (TZ C1 1001).
+const STEP1_FIELDS = new Set(['legal_name', 'birth_date', 'gender', 'maritial_status', 'phone_number',
+  'internal_phone_number', 'personal_identification_number', 'taxpayer_identification_number',
+  'pasport_series', 'pasport_number', 'email'])
 const SCAN_KINDS = ['passport', 'diploma', 'labor_book'] as const
 const MULTI_ORG_ROLES = ['ministr', 'deputy', 'hr'] as const
 const STAVKAS = ['1', '0.75', '0.5', '0.25'] as const
@@ -229,7 +234,7 @@ export function EmployeeFormDrawer({
   const [scans, setScans] = useState<Record<string, File | null>>({})
   const [basis, setBasis] = useState<EditBasis>(EMPTY_BASIS)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [dup, setDup] = useState<{ message: string; employeeId: number | null } | null>(null)
+  const [dup, setDup] = useState<{ message: string; employeeId: number | null; archived: boolean } | null>(null)
   const [cred, setCred] = useState<{ state: 'sending' | 'failed' | 'timeout'; email: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [pwdOpen, setPwdOpen] = useState(false)
@@ -388,14 +393,25 @@ export function EmployeeFormDrawer({
     if (field) {
       const existing = Number(errorParams(err).employee_id) || null
       setErrors((e) => ({ ...e, [field]: msg }))
-      setDup({ message: msg, employeeId: existing && existing !== editId ? existing : null })
+      setDup({ message: msg, employeeId: existing && existing !== editId ? existing : null, archived: !!errorParams(err).archived })
       setStep(1)
       return
     }
-    if (code === 'basis_required' || code === 'basis_date_before_hire') {
+    if (code === 'basis_required' || code === 'basis_date_before_hire' || code === 'basis_date_in_future') {
       setErrors((e) => ({ ...e, basis: msg }))
       setStep(3)
       return
+    }
+    const named = errorParams(err).fields
+    if (named && typeof named === 'object' && !Array.isArray(named)) {
+      const keys = Object.keys(named as Record<string, unknown>)
+      if (keys.length) {
+        setErrors((e) => ({ ...e, ...Object.fromEntries(keys.map((k) => [k, msg])) }))
+        if (keys.some((k) => STEP1_FIELDS.has(k))) setStep(1)
+        else if (keys.includes('job_acceptance_date')) setStep(3)
+        toast.error(msg)
+        return
+      }
     }
     toast.error(msg)
   }
@@ -804,7 +820,7 @@ export function EmployeeFormDrawer({
                   }))}
                   drafts={educations.map((x, i) => ({
                     key: `n${i}`,
-                    title: `${x.degree_name} — ${x.faculty_name}`,
+                    title: [x.degree_name, x.faculty_name].filter(Boolean).join(' — '),
                     sub: `${x.institution_name} (${fmtDate(x.start_date)} — ${x.is_current ? t('personnel.rec.untilNow') : fmtDate(x.end_date)})`,
                     remove: () => setEducations((p) => p.filter((_, j) => j !== i)),
                   }))}
@@ -965,8 +981,12 @@ export function EmployeeFormDrawer({
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <span className="text-[13px] font-semibold text-danger">{dup.message}</span>
                   {dup.employeeId && (
-                    <Link to={`/employees/${dup.employeeId}`} onClick={onClose} className="self-start text-[12.5px] font-semibold text-brand hover:underline">
-                      {t('personnel.form.openExisting')}
+                    <Link
+                      to={dup.archived ? `/employees/${dup.employeeId}?action=rehire` : `/employees/${dup.employeeId}`}
+                      onClick={onClose}
+                      className="self-start text-[12.5px] font-semibold text-brand hover:underline"
+                    >
+                      {dup.archived ? t('personnel.form.openArchived') : t('personnel.form.openExisting')}
                     </Link>
                   )}
                 </div>

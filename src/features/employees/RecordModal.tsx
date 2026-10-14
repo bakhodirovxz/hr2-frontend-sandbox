@@ -76,8 +76,11 @@ export function RecordModal({
         ['position', t('personnel.rec.position'), t('personnel.rec.positionPh')],
       ]
 
+  // TZ 2100: only the school and the speciality period are mandatory; the
+  // faculty / degree of a college may be unknown.
+  const OPTIONAL = new Set(['faculty_name', 'degree_name'])
   const submit = () => {
-    const missing = fields.some(([k]) => !text(k).trim()) || !text('start_date') || (!form.is_current && !text('end_date'))
+    const missing = fields.some(([k]) => !OPTIONAL.has(k) && !text(k).trim()) || !text('start_date') || (!form.is_current && !text('end_date'))
     if (missing) {
       setError(t('personnel.rec.required'))
       return
@@ -107,7 +110,7 @@ export function RecordModal({
     >
       <div className="flex flex-col gap-3">
         {fields.map(([k, label, ph]) => (
-          <Field key={k} label={label} required>
+          <Field key={k} label={label} required={!OPTIONAL.has(k)}>
             <Input value={text(k)} placeholder={ph} maxLength={255} onChange={(e) => set(k, e.target.value)} />
           </Field>
         ))}
