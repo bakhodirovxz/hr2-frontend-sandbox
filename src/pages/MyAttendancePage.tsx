@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -125,12 +126,12 @@ function ProfileCard({ employee }: { employee: MyEmployee }) {
       <div className="flex flex-col items-center text-center">
         <Avatar src={employee.photo_thumb_path} fallbackSrc={employee.photo_path} name={employee.legal_name} size={88} />
         <p className="mt-3 text-[15px] font-semibold text-fg">{employee.legal_name}</p>
-        <p className="mt-0.5 text-[12.5px] text-fg-muted">{employee.job_position?.name || '—'}</p>
+        <p className="mt-0.5 text-[12.5px] text-fg-muted">{ln(employee.job_position) || '—'}</p>
       </div>
       <dl className="mt-4 space-y-2 border-t border-line pt-3 text-[12.5px]">
         <div className="flex justify-between gap-3">
           <dt className="text-fg-muted">{t('davomat.colDepartment')}</dt>
-          <dd className="text-right text-fg">{employee.department?.name || '—'}</dd>
+          <dd className="text-right text-fg">{ln(employee.department) || '—'}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-fg-muted">{t('davomat.workHours')}</dt>
@@ -209,9 +210,9 @@ function CareerPanel({ employee }: { employee: MyEmployee }) {
             {history.map((r, i) => (
               <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-fg">{r.job_position?.name || '—'}</p>
+                  <p className="text-[13px] font-medium text-fg">{ln(r.job_position) || '—'}</p>
                   <p className="text-[12px] text-fg-muted">
-                    {[r.department?.name, r.basis].filter(Boolean).join(' · ') || '—'}
+                    {[ln(r.department), r.basis].filter(Boolean).join(' · ') || '—'}
                   </p>
                 </div>
                 <span className="tabular-nums text-[12px] text-fg-subtle">{period(r.from, r.to)}</span>

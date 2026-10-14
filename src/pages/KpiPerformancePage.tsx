@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Building2, CalendarRange, ChartLine, ListPlus, RefreshCw, Users } from 'lucide-react'
@@ -89,7 +90,7 @@ export function KpiPerformancePage() {
           <Avatar src={profile.photo_path} name={profile.legal_name ?? perf.employee?.legal_name} size={88} />
           <div className="text-center">
             <p className="text-[15px] font-semibold leading-snug text-fg">{profile.legal_name ?? perf.employee?.legal_name ?? '—'}</p>
-            <p className="text-[12px] text-fg-subtle">{[profile.job_position_name, profile.department_name].filter(Boolean).join(', ')}</p>
+            <p className="text-[12px] text-fg-subtle">{[lt(profile.job_position_name), lt(profile.department_name)].filter(Boolean).join(', ')}</p>
           </div>
           <KpiStatusMenu
             status={perf.status}
@@ -97,7 +98,7 @@ export function KpiPerformancePage() {
             allowed={(a) => acc.may('employee_performance', `performance_${a}`)}
           />
           <dl className="flex w-full flex-col gap-2.5 border-t border-line pt-4">
-            <Info icon={<Building2 size={14} />} label={t('kpi.colDepartment')} value={profile.department_name} />
+            <Info icon={<Building2 size={14} />} label={t('kpi.colDepartment')} value={lt(profile.department_name) || undefined} />
             <Info
               icon={<CalendarRange size={14} />}
               label={t('kpi.colPeriod')}

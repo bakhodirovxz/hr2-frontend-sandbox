@@ -1,4 +1,5 @@
 import { inTashkent } from '@/lib/format'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { History } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -69,7 +70,7 @@ export function ChangeLogList({ items }: { items?: DepartmentChangeLogEntry[] | 
   }
   const value = (r: DepartmentChangeLogEntry, which: 'old' | 'new') => {
     const label = r[`${which}_label`]
-    if (label) return label
+    if (label) return lt(label)
     const v = r[which]
     if ((r.field === 'extra.unit_type' || r.field === 'unit_type') && typeof v === 'string')
       return t(`orgAdmin.unit_${v as 'management' | 'division' | 'section'}`)

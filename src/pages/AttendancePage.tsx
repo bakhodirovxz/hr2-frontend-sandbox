@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { ChevronRight, Clock, Download, Upload, UsersRound, UserX } from 'lucide-react'
@@ -155,7 +156,7 @@ export function AttendancePage() {
     return t('davomat.colCalendar', { months: a === b && from.slice(0, 7) === to.slice(0, 7) ? a : `${a}–${b}` })
   })()
 
-  const jobTitle = (r: AttendanceRow) => (typeof r.job_position === 'string' ? r.job_position : r.job_position?.name)
+  const jobTitle = (r: AttendanceRow) => (typeof r.job_position === 'string' ? lt(r.job_position) : ln(r.job_position) || undefined)
 
   const columns: Column<AttendanceRow>[] = [
     {
@@ -187,8 +188,8 @@ export function AttendancePage() {
       header: t('davomat.colDepartment'),
       className: 'text-fg-muted',
       cell: (r) => (
-        <span className="block max-w-[16rem] truncate" title={r.department?.name || ''}>
-          {r.department?.name || '—'}
+        <span className="block max-w-[16rem] truncate" title={ln(r.department)}>
+          {ln(r.department) || '—'}
         </span>
       ),
     },

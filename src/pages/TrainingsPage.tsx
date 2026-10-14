@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -129,7 +130,7 @@ export function TrainingsPage() {
       cell: (r) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-fg">{r.employee_name || '—'}</span>
-          <span className="truncate text-[12px] text-fg-subtle">{r.department_name || '—'}</span>
+          <span className="truncate text-[12px] text-fg-subtle">{lt(r.department_name) || '—'}</span>
         </span>
       ),
     },
@@ -497,7 +498,7 @@ function TrainingModal({ value, readOnly, onClose }: { value: Training | 'new' |
           <Field label={t('trainings.employee')} wide>
             <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-fg">
               {row.employee_name || '—'}
-              {row.department_name && <span className="text-fg-subtle"> · {row.department_name}</span>}
+              {row.department_name && <span className="text-fg-subtle"> · {lt(row.department_name)}</span>}
             </p>
           </Field>
         ) : (

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiGet } from '@/api/http'
+import { lt } from '@/i18n/display'
 import { USER_INFO } from '@/api/endpoints'
 import { useAuthStore } from '@/store/authStore'
 import { isBranchAdmin, isGuest, isSiteMasterAdmin } from '@/auth/permissions'
@@ -120,7 +121,7 @@ export function roleLabel(user: User | null | undefined, t: TFunction): string {
   // TZ 1873-1880 system roles are translated by code (the server has one name).
   if (['system_admin', 'management', 'hr_central', 'hr_branch', 'ca_staff', 'subsidiary_staff', 'branch_staff', 'guest'].includes(code))
     return t(`roleAdmin.sysName.${code}` as never)
-  if (user?.role?.name) return user.role.name
+  if (user?.role?.name) return lt(user.role.name)
   if (isGuest(user)) return t('account.roleGuest')
   if (isSiteMasterAdmin(user)) return t('account.roleAdmin')
   if (isBranchAdmin(user)) return t('account.roleBranchAdmin')

@@ -57,6 +57,7 @@ export function DepartmentFormModal({
   const detail = useDepartmentDetail(open && value ? value.id : null)
 
   const [name, setName] = useState('')
+  const [nameRu, setNameRu] = useState('')
   const [code, setCode] = useState('')
   const [unitType, setUnitType] = useState<UnitType>('division')
   const [parentId, setParentId] = useState(ROOT)
@@ -76,6 +77,7 @@ export function DepartmentFormModal({
       return
     }
     setName(value?.name ?? '')
+    setNameRu(value?.name_ru ?? (value as { extra?: { name_ru?: string | null } } | null | undefined)?.extra?.name_ru ?? '')
     setCode(value?.code ?? '')
     setUnitType(value?.unit_type ?? 'division')
     setParentId(value?.parent_id != null ? String(value.parent_id) : ROOT)
@@ -124,6 +126,7 @@ export function DepartmentFormModal({
 
     const body: Record<string, unknown> = {
       name: name.trim(),
+      name_ru: nameRu.trim() || null,
       code: code.trim() || null,
       organization_branch_id: branchId,
       head_ids: heads.map((h) => h.id),
@@ -191,6 +194,9 @@ export function DepartmentFormModal({
               clearError('name')
             }}
           />
+        </Field>
+        <Field label={t('fields.name_ru')} wide>
+          <Input value={nameRu} onChange={(e) => setNameRu(e.target.value)} />
         </Field>
         <Field label={t('orgAdmin.deptCode')} hint={t('orgAdmin.deptCodeHint')} error={errors.code}>
           <Input

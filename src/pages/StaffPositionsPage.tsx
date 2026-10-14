@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -153,7 +154,7 @@ export function StaffPositionsPage() {
   const groups = useMemo(() => {
     const map = new Map<string, StaffPosition[]>()
     for (const r of rows) {
-      const name = r.department_name || t('orgRef.noDepartment')
+      const name = lt(r.department_name) || t('orgRef.noDepartment')
       if (!map.has(name)) map.set(name, [])
       map.get(name)!.push(r)
     }
@@ -662,7 +663,7 @@ function StaffRow({
     <tr className={cn('border-b border-line/60 hover:bg-surface-2/40', virtual && 'bg-danger/[0.04]', row.is_closed && 'opacity-50')}>
       <td className={cn(TD_COMPACT, 'tabnum text-fg-subtle')}>{index}</td>
       <td className={TD_COMPACT}>
-        <span className={cn('text-fg', row.is_closed && 'line-through')}>{row.job_position_name || '—'}</span>
+        <span className={cn('text-fg', row.is_closed && 'line-through')}>{lt(row.job_position_name) || '—'}</span>
         {virtual && (
           <span title={t('orgRef.noStaffRowHint')} className="ml-2 align-middle">
             <Badge tone="danger">{t('orgRef.noStaffRow')}</Badge>

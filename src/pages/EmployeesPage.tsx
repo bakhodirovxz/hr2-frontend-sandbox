@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { Archive, FileSpreadsheet, KeyRound, Pencil, Plus, Settings2, Trash2, Users } from 'lucide-react'
@@ -135,8 +136,8 @@ export function EmployeesPage() {
 
   const kpiColumns: Column<EmployeeKpiRow>[] = [
     { key: 'n', header: '#', headerClassName: 'w-10', className: 'text-fg-subtle tabular-nums', cell: (_r, i) => (page - 1) * size + i + 1 },
-    { key: 'name', header: t('personnel.list.colName'), skeleton: 'w-48', lockVisible: true, cell: (r) => nameCell(r, r.job_position_name) },
-    { key: 'department', header: t('personnel.f.department'), cell: (r) => <span className="block max-w-[14rem] truncate text-fg-muted" title={r.department_name ?? ''}>{r.department_name || '—'}</span> },
+    { key: 'name', header: t('personnel.list.colName'), skeleton: 'w-48', lockVisible: true, cell: (r) => nameCell(r, lt(r.job_position_name) || r.job_position_name) },
+    { key: 'department', header: t('personnel.f.department'), cell: (r) => <span className="block max-w-[14rem] truncate text-fg-muted" title={lt(r.department_name)}>{lt(r.department_name) || '—'}</span> },
     { key: 'contract', header: t('personnel.f.contractType'), className: 'whitespace-nowrap text-fg-muted', cell: (r) => labels.contract(r.contract_type) || '—' },
     { key: 'kpi', header: t('personnel.list.colKpi'), skeleton: 'w-24', cell: (r) => <KpiBar value={Number(r.kpi_percentage) || 0} /> },
     { key: 'attendance', header: t('personnel.list.colAttendance'), className: 'font-semibold tabular-nums text-brand-strong', cell: (r) => `${Math.round(Number(r.attendance_percentage) || 0)}%` },
@@ -162,8 +163,8 @@ export function EmployeesPage() {
   ]
 
   const plainColumns: Column<EmployeeRow>[] = [
-    { key: 'name', header: t('personnel.list.colName'), skeleton: 'w-48', lockVisible: true, cell: (r) => nameCell(r, r.job_position?.name) },
-    { key: 'department', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => r.department?.name || '—' },
+    { key: 'name', header: t('personnel.list.colName'), skeleton: 'w-48', lockVisible: true, cell: (r) => nameCell(r, ln(r.job_position) || undefined) },
+    { key: 'department', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => ln(r.department) || '—' },
     { key: 'nationality', header: t('personnel.f.nationality'), className: 'text-fg-muted', cell: (r) => (r.nationality ? natLabel(r.nationality) : '—') },
     { key: 'birth', header: t('personnel.f.birthDate'), className: 'tabular-nums text-fg-muted', cell: (r) => fmtDate(r.birth_date) },
     { key: 'gender', header: t('personnel.f.gender'), className: 'text-fg-muted', cell: (r) => labels.gender(r.gender) || '—' },

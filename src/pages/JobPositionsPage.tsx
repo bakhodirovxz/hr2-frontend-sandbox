@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { History, Pencil, Plus, Trash2, UserRoundSearch, Wand2 } from 'lucide-react'
@@ -128,7 +129,7 @@ export function JobPositionsPage() {
       lockVisible: true,
       skeleton: 'w-56',
       sortValue: serverOrder,
-      cell: (p) => <span className="font-semibold text-fg">{p.name || '—'}</span>,
+      cell: (p) => <span className="font-semibold text-fg">{ln(p) || '—'}</span>,
     },
     {
       key: 'short',

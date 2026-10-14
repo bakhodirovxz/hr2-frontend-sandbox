@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -252,7 +253,7 @@ export function OrdersPage() {
   }, [openParam, params, setParams])
 
   const { all: categories } = useOrderTypes('', '')
-  const categoryOptions = useMemo(() => categories.map((c) => ({ value: String(c.id), label: c.name ?? `#${c.id}` })), [categories])
+  const categoryOptions = useMemo(() => categories.map((c) => ({ value: String(c.id), label: ln(c) || `#${c.id}` })), [categories])
   const departmentOptions = useDepartmentOptions(selectedBranchId)
   const [empKnown, setEmpKnown] = useState<SelectOption[]>([])
   const statusOptions = STATUS_FILTER.map((s) => ({ value: s, label: decreeStatusLabel(t, s) }))
@@ -280,7 +281,7 @@ export function OrdersPage() {
       const ok = await confirm({
         kind: 'approve',
         title: t('orders.agreeTitle'),
-        description: t('orders.agreeConfirmNamed', { name: row.category_rel?.name || t('orders.order') }),
+        description: t('orders.agreeConfirmNamed', { name: ln(row.category_rel) || t('orders.order') }),
         confirmLabel: t('orders.agreeYes'),
       })
       if (ok) await act(row, () => mut.approve.mutateAsync(row.id), t('orders.agreed'))
@@ -406,7 +407,7 @@ export function OrdersPage() {
           <span className={cn('block truncate text-[13px] font-semibold', waitingRow(r) ? 'text-warning' : 'text-fg')} title={r.summary || r.description || ''}>
             {r.summary || r.description || '—'}
           </span>
-          <span className="block truncate text-[11.5px] text-fg-subtle">{r.category_rel?.name || '—'}</span>
+          <span className="block truncate text-[11.5px] text-fg-subtle">{ln(r.category_rel) || '—'}</span>
         </span>
       ),
     },
@@ -423,8 +424,8 @@ export function OrdersPage() {
       header: t('orders.colType'),
       skeleton: 'w-24',
       className: 'whitespace-nowrap text-fg-muted',
-      sortValue: (r) => r.category_rel?.name ?? '',
-      cell: (r) => r.category_rel?.name || '—',
+      sortValue: (r) => ln(r.category_rel),
+      cell: (r) => ln(r.category_rel) || '—',
     },
     {
       key: 'status',
@@ -626,7 +627,7 @@ export function OrdersPage() {
 
       <OrderDocumentViewer
         id={docOrder?.id ?? null}
-        title={docOrder ? `№${docOrder.act_number || docOrder.id} ${docOrder.category_rel?.name || ''}`.trim() : ''}
+        title={docOrder ? `№${docOrder.act_number || docOrder.id} ${ln(docOrder.category_rel)}`.trim() : ''}
         onClose={() => setDocOrder(null)}
         autoPrint={docPrint}
       />

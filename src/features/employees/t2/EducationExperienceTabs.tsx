@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Award, BookOpen, Briefcase, ClipboardCheck, ExternalLink, GraduationCap, Pencil, Plus, Route, Save, Timer, Trash2, X } from 'lucide-react'
@@ -355,8 +356,8 @@ export function CareerTable({ rows, loading, failed }: { rows?: CareerRow[]; loa
   type R = CareerRow & Record<string, unknown> & { id: number }
   const data = (rows ?? []).map((r, i) => ({ ...r, id: i })) as R[]
   const columns: RowsColumn<R>[] = [
-    { key: 'position', label: t('personnel.f.position'), render: (r) => r.job_position?.name || '—' },
-    { key: 'department', label: t('personnel.f.department'), render: (r) => r.department?.name || '—' },
+    { key: 'position', label: t('personnel.f.position'), render: (r) => ln(r.job_position) || '—' },
+    { key: 'department', label: t('personnel.f.department'), render: (r) => ln(r.department) || '—' },
     { key: 'from', label: t('personnel.rec.from'), type: 'date' },
     { key: 'to', label: t('personnel.rec.until'), render: (r) => (r.to ? fmtDate(r.to) : <span className="text-success">{t('personnel.rec.untilNow')}</span>) },
     { key: 'basis', label: t('personnel.career.basis'), render: (r) => r.basis || '—' },
@@ -427,7 +428,7 @@ function AttestationRow({ employeeId, row, canEdit }: { employeeId: number; row:
     <li className="rounded-inner border border-line bg-surface-2/40 px-3 py-2.5">
       <div className="flex flex-wrap items-start gap-2.5">
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-fg">{row.position_name || '—'}</div>
+          <div className="text-[13px] font-semibold text-fg">{lt(row.position_name) || '—'}</div>
           <div className="mt-0.5 text-[11.5px] text-fg-subtle">
             {t('personnel.att.assigned')}: {fmtDate(row.assigned_at)} · {t('personnel.att.due')}: {fmtDate(row.due_at)}
             {row.basis ? ` · ${row.basis}` : ''}

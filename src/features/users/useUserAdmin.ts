@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/api/http'
+import { lt } from '@/i18n/display'
 import { MODULES, PERMISSION_LEVELS, type ModuleCode, type PermissionLevel } from '@/auth/permissions'
 
 /**
@@ -95,7 +96,7 @@ export function roleDisplayName(
 ): string {
   const code = role?.code ?? ''
   if ((SYSTEM_ROLE_CODES as readonly string[]).includes(code)) return t(`roleAdmin.sysName.${code}`)
-  return role?.name ?? ''
+  return lt(role?.name)
 }
 
 /** System role → the organisation kind it belongs to (null = any). */

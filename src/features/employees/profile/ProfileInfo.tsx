@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Building, Calendar, Clock, Hash, Home, IdCard, Info, LayoutGrid, MapPin, Phone, Star, User, UserCheck, Users } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
@@ -69,9 +70,9 @@ export function ProfileInfo({ employee, card }: { employee: EmployeeFull; card?:
 
       <Block title={t('personnel.info.main')} icon={<LayoutGrid size={15} />}>
         <InfoItem label={t('personnel.info.organization')} value={branch} icon={<Building size={13} />} />
-        <InfoItem label={t('personnel.f.department')} value={e.department?.name} icon={<LayoutGrid size={13} />} />
+        <InfoItem label={t('personnel.f.department')} value={ln(e.department) || undefined}icon={<LayoutGrid size={13} />} />
         <InfoItem label={t('personnel.info.supervisor')} value={e.supervisor?.legal_name} icon={<UserCheck size={13} />} />
-        <InfoItem label={t('personnel.f.position')} value={e.job_position?.name} icon={<Star size={13} />} />
+        <InfoItem label={t('personnel.f.position')} value={ln(e.job_position) || undefined}icon={<Star size={13} />} />
         <InfoItem label={t('personnel.f.internalPhone')} value={e.internal_phone_number} icon={<Phone size={13} />} />
         <InfoItem label={t('personnel.info.workDays')} value={schedule} icon={<Clock size={13} />} />
       </Block>

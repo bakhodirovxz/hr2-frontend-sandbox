@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ln, lt } from '@/i18n/display'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
@@ -54,7 +55,7 @@ export function AttendanceDetailDrawer({
 
   const a = row.attendance
   const calendar = a.calendar ?? {}
-  const job = typeof row.job_position === 'string' ? row.job_position : row.job_position?.name
+  const job = typeof row.job_position === 'string' ? lt(row.job_position) : ln(row.job_position) || undefined
   const early = Object.values(calendar).filter((v) => mapCalStatus(v) === 'early_leave').length
   // Kelmagan kunlar kalendardan, faqat xodimning ISH kunlarida (v1 bilan bir xil).
   const absent = Object.entries(calendar).filter(
@@ -117,7 +118,7 @@ export function AttendanceDetailDrawer({
           <Avatar src={row.photo_thumb_path} fallbackSrc={row.photo_path} name={row.legal_name ?? ''} size={56} />
           <div className="min-w-0 flex-1">
             <Badge tone="brand" className="max-w-full truncate">
-              {row.department?.name ?? '—'}
+              {ln(row.department) || '—'}
             </Badge>
             <p className="mt-1 flex items-center gap-1.5 text-[12px] text-fg-muted">
               <CalendarDays size={13} className="shrink-0 text-brand" />

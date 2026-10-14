@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Award, CalendarRange, Landmark, Languages, ThumbsDown, ThumbsUp, Users } from 'lucide-react'
@@ -305,7 +306,7 @@ export function VacationTab({ employee, card }: { employee: { id: number }; card
         order_number: o.act_number,
         from: o.details?.leave_from || o.effective_start_date,
         to: o.details?.leave_to || o.effective_end_date,
-        type: o.category_rel?.name || o.summary,
+        type: ln(o.category_rel) || o.summary,
       })),
   ].sort((a, b) => String(b.from ?? '').localeCompare(String(a.from ?? '')))
 

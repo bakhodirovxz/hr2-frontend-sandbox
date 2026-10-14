@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { ln } from '@/i18n/display'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -56,7 +57,7 @@ export function DepartmentCardModal({
       onClose={onClose}
       placement="right"
       size="md"
-      title={d?.name ?? t('orgAdmin.cardTitle')}
+      title={ln({ name: d?.name, name_ru: d?.name_ru }) || t('orgAdmin.cardTitle')}
       description={d?.code ? `${t('orgAdmin.colCode')}: ${d.code}` : t('orgAdmin.cardTitle')}
       footer={
         <>
@@ -102,7 +103,7 @@ export function DepartmentCardModal({
             </div>
           )}
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Info label={t('orgAdmin.colName')}>{d?.name || '—'}</Info>
+            <Info label={t('orgAdmin.colName')}>{ln({ name: d?.name, name_ru: d?.name_ru }) || '—'}</Info>
             <Info label={t('orgAdmin.colCode')}>{d?.code || '—'}</Info>
             <Info label={t('orgAdmin.unitType')}>{t(`orgAdmin.unit_${d?.unit_type ?? 'division'}`)}</Info>
             <Info label={t('orgAdmin.colParent')}>{parentName || '—'}</Info>
@@ -132,7 +133,7 @@ export function DepartmentCardModal({
                       className="flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-surface-2/50 px-3 text-left text-[13px] text-fg transition-colors hover:border-brand/50"
                     >
                       <Building2 size={14} className="text-fg-subtle" />
-                      <span className="flex-1 truncate">{c.name}</span>
+                      <span className="flex-1 truncate">{ln(c)}</span>
                       {c.staff_count != null && <span className="tabular-nums text-[12px] text-fg-subtle">{c.staff_count}</span>}
                       <ChevronRight size={14} className="text-fg-subtle" />
                     </button>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { localizedName, localizedText } from '@/i18n/localized'
 import { apiGet, apiPatch, apiPut } from '@/api/http'
 import { useDictionaryOptions, type DictionaryEntry } from '@/features/dictionaries/useDictionaries'
 import type { SelectOption } from '@/components/ui/Select'
@@ -57,8 +58,8 @@ export function useT2Mutations(employeeId: number) {
 /** Dictionary entry name in the UI language (RU → `name_ru`). */
 export function useEntryLabel() {
   const { i18n } = useTranslation()
-  const ru = i18n.language?.startsWith('ru')
-  return (e: DictionaryEntry) => (ru && e.name_ru ? e.name_ru : e.name)
+  const lang = i18n.language
+  return (e: DictionaryEntry) => localizedName(e, lang)
 }
 
 /** `{value: code, label: name}` for a dictionary — the shape every picker wants. */
@@ -87,7 +88,7 @@ export function useCardName(card: T2Card | null | undefined) {
   return (field: keyof T2Card): string => {
     const v = card?.[field]
     if (typeof v !== 'string' || !v) return ''
-    return (ru && card?.names_ru?.[field as string]) || v
+    return (ru && card?.names_ru?.[field as string]) || localizedText(v, i18n.language)
   }
 }
 

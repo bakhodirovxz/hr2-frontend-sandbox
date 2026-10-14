@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ArchiveRestore } from 'lucide-react'
@@ -56,12 +57,12 @@ export function ArchivedTable({
           <Avatar src={r.photo_thumb_path} fallbackSrc={r.photo_path} name={r.legal_name ?? ''} size={30} />
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-semibold text-fg">{r.legal_name ?? '—'}</span>
-            <span className="block truncate text-[11px] text-fg-muted">{r.job_position_name || '—'}</span>
+            <span className="block truncate text-[11px] text-fg-muted">{lt(r.job_position_name) || '—'}</span>
           </span>
         </span>
       ),
     },
-    { key: 'department_name', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => r.department_name ?? '—' },
+    { key: 'department_name', header: t('personnel.f.department'), className: 'text-fg-muted', cell: (r) => lt(r.department_name) || '—' },
     { key: 'branch_name', header: t('personnel.list.colBranch'), className: 'text-fg-muted', cell: (r) => r.branch_name ?? '—' },
     {
       key: 'reason',

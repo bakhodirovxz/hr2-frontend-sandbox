@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ln } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRightLeft, FileDown, History, Info, Pencil, Trash2, UserCheck } from 'lucide-react'
@@ -131,7 +132,7 @@ export function EmployeeProfilePage() {
             {employee.legal_name}
           </span>
         }
-        subtitle={employee.job_position?.name ?? undefined}
+        subtitle={ln(employee.job_position) || undefined}
         actions={
           <>
             {canEdit && (

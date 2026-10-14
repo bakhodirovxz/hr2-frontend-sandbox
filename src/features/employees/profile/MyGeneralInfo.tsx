@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ln } from '@/i18n/display'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
@@ -58,9 +59,9 @@ export function MyGeneralInfo({ employee }: { employee: MyEmployee }) {
         <CardHeader title={t('account.mainInfo')} icon={<LayoutDashboard />} className="border-t" />
         <dl>
           <Row label={t('account.organization')} value={branchName} />
-          <Row label={t('account.department')} value={e.department?.name} />
+          <Row label={t('account.department')} value={ln(e.department) || undefined} />
           <Row label={t('account.supervisor')} value={e.supervisor?.legal_name} />
-          <Row label={t('account.position')} value={e.job_position?.name} />
+          <Row label={t('account.position')} value={ln(e.job_position) || undefined} />
           <Row label={t('account.internalPhone')} value={e.internal_phone_number} />
           <Row label={t('account.workDays')} value={schedule} />
         </dl>

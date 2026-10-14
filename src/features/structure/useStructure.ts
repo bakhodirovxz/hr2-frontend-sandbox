@@ -8,6 +8,7 @@ import { useBranchStore } from '@/store/branchStore'
 export interface Department {
   id: number
   name?: string | null
+  name_ru?: string | null
   index?: number | null
   /** TZ S1 «код подразделения» — filial ichida noyob. */
   code?: string | null
@@ -31,6 +32,7 @@ export interface Department {
 export interface JobPosition {
   id: number
   name?: string | null
+  name_ru?: string | null
   short_name?: string | null
   razryad?: number | null
   /** rahbar | mutaxassis | xizmatchi | ishchi — shtat ekrani shu bo'yicha

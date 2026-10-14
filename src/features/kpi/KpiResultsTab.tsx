@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { CalendarPlus, CheckCircle2, Copy, Download, PlayCircle, Plus, RotateCcw, Trash2, Pencil } from 'lucide-react'
@@ -202,7 +203,7 @@ export function KpiResultsTab({ onOpenEntry }: { onOpenEntry: (id: number) => vo
           <Avatar src={e.employee?.photo_thumb_path} fallbackSrc={e.employee?.photo_path} name={e.employee?.legal_name} size={28} />
           <span className="min-w-0">
             <span className="block truncate font-medium text-fg">{e.employee?.legal_name ?? '—'}</span>
-            {e.department_name && <span className="block truncate text-[11.5px] text-fg-subtle">{e.department_name}</span>}
+            {e.department_name && <span className="block truncate text-[11.5px] text-fg-subtle">{lt(e.department_name)}</span>}
           </span>
         </span>
       ),
@@ -564,7 +565,7 @@ export function EntryDetailModal({ id, onClose }: { id: number | null; onClose: 
             <Avatar src={entry.employee?.photo_thumb_path} fallbackSrc={entry.employee?.photo_path} name={entry.employee?.legal_name} size={40} />
             <div className="min-w-0">
               <p className="truncate font-medium text-fg">{entry.employee?.legal_name ?? '—'}</p>
-              <p className="truncate text-[12px] text-fg-subtle">{entry.department_name ?? ''}</p>
+              <p className="truncate text-[12px] text-fg-subtle">{lt(entry.department_name)}</p>
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-3 text-[13px]">

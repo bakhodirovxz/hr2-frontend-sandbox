@@ -569,6 +569,7 @@ const rest = {
     result_failed: 'O‘tmadi',
   },
   inspections: {
+    repeatTitlePrefix: 'Takroriy audit: ',
     title: 'Auditlar va tekshiruvlar',
     subtitle: 'Rejali tekshiruvlar, topilmalar va xulosalar',
     add: 'Audit yaratish',

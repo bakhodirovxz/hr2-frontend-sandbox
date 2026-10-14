@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Ban, Check, Download, FileText, MessageSquare, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -547,7 +548,7 @@ function DetailBody({
                     {e.created_at ? ` · ${fmtStamp(e.created_at)}` : ''}
                   </span>
                 </div>
-                {e.comment && <p className="mt-1.5 whitespace-pre-wrap text-fg">{e.comment}</p>}
+                {e.comment && <p className="mt-1.5 whitespace-pre-wrap text-fg">{lt(e.comment)}</p>}
               </li>
             ))}
           </ul>

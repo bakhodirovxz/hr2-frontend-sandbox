@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { lt } from '@/i18n/display'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { AlertCircle, AlertTriangle, Cake, CalendarClock, Clock, Trophy, UserCheck, Users } from 'lucide-react'
@@ -56,7 +57,7 @@ function RankRow({ rank, row, tone }: { rank: number; row: EmployeeKpiRow; tone:
       <Avatar src={row.photo_thumb_path} fallbackSrc={row.photo_path} name={row.legal_name} size={28} />
       <Link to={`/employees/${row.id}`} className="min-w-0 flex-1 hover:underline">
         <span className="block truncate text-[12.5px] font-semibold text-fg">{row.legal_name}</span>
-        <span className="block truncate text-[11px] text-fg-subtle">{row.job_position_name || '—'}</span>
+        <span className="block truncate text-[11px] text-fg-subtle">{lt(row.job_position_name) || '—'}</span>
       </Link>
       <span className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-2">
         <span className={cn('block h-full rounded-full', tone === 'success' ? 'bg-success' : 'bg-danger')} style={{ width: `${Math.min(100, Math.max(0, kpi))}%` }} />
