@@ -15,7 +15,7 @@ import { useToast } from '@/components/ui/Toast'
 import { errorMessage } from '@/api/errorMessage'
 import { isSiteMasterAdmin } from '@/auth/permissions'
 import { useAuthStore } from '@/store/authStore'
-import { telHref, useSiteInfo, useUpdateSiteInfo, type SiteContact, type SiteInfo } from '@/features/site/useSiteInfo'
+import { siteText, telHref, useSiteInfo, useUpdateSiteInfo, type SiteContact, type SiteInfo } from '@/features/site/useSiteInfo'
 
 /**
  * «Kontaktlar» (TZ 442, GEN-6 — pastki paneldagi «контакты»): tizim egasi,
@@ -58,7 +58,8 @@ function Row({ icon, label, children }: { icon: ReactNode; label: string; childr
 }
 
 export function ContactsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = i18n.language
   const user = useAuthStore((s) => s.user)
   const canEdit = isSiteMasterAdmin(user)
   const site = useSiteInfo()
@@ -101,12 +102,12 @@ export function ContactsPage() {
               <>
                 {info?.owner_name && (
                   <Row icon={<Building2 size={16} />} label={t('contactsPage.owner')}>
-                    {info.owner_name}
+                    {siteText(lang, info.owner_name, info.owner_name_ru)}
                   </Row>
                 )}
                 {info?.owner_address && (
                   <Row icon={<MapPin size={16} />} label={t('contactsPage.address')}>
-                    {info.owner_address}
+                    {siteText(lang, info.owner_address, info.owner_address_ru)}
                   </Row>
                 )}
                 {info?.support_phone && (
@@ -136,7 +137,7 @@ export function ContactsPage() {
                     key={i}
                     className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 border-b border-line/60 py-2.5 last:border-b-0"
                   >
-                    <dt className="text-[13px] text-fg-muted">{c.label}</dt>
+                    <dt className="text-[13px] text-fg-muted">{siteText(lang, c.label, c.label_ru)}</dt>
                     <dd className="text-[13.5px] text-fg">
                       <ContactValue value={c.value} />
                     </dd>
@@ -157,13 +158,18 @@ function ContactsForm({ info, onDone }: { info: SiteInfo; onDone: () => void }) 
   const save = useUpdateSiteInfo()
   const [form, setForm] = useState(() => ({
     owner_name: info.owner_name || '',
+    owner_name_ru: info.owner_name_ru || '',
     owner_address: info.owner_address || '',
+    owner_address_ru: info.owner_address_ru || '',
     support_phone: info.support_phone || '',
     support_email: info.support_email || '',
-    contacts: (info.contacts ?? []).map((c) => ({ label: c.label || '', value: c.value || '' })),
+    contacts: (info.contacts ?? []).map((c) => ({ label: c.label || '', label_ru: c.label_ru || '', value: c.value || '' })),
   }))
   const [error, setError] = useState('')
-  const set = (k: 'owner_name' | 'owner_address' | 'support_phone' | 'support_email', v: string) =>
+  const set = (
+    k: 'owner_name' | 'owner_name_ru' | 'owner_address' | 'owner_address_ru' | 'support_phone' | 'support_email',
+    v: string,
+  ) =>
     setForm((f) => ({ ...f, [k]: v }))
   const setContact = (i: number, k: keyof SiteContact, v: string) =>
     setForm((f) => ({ ...f, contacts: f.contacts.map((c, j) => (j === i ? { ...c, [k]: v } : c)) }))
@@ -175,11 +181,13 @@ function ContactsForm({ info, onDone }: { info: SiteInfo; onDone: () => void }) 
     try {
       await save.mutateAsync({
         owner_name: form.owner_name.trim(),
+        owner_name_ru: form.owner_name_ru.trim(),
         owner_address: form.owner_address.trim(),
+        owner_address_ru: form.owner_address_ru.trim(),
         support_phone: form.support_phone.trim(),
         support_email: form.support_email.trim(),
         contacts: form.contacts
-          .map((c) => ({ label: c.label.trim(), value: c.value.trim() }))
+          .map((c) => ({ label: c.label.trim(), label_ru: c.label_ru.trim(), value: c.value.trim() }))
           .filter((c) => c.label || c.value),
       })
       toast.ok(t('common.saved'))
@@ -196,15 +204,21 @@ function ContactsForm({ info, onDone }: { info: SiteInfo; onDone: () => void }) 
           <Field label={t('contactsPage.owner')}>
             <Input value={form.owner_name} maxLength={500} onChange={(e) => set('owner_name', e.target.value)} />
           </Field>
+          <Field label={t('contactsPage.ownerRu')}>
+            <Input value={form.owner_name_ru} maxLength={500} onChange={(e) => set('owner_name_ru', e.target.value)} />
+          </Field>
           <Field label={t('contactsPage.address')}>
             <Input value={form.owner_address} maxLength={1000} onChange={(e) => set('owner_address', e.target.value)} />
+          </Field>
+          <Field label={t('contactsPage.addressRu')}>
+            <Input value={form.owner_address_ru} maxLength={1000} onChange={(e) => set('owner_address_ru', e.target.value)} />
           </Field>
           <Field label={t('contactsPage.supportPhone')}>
             <Input
               value={form.support_phone}
               maxLength={100}
               inputMode="tel"
-              placeholder="+998 71 000 00 00"
+              placeholder="+998 78 150 50 15"
               onChange={(e) => set('support_phone', e.target.value)}
             />
           </Field>
@@ -232,6 +246,14 @@ function ContactsForm({ info, onDone }: { info: SiteInfo; onDone: () => void }) 
                 wrapperClassName="flex-1"
               />
               <Input
+                value={c.label_ru}
+                maxLength={200}
+                aria-label={t('contactsPage.contactLabelRu')}
+                placeholder={t('contactsPage.contactLabelRu')}
+                onChange={(e) => setContact(i, 'label_ru', e.target.value)}
+                wrapperClassName="flex-1"
+              />
+              <Input
                 value={c.value}
                 maxLength={500}
                 aria-label={t('contactsPage.contactValue')}
@@ -253,7 +275,7 @@ function ContactsForm({ info, onDone }: { info: SiteInfo; onDone: () => void }) 
             variant="outline"
             leftIcon={<Plus size={14} />}
             disabled={form.contacts.length >= 50}
-            onClick={() => setForm((f) => ({ ...f, contacts: [...f.contacts, { label: '', value: '' }] }))}
+            onClick={() => setForm((f) => ({ ...f, contacts: [...f.contacts, { label: '', label_ru: '', value: '' }] }))}
           >
             {t('contactsPage.addContact')}
           </Button>

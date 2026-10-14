@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Eye, Mail, Phone } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { telHref, useSiteInfo } from '@/features/site/useSiteInfo'
+import { siteText, telHref, useSiteInfo } from '@/features/site/useSiteInfo'
 
 /**
  * PASTKI PANEL (TZ 442, GEN-6): matnli yengil navigatsiya — «Kontaktlar»,
@@ -52,8 +52,8 @@ export function Footer({ publicMode = false, className }: { publicMode?: boolean
 
       {site && (
         <span className="min-w-0">
-          © {new Date().getFullYear()} {site.owner_name}
-          {site.owner_address ? ` · ${site.owner_address}` : ''}
+          © {new Date().getFullYear()} {siteText(i18n.language, site.owner_name, site.owner_name_ru)}
+          {site.owner_address ? ` · ${siteText(i18n.language, site.owner_address, site.owner_address_ru)}` : ''}
         </span>
       )}
 

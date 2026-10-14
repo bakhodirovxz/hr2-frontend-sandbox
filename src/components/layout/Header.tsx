@@ -5,7 +5,6 @@ import { LogoMark } from './Logo'
 import { BranchSelector } from './BranchSelector'
 import { NotificationsBell } from './NotificationsBell'
 import { UserMenu } from './UserMenu'
-import { LiveClock } from './LiveClock'
 import { HeaderTools } from './HeaderTools'
 import { GlobalSearch } from '@/features/search/GlobalSearch'
 import { telHref, useSiteInfo } from '@/features/site/useSiteInfo'
@@ -18,8 +17,10 @@ interface HeaderProps {
 }
 
 /**
- * SHAPKA (TZ 436–439, GEN-6): logotip — bosilganda doim bosh sahifaga;
- * texnik yordam telefoni va «Qayta aloqa»; qidiruv qatori (TZ 1840);
+ * SHAPKA (TZ 436–439, GEN-6): logotip — bosilganda doim bosh sahifaga
+ * (telefon kengligida ham); texnik yordam telefoni va «Qayta aloqa» — oddiy
+ * kompyuter kengligida (1024 px dan, TZ 2395 1280×1024 ham) matni bilan;
+ * qidiruv qatori (TZ 1840);
  * til UZ / ЎЗ / RU; ko'zi ojizlar rejimi; F1 qo'llanma; bildirishnomalar;
  * foydalanuvchi menyusi; filial tanlagich (bir nechta filialni ko'radiganlar).
  *
@@ -45,8 +46,8 @@ export function Header({ onOpenNav, onFeedback }: HeaderProps) {
         >
           <Menu size={18} />
         </button>
-        <Link to="/" aria-label={t('nav.home')} className="hidden shrink-0 rounded-inner sm:block">
-          <LogoMark size={30} />
+        <Link to="/" aria-label={t('nav.home')} className="shrink-0 rounded-inner">
+          <LogoMark size={30} className="max-sm:!h-6 max-sm:!w-[41px]" />
         </Link>
         {!isGuest && (
           <>
@@ -67,9 +68,10 @@ export function Header({ onOpenNav, onFeedback }: HeaderProps) {
           <a
             href={telHref(site.support_phone)}
             title={t('site.supportPhone')}
-            className="hidden items-center gap-1.5 rounded-inner px-2 py-1 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg 2xl:inline-flex"
+            className="hidden items-center gap-1.5 whitespace-nowrap rounded-inner px-2 py-1 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg lg:inline-flex"
           >
             <Phone size={14} aria-hidden />
+            <span className="sr-only">{t('site.supportPhone')}: </span>
             <span className="tabnum">{site.support_phone}</span>
           </a>
         )}
@@ -81,9 +83,8 @@ export function Header({ onOpenNav, onFeedback }: HeaderProps) {
           className="hidden h-icon items-center gap-1.5 rounded-inner px-2.5 text-[12.5px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg md:inline-flex"
         >
           <MessageSquare size={15} aria-hidden />
-          <span className="hidden 2xl:inline">{t('site.feedback')}</span>
+          <span className="hidden whitespace-nowrap lg:inline">{t('site.feedback')}</span>
         </button>
-        <LiveClock />
         <HeaderTools showHelp={!isGuest} />
         <NotificationsBell />
         <UserMenu />

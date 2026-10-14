@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { publicClient } from '@/api/client'
 import { apiPost, apiPut } from '@/api/http'
+import { toCyrillic } from '@/i18n/translit'
 
 /**
  * Tizim egasi va aloqa ma'lumotlari (TZ 439, 442, GEN-6): shapkadagi yordam
@@ -10,12 +11,17 @@ import { apiPost, apiPut } from '@/api/http'
  */
 export interface SiteContact {
   label: string
+  /** Russian label; empty — the Uzbek one is shown. */
+  label_ru?: string
   value: string
 }
 
 export interface SiteInfo {
   owner_name: string
+  /** Russian form of the holder's name / address (TZ 1773 three languages). */
+  owner_name_ru?: string
   owner_address: string
+  owner_address_ru?: string
   support_phone: string
   support_email: string
   contacts: SiteContact[]
@@ -59,4 +65,15 @@ export function useSendFeedback() {
 /** `tel:` havolasi uchun: raqamdan bo'shliq, qavs va chiziqcha olib tashlanadi. */
 export function telHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, '')}`
+}
+
+/**
+ * Site text in the interface language: Russian from the `*_ru` field,
+ * Uzbek Cyrillic transliterated from the Uzbek Latin value.
+ */
+export function siteText(lang: string, uz: string | null | undefined, ru?: string | null): string {
+  const base = uz ?? ''
+  if (lang === 'ru') return ru || base
+  if (lang === 'uz_cyrl') return toCyrillic(base)
+  return base
 }

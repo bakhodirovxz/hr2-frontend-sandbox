@@ -13,6 +13,7 @@ import { apiPost } from '@/api/http'
 import { getToken } from '@/api/tokenStorage'
 import { errorCode, errorMessage } from '@/api/errorMessage'
 import { displayName } from '@/auth/permissions'
+import { inTashkent } from '@/lib/format'
 import { useAuthStore } from '@/store/authStore'
 
 /**
@@ -208,7 +209,7 @@ export function QrApprovePage() {
                   {browser?.ip || t('qrApprove.unknown')}
                 </Row>
                 <Row icon={<Clock size={16} />} label={t('qrApprove.time')}>
-                  <span className="tabular-nums">{dayjs(scannedAt).format('DD.MM.YYYY HH:mm:ss')}</span>
+                  <span className="tabular-nums">{inTashkent(dayjs(scannedAt)).format('DD.MM.YYYY HH:mm:ss')}</span>
                 </Row>
               </div>
               <div className="mb-4 flex items-start gap-2 rounded-inner border border-warning/30 bg-warning-soft p-3 text-[12.5px] text-warning">
