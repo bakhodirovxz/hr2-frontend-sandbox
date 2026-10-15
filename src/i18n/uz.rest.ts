@@ -4953,7 +4953,7 @@ const rest = {
     birthdayToday: 'Bugun!',
     guest: 'Mehmon',
 
-    /** ── Devor taxtasi (Claude Design «Monitoring», 2026-08-28) ── */
+    /** ── Devor taxtasi (dizayn maketi «Monitoring», 2026-08-28) ── */
     pickBranch: 'Monitoring uchun filialni tanlang',
     noData: 'Ma’lumot yo‘q',
     topEmployees: 'Eng yaxshi xodimlar',

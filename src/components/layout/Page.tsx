@@ -33,7 +33,7 @@ interface PageHeaderProps {
  * ⚠️ 2026-08-28 — THE TITLE STOPPED SHOUTING. It used to be 40px extrabold in
  * the hero gradient, which cost every screen ~110px of vertical space before a
  * single row of data and was not the language the product was actually drawn
- * in: the design screens (Claude Design afd32a12) carry NO page title at all —
+ * in: the design mock-ups carry NO page title at all —
  * they open straight onto the work, and each block names itself with a 12px
  * semibold line. The compromise kept here is a 22px ink title with the
  * subtitle ON THE SAME LINE, so a list page starts ~70px higher and the

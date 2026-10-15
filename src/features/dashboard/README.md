@@ -3,7 +3,7 @@
 ## Live code
 
 - `nocturne/` — **the boards that ship** (2026-08-25). Two screens ported from
-  the Claude Design project `afd32a12`: `HrDashboard` ("HR Dashboard v2") and
+  the dashboard design mock-ups: `HrDashboard` ("HR Dashboard v2") and
   `EmployeeDashboard` ("Xodim Dashboard"). `pages/DashboardPage.tsx` picks one
   by role.
 - `attendance.ts` — turnstile events + category lists → one row per employee,

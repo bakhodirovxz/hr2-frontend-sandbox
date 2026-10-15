@@ -28,7 +28,6 @@ ds-bundle/
 types-probe/
 
 # Local tooling state (machine-specific, not app source)
-.claude/
 .impeccable/
 .design-sync/
 # Accidental output dir from a tool run with an unset path variable.

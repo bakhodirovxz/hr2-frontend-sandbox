@@ -34,8 +34,8 @@ import { AttendanceModal, type AttendanceTab } from './boardFaces'
 /**
  * THE HR BOARD — NOCTURNE.
  *
- * Ported from the "HR Dashboard v2" screen of the Claude Design project
- * afd32a12. The composition is the design's, and so is its argument:
+ * Ported from the "HR Dashboard v2" screen of the design mock-ups
+ * The composition is the design's, and so is its argument:
  *
  *   · the LEFT MARGIN is the minute — the register beside the turnstile;
  *   · the TOP OF THE MAIN COLUMN is the day's problem — what is late and whose

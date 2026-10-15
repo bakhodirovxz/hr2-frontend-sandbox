@@ -31,8 +31,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 /**
  * THE EMPLOYEE BOARD — NOCTURNE.
  *
- * Ported from the "Xodim Dashboard" screen of the Claude Design project
- * afd32a12. Same grammar as the HR board, turned around: the left margin is
+ * Ported from the "Xodim Dashboard" screen of the design mock-ups
+ * Same grammar as the HR board, turned around: the left margin is
  * YOUR day rather than the branch's minute, the big block is what YOU owe
  * rather than what the branch is late on, and the two windows carry the things
  * that concern you occasionally — your requests, your tabel, whose birthday it
