@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { localizedName } from '@/i18n/localized'
+import { localizedName, registerRuNames, useRuNamesVersion, type NamedRow } from '@/i18n/localized'
 import { useQuery } from '@tanstack/react-query'
 import { fetchAllPages } from '@/api/fetchAll'
 import { REFERENCE_QUERY } from '@/api/queryClient'
@@ -30,6 +30,7 @@ function useNamedRecords<T extends NamedRef>(
   key: string,
   url: string,
   forBranchId?: number | null,
+  enabled = true,
 ): T[] {
   const selected = useBranchStore((s) => s.selectedBranchId)
   const branchId = forBranchId ?? selected
@@ -43,12 +44,28 @@ function useNamedRecords<T extends NamedRef>(
         // Pickers never read a department's `heads` (each with two presigned
         // photo URLs); the brief rows are a fraction of the size.
         brief: key === 'departments' ? true : undefined,
+      }).then((rows) => {
+        // Name-only displays (dashboard, statistics) translate through these.
+        registerRuNames(rows as unknown as NamedRow[])
+        return rows
       }),
     // Departments and job positions are reference data: a 5-minute staleTime
     // made every form that opens twice in an afternoon re-walk both pages.
     ...REFERENCE_QUERY,
+    enabled,
   })
   return data ?? (EMPTY as unknown as T[])
+}
+
+/**
+ * Loads the department and job-position lists for staff accounts once per
+ * session (shared cache with the pickers) so name-only displays can show the
+ * `name_ru` entered for them, and re-renders the shell when they arrive.
+ */
+export function useStructureNames(enabled: boolean): void {
+  useNamedRecords('departments', DEPARTMENTS_LIST, undefined, enabled)
+  useNamedRecords('job-positions', JOB_POSITIONS_LIST, undefined, enabled)
+  useRuNamesVersion()
 }
 
 function useNamedOptions(key: string, url: string, forBranchId?: number | null): SelectOption[] {

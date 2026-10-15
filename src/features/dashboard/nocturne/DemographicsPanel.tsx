@@ -108,7 +108,8 @@ export function DemographicsPanel({ className }: { className?: string }) {
         .filter((p) => p.count > 0)
         .sort((a, b) => b.count - a.count)
         .map((p) => ({ label: lt(p.job_position_name) || '—', count: p.count })),
-    [positionStats],
+    // `positions` loading fills the Russian-name registry `lt` reads.
+    [positionStats, positions],
   )
 
   const g = stats.headcount?.gender_stats ?? {}

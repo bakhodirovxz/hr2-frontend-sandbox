@@ -10,6 +10,7 @@ import { useUIStore } from '@/store/uiStore'
 import { Navigate } from 'react-router-dom'
 import { useBranches, useBranchInit } from '@/hooks/useBranches'
 import { useMenuBadges } from '@/hooks/useMenuBadges'
+import { useStructureNames } from '@/hooks/useReferenceData'
 import { PasswordGate } from '@/features/auth/PasswordGate'
 import { IdleGuard } from '@/features/auth/IdleGuard'
 import { BackgroundDecor } from './BackgroundDecor'
@@ -38,6 +39,8 @@ export function AppShell() {
      BIR XIL qoidalar bo'yicha tekshiradi (navConfig). Mehmon ochiq yo'llardan
      tashqarida bo'lsa — vakansiyalarga (TZ 4.2.2). */
   const user = useAuthStore((st) => st.user)
+  // Russian names of departments / positions for name-only displays (TZ 4.1.7).
+  useStructureNames(!!user && user.type !== 'guest')
   const verdict = pathVerdict(location.pathname, user)
   const badges = useMenuBadges()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
